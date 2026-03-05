@@ -1,0 +1,22 @@
+{
+  "name": "cap-v2",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "build": "pnpm --filter '*' build",
+    "dev:web-api": "pnpm --filter @cap/web-api dev",
+    "dev:web": "pnpm --filter @cap/web dev",
+    "dev:worker": "pnpm --filter @cap/worker dev",
+    "dev:media-server": "pnpm --filter @cap/media-server dev",
+    "up": "docker compose up -d --build",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f --tail=200",
+    "reset-db": "docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-capv2} -f /migrations/0001_init.sql",
+    "smoke": "curl -sS -X POST http://localhost:3000/debug/smoke"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "typescript": "^5.6.3"
+  }
+}

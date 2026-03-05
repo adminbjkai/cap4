@@ -1,0 +1,23 @@
+{
+  "name": "@cap/web-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node --enable-source-maps dist/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.997.0",
+    "@aws-sdk/s3-request-presigner": "^3.997.0",
+    "@cap/config": "workspace:*",
+    "@cap/db": "workspace:*",
+    "fastify": "^4.28.1",
+    "fastify-raw-body": "4.3.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

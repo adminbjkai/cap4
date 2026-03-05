@@ -1,0 +1,227 @@
+export type VideoCreateResponse = {
+  videoId: string;
+  rawKey: string;
+};
+
+export type SignedUploadResponse = {
+  videoId: string;
+  rawKey: string;
+  method: "PUT";
+  putUrl: string;
+  headers: Record<string, string>;
+};
+
+export type CompleteUploadResponse = {
+  videoId: string;
+  rawKey: string;
+  jobId: number;
+  status: "uploaded";
+};
+
+export type VideoStatusResponse = {
+  videoId: string;
+  processingPhase: string;
+  processingProgress: number;
+  resultKey: string | null;
+  thumbnailKey: string | null;
+  errorMessage: string | null;
+  transcriptionStatus: string;
+  aiStatus: string;
+  transcriptErrorMessage: string | null;
+  aiErrorMessage: string | null;
+  transcript: {
+    provider: string | null;
+    language: string | null;
+    vttKey: string;
+    text: string | null;
+    segments: Array<{
+      startSeconds?: number;
+      endSeconds?: number;
+      text?: string;
+      confidence?: number | null;
+      speaker?: number | null;
+      originalText?: string;
+    }>;
+  } | null;
+  aiOutput: {
+    provider: string | null;
+    model: string | null;
+    title: string | null;
+    summary: string | null;
+    keyPoints: string[];
+  } | null;
+};
+
+export type WatchEditsResponse = {
+  ok: boolean;
+  videoId: string;
+  updated: {
+    title: boolean;
+    transcript: boolean;
+  };
+};
+
+export type LibraryVideoCard = {
+  videoId: string;
+  displayTitle: string;
+  hasThumbnail: boolean;
+  hasResult: boolean;
+  thumbnailKey: string | null;
+  processingPhase: string;
+  transcriptionStatus: string;
+  aiStatus: string;
+  createdAt: string;
+  durationSeconds: number | null;
+};
+
+export type LibraryVideosResponse = {
+  items: LibraryVideoCard[];
+  sort: "created_desc" | "created_asc";
+  limit: number;
+  nextCursor: string | null;
+};
+
+export type JobStatusResponse = {
+  id: string;
+  video_id: string;
+  job_type: string;
+  status: string;
+  attempts: number;
+  locked_by: string | null;
+  locked_until: string | null;
+  lease_token: string | null;
+  run_after: string;
+  last_error: string | null;
+  updated_at: string;
+};
+
+async function parseJson<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+  }
+  return (await res.json()) as T;
+}
+
+export async function createVideo(name?: string): Promise<VideoCreateResponse> {
+  return parseJson<VideoCreateResponse>(
+    await fetch("/api/videos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(name ? { name } : {})
+    })
+  );
+}
+
+export async function requestSignedUpload(videoId: string, contentType: string): Promise<SignedUploadResponse> {
+  return parseJson<SignedUploadResponse>(
+    await fetch("/api/uploads/signed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, contentType })
+    })
+  );
+}
+
+export async function completeUpload(videoId: string): Promise<CompleteUploadResponse> {
+  return parseJson<CompleteUploadResponse>(
+    await fetch("/api/uploads/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId })
+    })
+  );
+}
+
+export async function getVideoStatus(videoId: string): Promise<VideoStatusResponse> {
+  return parseJson<VideoStatusResponse>(await fetch(`/api/videos/${encodeURIComponent(videoId)}/status`));
+}
+
+export async function getJobStatus(jobId: number): Promise<JobStatusResponse> {
+  return parseJson<JobStatusResponse>(await fetch(`/api/jobs/${jobId}`));
+}
+
+export async function saveWatchEdits(
+  videoId: string,
+  payload: { title?: string | null; transcriptText?: string | null },
+  idempotencyKey: string
+): Promise<WatchEditsResponse> {
+  return parseJson<WatchEditsResponse>(
+    await fetch(`/api/videos/${encodeURIComponent(videoId)}/watch-edits`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(payload)
+    })
+  );
+}
+
+export async function getLibraryVideos(params?: {
+  cursor?: string | null;
+  limit?: number;
+  sort?: "created_desc" | "created_asc";
+}): Promise<LibraryVideosResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.cursor) queryParams.set("cursor", params.cursor);
+  if (typeof params?.limit === "number" && Number.isFinite(params.limit)) queryParams.set("limit", String(params.limit));
+  if (params?.sort) queryParams.set("sort", params.sort);
+  const suffix = queryParams.toString();
+  return parseJson<LibraryVideosResponse>(await fetch(`/api/library/videos${suffix ? `?${suffix}` : ""}`));
+}
+
+export type UploadProgress = {
+  progressPct: number;
+  loadedBytes: number;
+  totalBytes: number;
+  speedBytesPerSec: number;
+  etaSeconds: number | null;
+};
+
+export async function uploadToSignedUrl(
+  putUrl: string,
+  blob: Blob,
+  contentType: string,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const startedAt = Date.now();
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", putUrl, true);
+    xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const elapsedSec = Math.max((Date.now() - startedAt) / 1000, 0.001);
+      const speedBytesPerSec = event.loaded / elapsedSec;
+      const remaining = event.total - event.loaded;
+      const etaSeconds = speedBytesPerSec > 0 ? remaining / speedBytesPerSec : null;
+      onProgress?.({
+        progressPct: Math.round((event.loaded / event.total) * 100),
+        loadedBytes: event.loaded,
+        totalBytes: event.total,
+        speedBytesPerSec,
+        etaSeconds
+      });
+    };
+
+    xhr.onerror = () => reject(new Error("Upload failed due to network error"));
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.({
+          progressPct: 100,
+          loadedBytes: blob.size,
+          totalBytes: blob.size,
+          speedBytesPerSec: 0,
+          etaSeconds: 0
+        });
+        resolve();
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText} ${xhr.responseText || ""}`));
+      }
+    };
+
+    xhr.send(blob);
+  });
+}
