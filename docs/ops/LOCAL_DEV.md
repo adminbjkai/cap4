@@ -21,11 +21,11 @@ Optional provider overrides:
 - `GROQ_BASE_URL`
 - `PROVIDER_TIMEOUT_MS`
 
-## 2) Start local stack
-
 ```bash
-make up
+make setup
 ```
+
+This command builds/starts the services, waits for health checks, and applies database migrations automatically.
 
 Services:
 - `postgres`
@@ -39,7 +39,9 @@ Services:
 
 `minio-setup` applies bucket CORS from `/Users/m17/2026/gh_repo_tests/cap3/docker/minio/cors.json`.
 
-## 3) Apply migration
+## 3) (Optional) Manual migrations
+
+If you need to re-run migrations manually:
 
 ```bash
 make reset-db
@@ -107,12 +109,21 @@ make logs
 make down
 ```
 
+### Deep Workspace Clean
+If artifacts or database states become corrupted:
+
+```bash
+make prune
+```
+
+This removes all volumes, orphan containers, and cleans the build cache.
+
 ## Troubleshooting
 
 ### Missing or Updated API Keys
 If you update the `.env` file (e.g., adding `DEEPGRAM_API_KEY` or `GROQ_API_KEY`) after the Docker containers are already running, the `worker` and `web-api` containers will not automatically pick up the new variables.
 
-A simple `docker restart` will **not** reload the `.env` file. You must recreate the containers using Docker Compose:
+A simple `docker restart` will **not** reload the .env file. You must recreate the containers using Docker Compose:
 
 ```bash
 # Recreate containers to load the new .env variables

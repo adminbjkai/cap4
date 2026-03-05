@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: cap3-postgres
+    # container_name: cap3-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-app}
@@ -13,14 +13,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/migrations:/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap3}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap3}" ]
       interval: 5s
       timeout: 3s
       retries: 20
 
   minio:
     image: minio/minio:RELEASE.2025-01-20T14-49-07Z
-    container_name: cap3-minio
+    # container_name: cap3-minio
     restart: unless-stopped
     # Console always binds to 9001 inside the container; host port is controlled by MINIO_CONSOLE_PORT.
     command: server /data --console-address ":9001"
@@ -35,25 +35,20 @@ services:
 
   minio-setup:
     image: minio/mc:RELEASE.2025-01-17T23-25-50Z
-    container_name: cap3-minio-setup
+    # container_name: cap3-minio-setup
     depends_on:
       - minio
     volumes:
       - ./docker/minio/cors.json:/config/cors.json:ro
     entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minio} ${MINIO_ROOT_PASSWORD:-minio123}; do sleep 1; done &&
-      mc mb -p local/${S3_BUCKET:-cap3} || true &&
-      mc anonymous set public local/${S3_BUCKET:-cap3} || true &&
-      mc cors set local/${S3_BUCKET:-cap3} /config/cors.json || true
-      "
+      /bin/sh -c " until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minio} ${MINIO_ROOT_PASSWORD:-minio123}; do sleep 1; done && mc mb -p local/${S3_BUCKET:-cap3} || true && mc anonymous set public local/${S3_BUCKET:-cap3} || true && mc cors set local/${S3_BUCKET:-cap3} /config/cors.json || true "
 
   web-api:
     build:
       context: .
       dockerfile: Dockerfile
     image: cap3-web-api:prod
-    container_name: cap3-web-api
+    # container_name: cap3-web-api
     restart: unless-stopped
     command: pnpm --filter @cap/web-api start
     env_file:
@@ -74,11 +69,7 @@ services:
       minio-setup:
         condition: service_completed_successfully
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
-        ]
+      test: [ "CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -88,7 +79,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: cap3-worker:prod
-    container_name: cap3-worker
+    # container_name: cap3-worker
     restart: unless-stopped
     command: pnpm --filter @cap/worker start
     env_file:
@@ -106,7 +97,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: cap3-media-server:prod
-    container_name: cap3-media-server
+    # container_name: cap3-media-server
     restart: unless-stopped
     command: pnpm --filter @cap/media-server start
     env_file:
@@ -124,7 +115,7 @@ services:
 
   web-internal:
     image: nginx:alpine
-    container_name: cap3-web-internal
+    # container_name: cap3-web-internal
     restart: unless-stopped
     ports:
       - "8022:80"
@@ -140,8 +131,8 @@ services:
       context: .
       dockerfile: Dockerfile
     image: cap3-web-builder:prod
-    container_name: cap3-web-builder
-    command: ["sh", "-c", "cp -rv /workspace/apps/web/dist/* /dist/"]
+    # container_name: cap3-web-builder
+    command: [ "sh", "-c", "cp -rv /workspace/apps/web/dist/* /dist/" ]
     volumes:
       - web_dist:/dist
 

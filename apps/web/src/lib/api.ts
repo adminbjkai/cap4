@@ -179,7 +179,6 @@ export async function retryVideo(videoId: string): Promise<{ ok: boolean; videoI
     await fetch(`/api/videos/${encodeURIComponent(videoId)}/retry`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "Idempotency-Key": newIdempotencyKey("retry")
       }
     })
@@ -191,7 +190,6 @@ export async function deleteVideo(videoId: string): Promise<DeleteVideoResponse>
     await fetch(`/api/videos/${encodeURIComponent(videoId)}/delete`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         "Idempotency-Key": newIdempotencyKey("delete-video")
       }
     })
