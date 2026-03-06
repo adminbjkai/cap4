@@ -1,0 +1,71 @@
+name: Bug Report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill out the sections below.
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected service
+      description: Which service is misbehaving?
+      options:
+        - web-api
+        - worker
+        - media-server
+        - web (frontend)
+        - docker / infra
+        - unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "When I upload a video and click Complete, the job never appears in the queue..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps to reproduce the issue.
+      placeholder: |
+        1. POST /api/videos with name "Test"
+        2. POST /api/uploads/signed with the returned videoId
+        3. PUT to the signed URL
+        4. POST /api/uploads/complete
+        5. Observe: job_queue has no row
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      placeholder: A job row should appear in job_queue with status='queued'.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error messages
+      description: Paste any relevant logs here (redact secrets).
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: v1.0.0 or git SHA
+    validations:
+      required: false

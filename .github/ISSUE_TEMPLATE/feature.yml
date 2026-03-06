@@ -1,0 +1,62 @@
+name: Feature Request
+description: Suggest an improvement or new capability
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature. Fill out as much detail as you can — the more context, the easier it is to scope.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the system does this touch?
+      options:
+        - Upload flow
+        - Video processing / worker
+        - Transcription (Deepgram)
+        - AI output (Groq)
+        - Video player / frontend
+        - Library / listing
+        - Webhooks / integrations
+        - Auth / security
+        - Developer experience
+        - Infrastructure / ops
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this solve? Why does it matter?
+      placeholder: "Right now there's no way to retry a failed transcription job without..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you imagine this working? API contract, UI flow, etc.
+      placeholder: "Add POST /api/videos/:id/retry-transcription which re-queues only the transcribe_video job..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you thought about?
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, links, reference implementations, etc.
+    validations:
+      required: false

@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["http://localhost:8022", "https://cap3.example.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["Authorization", "Content-Type", "X-Requested-With"],
+    "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]

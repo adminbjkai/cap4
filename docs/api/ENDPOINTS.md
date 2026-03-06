@@ -78,24 +78,28 @@
 - `GET /debug/job/:id`
 - `POST /debug/smoke`
 
-## Planned Contracts (Phase G, Not Implemented)
+## Implemented (web-api, continued)
+- `DELETE /api/videos/:id`
+  - Purpose: soft delete video from default library views.
+  - Required header: `Idempotency-Key`.
+  - Response: `{ ok, videoId }`
+
+- `POST /api/videos/:videoId/retry`
+  - Purpose: re-enqueue a failed `process_video` job.
+  - Required header: `Idempotency-Key`.
+  - Response: `{ ok, videoId, jobId }`
+
+- `GET /api/system/provider-status`
+  - Purpose: returns health and configuration status for Deepgram and Groq.
+  - Response: `{ deepgram: { configured, health, ... }, groq: { ... } }`
+
+## Planned Contracts (Phase G+)
 Status: `planned` only. These routes are design targets for productization and are not available yet.
 
 - `GET /api/library/videos/:id/card`
   - Purpose: compact card read model fetch.
   - Side effects: none (read-only).
   - Response (planned): `LibraryVideoCard`
-
-- `PATCH /api/videos/:id`
-  - Purpose: update mutable metadata (initially title).
-  - Required header: `Idempotency-Key`.
-  - Body (planned): `{ title?: string }`
-  - Response (planned): `{ ok, videoId, updated: { title: boolean } }`
-
-- `DELETE /api/videos/:id`
-  - Purpose: soft delete video from default library views.
-  - Required header: `Idempotency-Key`.
-  - Response (planned): `{ ok, videoId, deletedAt }`
 
 - `GET /api/library/folders`
   - Purpose: list folders for library filtering/move UX.
@@ -120,7 +124,6 @@ Status: `planned` only. These routes are design targets for productization and a
 - `POST /api/uploads/multipart/complete` -> `501`
 - `POST /api/uploads/multipart/abort` -> `501`
 - `GET /api/playlist` -> `501`
-- `POST /api/videos/:videoId/retry-processing` -> `501`
 - `POST /api/videos/:videoId/retry-transcription` -> `501`
 - `POST /api/videos/:videoId/retry-ai` -> `501`
 

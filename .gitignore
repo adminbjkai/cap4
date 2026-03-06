@@ -73,3 +73,22 @@ apps/media-server/uploads/
 
 # Worker processing temp files
 apps/worker/tmp/
+
+# ==========================================
+# cap4 — files not for the public repo
+# ==========================================
+
+# Previous AI agent audit artifacts (Kimi)
+.audit/
+bykimi.md
+AGENTS.md
+
+# Old Linear issue export
+Cap3\ ›\ All\ issues.csv
+
+# AI agent session directories (Cowork / Claude Code)
+.claude/
+.gemini/
+
+# cap4_new reference copy (working source is cap3test)
+cap4_new/

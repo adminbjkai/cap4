@@ -1,0 +1,36 @@
+{
+  "name": "cap3",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "build": "pnpm --filter '*' build",
+    "test": "pnpm --filter '*' test",
+    "lint": "pnpm --filter '*' lint",
+    "lint:fix": "pnpm --filter '*' lint:fix",
+    "typecheck": "pnpm --filter '*' typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:migrate": "pnpm --filter @cap/db migrate",
+    "dev:web-api": "pnpm --filter @cap/web-api dev",
+    "dev:web": "pnpm --filter @cap/web dev",
+    "dev:worker": "pnpm --filter @cap/worker dev",
+    "dev:media-server": "pnpm --filter @cap/media-server dev",
+    "up": "docker compose up -d --build",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f --tail=200",
+    "reset-db": "for f in $(docker compose exec -T postgres sh -lc 'ls /migrations/*.sql | sort'); do docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap3} -f \"$f\"; done",
+    "smoke": "curl -sS -X POST http://localhost:3000/debug/smoke"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^25.3.0",
+    "eslint": "^9.15.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.12.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.15.0"
+  }
+}

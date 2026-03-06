@@ -1,8 +1,0 @@
-  postgres
-  minio
-  minio-setup
-  web-api
-  worker
-  media-server
-  web-internal
-  web-builder
