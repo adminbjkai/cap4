@@ -1,20 +1,12 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-06 (Phase 1 task 1 complete)
+**Last updated:** 2026-03-06 (Phase 1 complete ✓)
 
 ---
 
 ## Active
 
-### Phase 1 — Ship (Do First)
-
-- [x] **Split monolithic API** — `index.ts` 2007→57 lines. Route modules in `apps/web-api/src/routes/` + shared helpers in `apps/web-api/src/lib/shared.ts`. `tsc --noEmit` clean. All 22 routes verified.
-- [ ] **Create `.github/ISSUE_TEMPLATE/` files** — bug.yml and feature.yml templates
-- [ ] **Create `.github/workflows/test.yml`** — CI workflow (lint + test on every PR)
-- [ ] **Create `.github/workflows/build.yml`** — Docker build validation on push
-- [ ] **Create GitHub repo** — `gh repo create cap4 --public --source=. --push` from cap4 working dir
-- [ ] **Tag v1.0.0** — First GitHub release with release notes
-- [ ] **Convert VIDEO_PLAYER_IMPROVEMENTS.md to GitHub Issues** — 4 issues: Chapter Nav, Chapter Layout, Transcript Paragraph View, Summary Quality
+### Phase 2 — Player UI
 
 ### Phase 2 — Player UI
 
@@ -55,3 +47,10 @@
 - [x] Remove all Linear issue references from docs
 - [x] Create memory/glossary.md and CLAUDE.md working memory
 - [x] Split monolithic API (2007→57 line index.ts + 6 route modules + shared lib)
+- [x] Create `.github/ISSUE_TEMPLATE/bug.yml` and `feature.yml`
+- [x] Create `.github/workflows/test.yml` (typecheck + lint + vitest on every PR)
+- [x] Create `.github/workflows/build.yml` (Docker build on push to main)
+- [x] Remove Kimi artifacts from git index (AGENTS.md, .audit/ — 53 files untracked, .gitignore updated)
+- [x] Create GitHub repo `adminbjkai/cap4` — public, 392 objects pushed, origin updated
+- [x] Tag v1.0.0 + GitHub release — https://github.com/adminbjkai/cap4/releases/tag/v1.0.0
+- [x] Convert VIDEO_PLAYER_IMPROVEMENTS.md to GitHub Issues — issues #1–#4 created

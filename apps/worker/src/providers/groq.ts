@@ -125,26 +125,29 @@ async function generateSingleChunk(
   controller: AbortController,
   timeout: ReturnType<typeof setTimeout>
 ): Promise<GroqSummary> {
-  const systemPrompt = `You are Cap AI, an expert at analyzing video content and creating comprehensive summaries.
+  const systemPrompt = `You are Cap AI, an expert at analyzing video content and creating structured summaries.
 
-Analyze this transcript thoroughly and provide a detailed JSON response:
+Analyze this transcript and return a JSON response:
 {
-  "title": "string (concise but descriptive title that captures the main topic)",
-  "summary": "string (detailed summary that covers ALL key points discussed. For meetings: include decisions made, action items, and key discussion points. For tutorials: cover all steps and concepts explained. For presentations: summarize all main arguments and supporting points. Write from 1st person perspective if the speaker is teaching/presenting, e.g. 'In this video, I walk through...'. Make it comprehensive enough that someone could understand the full content without watching. This should be several paragraphs for longer content.)",
-  "key_points": ["string (specific key point or takeaway)", ...],
-  "chapters": [{"title": "string (descriptive chapter title)", "start": number (seconds from start)}, ...]
+  "title": "string (concise, specific title — 4-10 words — that names the exact topic or purpose)",
+  "summary": "string (comprehensive summary. For meetings: decisions made, action items, key discussion points. For tutorials: all steps and concepts. For presentations: main arguments and supporting evidence. Use first person if the speaker is presenting, e.g. 'In this video, I cover...'. Long enough that someone could understand the full content without watching — several paragraphs for longer recordings.)",
+  "key_points": ["string", ...],
+  "chapters": [{"title": "string", "start": number}, ...]
 }
 
-Guidelines:
-- The summary should be detailed and comprehensive, not a brief overview
-- Capture ALL important topics, not just the main theme
-- For longer content, organize the summary by topic or chronologically
-- Include specific details, names, numbers, and conclusions mentioned
-- Write in a natural, flowing narrative style
-- Use first person when the speaker is presenting/teaching
-- Chapters should mark distinct topic changes or sections (aim for 4-8 chapters depending on video length)
+key_points rules — this is critical for chapter navigation:
+- Each key point MUST be 4-9 words, no more
+- Use the EXACT words and phrases spoken in the transcript — not paraphrases
+- Focus on nouns, verbs, and proper nouns that are distinctive to that moment
+- Good: "database migration runs every Sunday night" — Bad: "The team discussed their approach to database maintenance schedules"
+- Aim for 5-10 key points that cover distinct moments spread across the video
 
-Return ONLY valid JSON without any markdown formatting or code blocks.`;
+chapters rules:
+- Mark each major topic change with a descriptive title and its start time in seconds
+- Aim for 4-8 chapters depending on video length
+- Chapter titles should be specific (name the topic, not just "Introduction")
+
+Return ONLY valid JSON without markdown or code fences.`;
 
   try {
     const response = await fetch(url, {
@@ -211,15 +214,22 @@ async function generateMultipleChunks(
   for (let i = 0; i < chunks.length; i++) {
     const chunkPrompt = `You are Cap AI, an expert at analyzing video content. This is section ${i + 1} of ${chunks.length} from a longer video.
 
-Analyze this section thoroughly and provide JSON:
+Analyze this section and provide JSON:
 {
-  "summary": "string (detailed summary of this section - capture ALL key points, topics discussed, decisions made, or concepts explained. Include specific details like names, numbers, action items, and conclusions. This should be 3-6 sentences minimum.)",
-  "key_points": ["string (specific key point or takeaway)", ...],
-  "chapters": [{"title": "string (descriptive title for this topic/section)", "start": number (seconds from video start)}]
+  "summary": "string (detailed summary of this section — capture all topics, decisions, concepts, and action items. Include specific names, numbers, and conclusions. Minimum 3 sentences. This will be combined with other sections into a full overview.)",
+  "key_points": ["string", ...],
+  "chapters": [{"title": "string", "start": number}]
 }
 
-Be thorough - this summary will be combined with other sections to create a comprehensive overview.
-Return ONLY valid JSON without any markdown formatting or code blocks.
+key_points rules:
+- Each point MUST be 4-9 words, no more
+- Use the EXACT words and phrases from the transcript — not paraphrases
+- Focus on nouns, verbs, and proper nouns distinctive to each moment
+- Example: "authentication token expires after 24 hours" not "The speaker explained the token expiry policy"
+
+chapters: one entry per major topic shift in this section, with title and start time in seconds from the beginning of the full video.
+
+Return ONLY valid JSON without any markdown or code fences.
 
 Transcript section:
 ${chunks[i]}`;

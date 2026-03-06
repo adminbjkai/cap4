@@ -129,6 +129,7 @@ export function VideoPage() {
   const [consecutivePollFailures, setConsecutivePollFailures] = useState(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
   const [seekRequest, setSeekRequest] = useState<{ seconds: number; requestId: number } | null>(null);
   const [railTab, setRailTab] = useState<"transcript" | "comments">("transcript");
   const [isTitleEditing, setIsTitleEditing] = useState(false);
@@ -460,13 +461,13 @@ export function VideoPage() {
       </section>
 
       {/* Main content area with chapters on left, video on right */}
-      <div className="grid items-start gap-5 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
         {/* Left sidebar - Chapters */}
         <aside className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-500">
           <ChapterList
             chapters={chapters}
             currentSeconds={playbackTimeSeconds}
-            durationSeconds={status?.durationSeconds ?? 0}
+            durationSeconds={videoDurationSeconds}
             onSeek={requestSeek}
           />
         </aside>
@@ -478,6 +479,7 @@ export function VideoPage() {
             thumbnailKey={status?.thumbnailKey ?? null}
             seekRequest={seekRequest}
             onPlaybackTimeChange={setPlaybackTimeSeconds}
+            onDurationChange={setVideoDurationSeconds}
             chapters={chapters}
             onSeekToSeconds={requestSeek}
           />
@@ -554,6 +556,7 @@ export function VideoPage() {
           <TranscriptParagraph
             segments={transcriptSegments}
             transcriptionStatus={status?.transcriptionStatus}
+            onSeekToSeconds={requestSeek}
           />
         </div>
       </div>

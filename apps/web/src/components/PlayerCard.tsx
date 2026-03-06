@@ -27,6 +27,7 @@ export function PlayerCard({
   thumbnailKey,
   seekRequest,
   onPlaybackTimeChange,
+  onDurationChange,
   chapters,
   onSeekToSeconds
 }: {
@@ -34,6 +35,7 @@ export function PlayerCard({
   thumbnailKey: string | null;
   seekRequest: SeekRequest | null;
   onPlaybackTimeChange?: (seconds: number) => void;
+  onDurationChange?: (seconds: number) => void;
   chapters: ChapterItem[];
   onSeekToSeconds: (seconds: number) => void;
 }) {
@@ -142,6 +144,7 @@ export function PlayerCard({
                 setPlaybackTimeSeconds(time);
                 setDurationSeconds(duration);
                 onPlaybackTimeChange?.(time);
+                onDurationChange?.(duration);
               }}
               onTimeUpdate={(event) => {
                 const time = event.currentTarget.currentTime || 0;
