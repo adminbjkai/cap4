@@ -2,7 +2,7 @@ import { getEnv } from "@cap/config";
 import { withTransaction } from "@cap/db";
 import type { PoolClient } from "pg";
 import { buildWebVtt } from "./lib/transcript.js";
-import { getObjectBuffer, getS3ClientAndBucket, putObjectBuffer } from "./lib/s3.js";
+import { getObjectBuffer, getS3ClientAndBucket, putObjectBuffer, deleteObjects } from "./lib/s3.js";
 import { transcribeWithDeepgram, type TranscriptSegment } from "./providers/deepgram.js";
 import { summarizeWithGroq } from "./providers/groq.js";
 import { extractAudio } from "./lib/ffmpeg.js";
@@ -162,6 +162,13 @@ WHERE id = $1
 RETURNING id;
 `;
 
+async function ack(client: PoolClient, job: JobRow): Promise<void> {
+  const result = await client.query(ACK_SQL, [job.id, env.WORKER_ID, job.lease_token]);
+  if (result.rowCount === 0) {
+    throw new Error(`unable to ack job ${job.id}: row not found or lease lost`);
+  }
+}
+
 const FAIL_SQL = `
 UPDATE job_queue
 SET status = (CASE WHEN $5 = true OR attempts >= max_attempts THEN 'dead' ELSE 'queued' END)::job_status,
@@ -266,11 +273,7 @@ function startHeartbeatLoop(job: JobRow): () => void {
   };
 }
 
-async function ack(job: JobRow): Promise<void> {
-  await withTransaction(env.DATABASE_URL, async (client) => {
-    await client.query(ACK_SQL, [job.id, env.WORKER_ID, job.lease_token]);
-  });
-}
+// ack is now purely transactional and moved up
 
 async function fail(job: JobRow, error: unknown, fatal = false): Promise<FailResult | null> {
   return withTransaction(env.DATABASE_URL, async (client) => {
@@ -571,6 +574,8 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
         video_id: job.video_id,
         downstream_job_type: "transcribe_video"
       });
+
+      await ack(client, job);
       return;
     }
 
@@ -594,6 +599,8 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
       job_id: job.id,
       video_id: job.video_id
     });
+
+    await ack(client, job);
   });
 }
 
@@ -732,7 +739,7 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
       [job.video_id, transcription.language, vttKey, JSON.stringify(segments)]
     );
 
-    const updateResult = await client.query<{ ai_status: string }>(
+    const updateResult = await client.query<{ ai_status: string; webhook_url: string | null }>(
       `UPDATE videos
        SET transcription_status = 'complete',
            ai_status = CASE WHEN ai_status = 'not_started' THEN 'queued' ELSE ai_status END,
@@ -740,12 +747,23 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
        WHERE id = $1::uuid
          AND deleted_at IS NULL
          AND transcription_status IN ('processing', 'queued', 'not_started')
-       RETURNING ai_status`,
+       RETURNING ai_status, webhook_url`,
       [job.video_id]
     );
 
-    const aiStatus = updateResult.rows[0]?.ai_status;
+    const row = updateResult.rows[0];
+    const aiStatus = row?.ai_status;
+
+    if (row?.webhook_url) {
+      await client.query(
+        `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+         VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+        [job.video_id, JSON.stringify({ webhookUrl: row.webhook_url, event: "video.transcription_complete", videoId: job.video_id })]
+      );
+    }
+
     if (aiStatus !== "queued") {
+      await ack(client, job);
       return;
     }
 
@@ -756,6 +774,8 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
        DO UPDATE SET updated_at = now()`,
       [job.video_id, env.WORKER_MAX_ATTEMPTS]
     );
+
+    await ack(client, job);
   });
 
   log("job.transcribe.complete", {
@@ -777,7 +797,7 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
     }>(
       `SELECT ai_status, transcription_status, deleted_at
        FROM videos
-       WHERE id = $1::uuid
+       WHERE id = $1:: uuid
        FOR UPDATE`,
       [job.video_id]
     );
@@ -792,34 +812,34 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
     }
 
     const transcriptResult = await client.query<{ segments_json: unknown }>(
-      `SELECT segments_json FROM transcripts WHERE video_id = $1::uuid`,
+      `SELECT segments_json FROM transcripts WHERE video_id = $1:: uuid`,
       [job.video_id]
     );
 
     if (row.ai_status === "complete" || row.ai_status === "skipped" || row.ai_status === "failed") {
-      return { skip: true as const, reason: `status_${row.ai_status}`, segmentsJson: null as unknown };
+      return { skip: true as const, reason: `status_${row.ai_status} `, segmentsJson: null as unknown };
     }
 
     if (row.transcription_status === "no_audio" || row.transcription_status === "skipped" || row.transcription_status === "failed") {
       await client.query(
         `UPDATE videos
          SET ai_status = 'skipped',
-             updated_at = now()
-         WHERE id = $1::uuid
+      updated_at = now()
+         WHERE id = $1:: uuid
            AND deleted_at IS NULL
-           AND ai_status IN ('not_started', 'queued', 'processing')`,
+           AND ai_status IN('not_started', 'queued', 'processing')`,
         [job.video_id]
       );
-      return { skip: true as const, reason: `transcription_${row.transcription_status}`, segmentsJson: null as unknown };
+      return { skip: true as const, reason: `transcription_${row.transcription_status} `, segmentsJson: null as unknown };
     }
 
     await client.query(
       `UPDATE videos
        SET ai_status = 'processing',
-           updated_at = now()
-       WHERE id = $1::uuid
+      updated_at = now()
+       WHERE id = $1:: uuid
          AND deleted_at IS NULL
-         AND ai_status IN ('queued', 'not_started')`,
+         AND ai_status IN('queued', 'not_started')`,
       [job.video_id]
     );
 
@@ -845,10 +865,10 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
       await client.query(
         `UPDATE videos
          SET ai_status = 'skipped',
-             updated_at = now()
-         WHERE id = $1::uuid
+      updated_at = now()
+         WHERE id = $1:: uuid
            AND deleted_at IS NULL
-           AND ai_status IN ('processing', 'queued', 'not_started')`,
+           AND ai_status IN('processing', 'queued', 'not_started')`,
         [job.video_id]
       );
     });
@@ -878,7 +898,7 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
     const videoResult = await client.query<{ deleted_at: string | null }>(
       `SELECT deleted_at
        FROM videos
-       WHERE id = $1::uuid
+       WHERE id = $1:: uuid
        FOR UPDATE`,
       [job.video_id]
     );
@@ -897,28 +917,40 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
     }
 
     await client.query(
-      `INSERT INTO ai_outputs (video_id, provider, model, title, summary, chapters_json)
-       VALUES ($1::uuid, 'groq', $2, $3, $4, $5::jsonb)
-       ON CONFLICT (video_id)
+      `INSERT INTO ai_outputs(video_id, provider, model, title, summary, chapters_json)
+    VALUES($1:: uuid, 'groq', $2, $3, $4, $5:: jsonb)
+       ON CONFLICT(video_id)
        DO UPDATE SET
-         provider = EXCLUDED.provider,
-         model = EXCLUDED.model,
-         title = EXCLUDED.title,
-         summary = EXCLUDED.summary,
-         chapters_json = EXCLUDED.chapters_json,
-         updated_at = now()`,
+    provider = EXCLUDED.provider,
+      model = EXCLUDED.model,
+      title = EXCLUDED.title,
+      summary = EXCLUDED.summary,
+      chapters_json = EXCLUDED.chapters_json,
+      updated_at = now()`,
       [job.video_id, summary.model, summary.title, summary.summary, JSON.stringify(chaptersJson)]
     );
 
-    await client.query(
+    const updateResult = await client.query<{ webhook_url: string | null }>(
       `UPDATE videos
        SET ai_status = 'complete',
            updated_at = now()
        WHERE id = $1::uuid
          AND deleted_at IS NULL
-         AND ai_status IN ('processing', 'queued', 'not_started')`,
+         AND ai_status IN ('processing', 'queued', 'not_started')
+       RETURNING webhook_url`,
       [job.video_id]
     );
+
+    const row = updateResult.rows[0];
+    if (row && row.webhook_url) {
+      await client.query(
+        `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+         VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+        [job.video_id, JSON.stringify({ webhookUrl: row.webhook_url, event: "video.ai_complete", videoId: job.video_id })]
+      );
+    }
+
+    await ack(client, job);
   });
 
   log("job.ai.complete", {
@@ -949,11 +981,105 @@ async function handleJob(job: JobRow): Promise<void> {
   }
 
   if (job.job_type === "cleanup_artifacts") {
-    log("job.cleanup.noop", { job_id: job.id, video_id: job.video_id });
+    await handleCleanupArtifacts(job);
     return;
   }
 
-  throw new Error(`unsupported job type: ${job.job_type}`);
+  if (job.job_type === "deliver_webhook") {
+    await handleDeliverWebhook(job);
+    return;
+  }
+
+  throw new Error(`unsupported job type: ${job.job_type} `);
+}
+
+async function handleDeliverWebhook(job: JobRow): Promise<void> {
+  const payload = job.payload as { webhookUrl?: string; event?: string; videoId?: string; phase?: string; progress?: number };
+  if (!payload.webhookUrl) {
+    throw new Error("Missing webhookUrl in deliver_webhook payload");
+  }
+
+  const body = JSON.stringify({
+    event: payload.event,
+    videoId: payload.videoId,
+    phase: payload.phase,
+    progress: payload.progress,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const response = await fetch(payload.webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body
+    });
+
+    if (!response.ok) {
+      throw new Error(`Webhook delivery failed with status ${response.status}`);
+    }
+
+    log("job.webhook.delivered", { job_id: job.id, video_id: job.video_id, event: payload.event });
+  } catch (err: unknown) {
+    log("job.webhook.delivery_failed", { job_id: job.id, video_id: job.video_id, error: String(err) });
+    throw err; // Let it retry
+  }
+
+  await withTransaction(env.DATABASE_URL, async (client) => {
+    await ack(client, job);
+  });
+}
+
+async function handleCleanupArtifacts(job: JobRow): Promise<void> {
+  const videoId = job.video_id;
+
+  const keysToDelete: string[] = [];
+
+  await withTransaction(env.DATABASE_URL, async (client) => {
+    const videoResult = await client.query<{
+      raw_key: string | null;
+      thumbnail_key: string | null;
+      result_key: string | null;
+      transcript_vtt_key: string | null;
+    }>(
+      `SELECT raw_key, thumbnail_key, result_key, transcript_vtt_key
+       FROM videos
+       WHERE id = $1::uuid`,
+      [videoId]
+    );
+
+    if (videoResult.rowCount != null && videoResult.rowCount > 0 && videoResult.rows[0]) {
+      const row = videoResult.rows[0];
+      if (row.raw_key) keysToDelete.push(row.raw_key);
+      if (row.thumbnail_key) keysToDelete.push(row.thumbnail_key);
+      if (row.result_key) keysToDelete.push(row.result_key);
+      if (row.transcript_vtt_key) keysToDelete.push(row.transcript_vtt_key);
+    }
+
+    const uploadResult = await client.query<{
+      s3_key: string;
+    }>(
+      `SELECT s3_key
+       FROM uploads
+       WHERE video_id = $1::uuid`,
+      [videoId]
+    );
+
+    for (const row of uploadResult.rows) {
+      if (row.s3_key) keysToDelete.push(row.s3_key);
+    }
+  });
+
+  if (keysToDelete.length > 0) {
+    const { client: s3Client, bucket } = getS3ClientAndBucket(process.env);
+    await deleteObjects(s3Client, bucket, keysToDelete);
+    log("job.cleanup.deleted_objects", { job_id: job.id, video_id: videoId, count: keysToDelete.length });
+  } else {
+    log("job.cleanup.no_objects", { job_id: job.id, video_id: videoId });
+  }
+
+  await withTransaction(env.DATABASE_URL, async (client) => {
+    await ack(client, job);
+  });
 }
 
 async function processJob(job: JobRow): Promise<void> {
@@ -966,15 +1092,20 @@ async function processJob(job: JobRow): Promise<void> {
   try {
     const alive = await heartbeat(job);
     if (!alive) {
-      throw new Error(`lease expired before handling job ${job.id}`);
+      throw new Error(`lease expired before handling job ${job.id} `);
+    }
+    if (job.job_type === "cleanup_artifacts") {
+      await handleCleanupArtifacts(job);
+      return;
     }
 
     await handleJob(job);
-    await ack(job);
     log("job.acked", { job_id: job.id, video_id: job.video_id, job_type: job.job_type });
   } catch (error) {
     if (error instanceof DeletedVideoSkipError) {
-      await ack(job);
+      await withTransaction(env.DATABASE_URL, async (client) => {
+        await ack(client, job);
+      });
       log("job.acked", {
         job_id: job.id,
         video_id: job.video_id,

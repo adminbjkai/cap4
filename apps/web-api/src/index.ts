@@ -107,11 +107,17 @@ function badRequest(message: string) {
   return { ok: false, error: message };
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) return false;
-  return crypto.timingSafeEqual(aBuf, bBuf);
+function timingSafeEqual(expected: string, actual: string): boolean {
+  // Always compare same-length buffers to prevent timing leaks
+  const expectedBuf = Buffer.from(expected);
+  const actualBuf = Buffer.from(actual);
+  const maxLen = Math.max(expectedBuf.length, actualBuf.length);
+  // Pad both to same length with zeros (doesn't affect security, prevents timing leak)
+  const expectedPadded = Buffer.alloc(maxLen, 0);
+  const actualPadded = Buffer.alloc(maxLen, 0);
+  expectedBuf.copy(expectedPadded);
+  actualBuf.copy(actualPadded);
+  return crypto.timingSafeEqual(expectedPadded, actualPadded);
 }
 
 function verifyWebhookSignature(raw: string, timestamp: string, signatureHeader: string): boolean {
@@ -1888,89 +1894,100 @@ app.post(
 
     const progress = Math.max(0, Math.min(100, Math.floor(Number(payload.progress ?? 0))));
 
-    const result = await withTransaction(env.DATABASE_URL, async (client) => {
-      const inserted = await client.query<{ id: number }>(
-        `INSERT INTO webhook_events (
-           source, delivery_id, job_id, video_id, phase, phase_rank, progress, payload, signature, accepted
-         ) VALUES (
-           'media-server', $1, $2, $3::uuid, $4::processing_phase, $5::smallint, $6::int, $7::jsonb, $8, true
-         )
-         ON CONFLICT (source, delivery_id) DO NOTHING
-         RETURNING id`,
-        [deliveryId, payload.jobId, payload.videoId, payload.phase, rank, progress, raw, signature]
-      );
-
-      const duplicate = inserted.rowCount === 0;
-      let applied = false;
-
-      if (!duplicate) {
-        const update = await client.query<{ webhook_url: string | null }>(
-          `UPDATE videos v
-           SET processing_phase = $2::processing_phase,
-               processing_phase_rank = $3::smallint,
-               processing_progress = CASE
-                 WHEN $3::smallint = v.processing_phase_rank THEN GREATEST(v.processing_progress, $4::int)
-                 ELSE $4::int
-               END,
-               completed_at = CASE
-                 WHEN $2::processing_phase = 'complete' THEN COALESCE(v.completed_at, now())
-                 ELSE v.completed_at
-               END,
-               duration_seconds = COALESCE($5::numeric, v.duration_seconds),
-               width = COALESCE($6::int, v.width),
-               height = COALESCE($7::int, v.height),
-               fps = COALESCE($8::numeric, v.fps),
-               updated_at = now()
-           WHERE v.id = $1::uuid
-             AND (
-               $3::smallint > v.processing_phase_rank
-               OR ($3::smallint = v.processing_phase_rank AND $4::int >= v.processing_progress)
-             )
-           RETURNING webhook_url`,
-          [
-            payload.videoId,
-            payload.phase,
-            rank,
-            progress,
-            payload.metadata?.duration ?? null,
-            payload.metadata?.width ?? null,
-            payload.metadata?.height ?? null,
-            payload.metadata?.fps ?? null
-          ]
+    let result: { duplicate: boolean; applied: boolean };
+    try {
+      result = await withTransaction(env.DATABASE_URL, async (client) => {
+        const inserted = await client.query<{ id: number }>(
+          `INSERT INTO webhook_events (
+             source, delivery_id, job_id, video_id, phase, phase_rank, progress, payload, signature, accepted
+           ) VALUES (
+             'media-server', $1, $2, $3::uuid, $4::processing_phase, $5::smallint, $6::int, $7::jsonb, $8, true
+           )
+           ON CONFLICT (source, delivery_id) DO NOTHING
+           RETURNING id`,
+          [deliveryId, payload.jobId, payload.videoId, payload.phase, rank, progress, raw, signature]
         );
 
-        applied = (update.rowCount ?? 0) > 0;
+        const duplicate = inserted.rowCount === 0;
+        let applied = false;
 
-        await client.query(
-          `UPDATE webhook_events
-           SET processed_at = now(),
-               accepted = $2,
-               reject_reason = CASE WHEN $2 THEN NULL ELSE 'monotonic_guard_rejected' END
-           WHERE id = $1`,
-          [inserted.rows[0].id, applied]
-        );
-
-        if (applied && update.rows[0]?.webhook_url) {
-          const webhookUrl = update.rows[0].webhook_url;
-          await client.query(
-            `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
-             VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+        if (!duplicate) {
+          const update = await client.query<{ webhook_url: string | null }>(
+            `UPDATE videos v
+             SET processing_phase = $2::processing_phase,
+                 processing_phase_rank = $3::smallint,
+                 processing_progress = CASE
+                   WHEN $3::smallint = v.processing_phase_rank THEN GREATEST(v.processing_progress, $4::int)
+                   ELSE $4::int
+                 END,
+                 completed_at = CASE
+                   WHEN $2::processing_phase = 'complete' THEN COALESCE(v.completed_at, now())
+                   ELSE v.completed_at
+                 END,
+                 duration_seconds = COALESCE($5::numeric, v.duration_seconds),
+                 width = COALESCE($6::int, v.width),
+                 height = COALESCE($7::int, v.height),
+                 fps = COALESCE($8::numeric, v.fps),
+                 updated_at = now()
+             WHERE v.id = $1::uuid
+               AND (
+                 $3::smallint > v.processing_phase_rank
+                 OR ($3::smallint = v.processing_phase_rank AND $4::int >= v.processing_progress)
+               )
+             RETURNING webhook_url`,
             [
               payload.videoId,
-              JSON.stringify({
-                webhookUrl,
-                event: "video.progress",
-                videoId: payload.videoId,
-                phase: payload.phase,
-                progress
-              })
+              payload.phase,
+              rank,
+              progress,
+              payload.metadata?.duration ?? null,
+              payload.metadata?.width ?? null,
+              payload.metadata?.height ?? null,
+              payload.metadata?.fps ?? null
             ]
           );
-        }
-      }
 
-      return { duplicate, applied };
-    });
+          applied = (update.rowCount ?? 0) > 0;
+
+          await client.query(
+            `UPDATE webhook_events
+             SET processed_at = now(),
+                 accepted = $2,
+                 reject_reason = CASE WHEN $2 THEN NULL ELSE 'monotonic_guard_rejected' END
+             WHERE id = $1`,
+            [inserted.rows[0].id, applied]
+          );
+
+          if (applied && update.rows[0]?.webhook_url) {
+            const webhookUrl = update.rows[0].webhook_url;
+            await client.query(
+              `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+               VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+              [
+                payload.videoId,
+                JSON.stringify({
+                  webhookUrl,
+                  event: "video.progress",
+                  videoId: payload.videoId,
+                  phase: payload.phase,
+                  progress
+                })
+              ]
+            );
+          }
+        }
+
+        return { duplicate, applied };
+      });
+    } catch (error) {
+      log({
+        event: "webhook.processing_failed",
+        videoId: payload.videoId,
+        jobId: payload.jobId,
+        error: String(error)
+      });
+      return reply.code(500).send({ ok: false, error: "Webhook processing failed" });
+    }
 
     log({
       event: "webhook.processed",

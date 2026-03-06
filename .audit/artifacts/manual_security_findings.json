@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "tool": "manual",
+      "severity": "high",
+      "title": "Environment files in git",
+      "description": ".env or .env.* files should not be committed to version control",
+      "files": [".env.example"]
+    }
+  ]
+}

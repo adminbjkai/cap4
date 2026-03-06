@@ -1,0 +1,11 @@
+{
+  "repository": "cap3",
+  "path": "/Users/m17/2026/gh_repo_tests/cap3",
+  "commit_sha": "b0a69d5faade55b2559dc65c4a67578eb81a6ea3",
+  "audit_started": "2026-03-06T07:37:24Z",
+  "audit_version": "1.0.0",
+  "tools": {
+    "node": "v25.8.0",
+    "pnpm": "9.12.3"
+  }
+}
