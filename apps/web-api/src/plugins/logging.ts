@@ -61,7 +61,7 @@ const loggingPlugin: FastifyPluginAsync<{
 
     const logData = {
       method: request.method,
-      path: request.routerPath || request.url,
+      path: request.routeOptions?.url || request.url,
       statusCode,
       durationMs: Math.round(duration),
       requestId: request.requestId,

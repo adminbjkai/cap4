@@ -16,7 +16,7 @@
     "@aws-sdk/client-s3": "^3.997.0",
     "@cap/config": "workspace:*",
     "@cap/logger": "workspace:*",
-    "fastify": "^4.28.1"
+    "fastify": "^5.8.1"
   },
   "devDependencies": {
     "tsx": "^4.19.1",

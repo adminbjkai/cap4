@@ -18,7 +18,8 @@
     "@cap/config": "workspace:*",
     "@cap/db": "workspace:*",
     "@cap/logger": "workspace:*",
-    "fastify": "^4.28.1",
+    "@fastify/rate-limit": "^9.1.0",
+    "fastify": "^5.8.1",
     "fastify-plugin": "^5.1.0",
     "fastify-raw-body": "4.3.0"
   },

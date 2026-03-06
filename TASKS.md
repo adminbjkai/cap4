@@ -1,6 +1,6 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-06 (Phase 2 complete ✓, testing suite complete ✓)
+**Last updated:** 2026-03-06 (Phase 2 complete ✓, testing suite complete ✓, Phase 3 hardening in progress)
 
 ---
 
@@ -8,11 +8,11 @@
 
 ### Phase 3 — Hardening
 
-- [ ] **Rate limiting** — Add `@fastify/rate-limit` (100 req/min per IP) on upload + API endpoints
-- [ ] **Nginx upload size limit** — Add `client_max_body_size 2g;` to nginx config
-- [ ] **pnpm audit** — Run `pnpm audit` and fix all high/critical CVEs before v1.0.0
+- [x] **Rate limiting** — `@fastify/rate-limit` v9 registered globally (100 req/min per IP); webhooks exempt via `rateLimit: false`
+- [x] **Nginx upload size limit** — `client_max_body_size 2g;` added to both nginx configs
+- [x] **pnpm audit** — 4 vulns found: fastify bumped to ^5.8.1 (fixes HIGH CVE + LOW DoS); `routerPath` → `routeOptions.url` migration applied; esbuild moderate is dev-server-only (low production risk); fast-xml-parser low is @aws-sdk transitive (no direct fix available). **Run `pnpm install` on your Mac to complete the fastify v5 upgrade.**
+- [x] **Audit Deepgram/Groq key logging** — `@cap/logger` clean: pino `redact` already strips `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, `MEDIA_SERVER_WEBHOOK_SECRET`, `DATABASE_URL` with `remove: true`
 - [ ] **Integration tests** — Full upload → transcription → AI → complete flow
-- [ ] **Audit Deepgram/Groq key logging** — Verify `@cap/logger` doesn't accidentally log API keys on startup
 
 ---
 

@@ -29,7 +29,7 @@ function log(app: FastifyInstance, fields: Record<string, unknown>) {
 export async function webhookRoutes(app: FastifyInstance) {
   app.post(
     "/api/webhooks/media-server/progress",
-    { config: { rawBody: true } },
+    { config: { rawBody: true, rateLimit: false } },
     async (req, reply) => {
       const timestamp = req.headers["x-cap-timestamp"];
       const signature = req.headers["x-cap-signature"];
