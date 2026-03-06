@@ -11,7 +11,13 @@ echo "============================"
 
 cd "$REPO_ROOT"
 
-# 1. Check git status
+# 1. Create artifact directories FIRST (before any writes)
+echo "📁 Creating artifact directories..."
+mkdir -p .audit/artifacts
+mkdir -p .audit/findings
+mkdir -p .audit/reports
+
+# 2. Check git status
 echo "📋 Checking git status..."
 if [ -n "$(git status --porcelain)" ]; then
   echo "⚠️  Warning: Uncommitted changes detected"
@@ -20,13 +26,13 @@ else
   echo "✅ Working tree clean"
 fi
 
-# 2. Capture commit info
+# 3. Capture commit info
 echo "📝 Capturing commit info..."
 git log -1 --format="%H|%ai|%s" > .audit/artifacts/git_commit.txt
 COMMIT_SHA=$(git log -1 --format="%H")
 echo "   Commit: $COMMIT_SHA"
 
-# 3. Verify dependencies installed
+# 4. Verify dependencies installed
 echo "📦 Checking dependencies..."
 if [ ! -d "node_modules" ]; then
   echo "   Installing dependencies..."
@@ -35,19 +41,13 @@ else
   echo "   ✓ Dependencies present"
 fi
 
-# 4. Run typecheck
+# 5. Run typecheck
 echo "🔍 Running typecheck..."
 pnpm typecheck || echo "⚠️  Typecheck had errors (see output above)"
 
-# 5. Run lint
+# 6. Run lint
 echo "🔍 Running lint..."
 pnpm lint || echo "⚠️  Lint had errors (see output above)"
-
-# 6. Create artifact directories
-echo "📁 Creating artifact directories..."
-mkdir -p .audit/artifacts
-mkdir -p .audit/findings
-mkdir -p .audit/reports
 
 # 7. Generate metadata
 echo "📝 Generating audit metadata..."
