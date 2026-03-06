@@ -1,19 +1,10 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-06 (Phase 1 complete ✓)
+**Last updated:** 2026-03-06 (Phase 2 complete ✓, testing suite complete ✓)
 
 ---
 
 ## Active
-
-### Phase 2 — Player UI
-
-### Phase 2 — Player UI
-
-- [ ] **Wire ChapterList to video player** — `chapters` prop → click → `videoRef.current.currentTime = chapter.startMs/1000`
-- [ ] **Reposition chapter layout** — CSS Grid: left sidebar on >1024px, stacked on mobile
-- [ ] **Transcript paragraph view** — Parse `transcript_text` into chunks, render with `TranscriptParagraph`, clicking seeks video
-- [ ] **Revise Groq summary prompt** — Better structured output with key points; store in `chapters` JSONB or new `key_points` column
 
 ### Phase 3 — Hardening
 
@@ -54,3 +45,5 @@
 - [x] Create GitHub repo `adminbjkai/cap4` — public, 392 objects pushed, origin updated
 - [x] Tag v1.0.0 + GitHub release — https://github.com/adminbjkai/cap4/releases/tag/v1.0.0
 - [x] Convert VIDEO_PLAYER_IMPROVEMENTS.md to GitHub Issues — issues #1–#4 created
+- [x] Phase 2 complete — ChapterList seek wired, lg breakpoint layout, TranscriptParagraph click-to-seek, Groq keyPoints prompt
+- [x] Test suite — 22 vitest unit tests (ChapterList + TranscriptParagraph) + 16 Playwright E2E tests with 10 visual regression screenshots

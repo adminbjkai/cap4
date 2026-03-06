@@ -1,3 +1,7 @@
 # Web app specific
 dist/
 *.local
+
+# Playwright
+.playwright/test-results/
+.playwright/report/
