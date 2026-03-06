@@ -11,43 +11,68 @@ mkdir -p "$OUTPUT_DIR"
 echo "🔍 Cap3 Repository Indexer"
 echo "=========================="
 
-# Check dependencies
-command -v scc >/dev/null 2>&1 || { echo "❌ scc not installed. Run: brew install scc"; exit 1; }
-command -v rg >/dev/null 2>&1 || { echo "❌ ripgrep not installed. Run: brew install ripgrep"; exit 1; }
-
 cd "$REPO_ROOT"
 
-# 1. Language statistics
-echo "📊 Analyzing languages..."
-scc --format json . > "$OUTPUT_DIR/repo_stats.json"
+# Check for optional tools
+SCC_AVAILABLE=false
+RG_AVAILABLE=false
 
-# 2. Total LOC and breakdown
-echo "📝 Calculating LOC..."
-TOTAL_LOC=$(scc --no-cocomo --no-complexity . | tail -1 | awk '{print $3}')
-
-# 3. Find TypeScript/JavaScript files
-echo "📁 Finding source files..."
-find apps packages -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) | grep -v node_modules | grep -v dist > "$OUTPUT_DIR/source_files.txt"
-
-# 4. Extract package info
-echo "📦 Analyzing packages..."
-cat package.json | jq -r '.workspaces[]' > "$OUTPUT_DIR/workspaces.txt"
-
-# 5. Detect services from docker-compose
-echo "🐳 Detecting services..."
-if [ -f docker-compose.yml ]; then
-  cat docker-compose.yml | grep -E "^  [a-z-]+:" | sed 's/://' > "$OUTPUT_DIR/docker_services.txt"
+if command -v scc >/dev/null 2>&1; then
+  SCC_AVAILABLE=true
+  echo "✅ scc available"
+else
+  echo "⚠️  scc not installed (optional: brew install scc)"
 fi
 
-# 6. Find entry points
-echo "🚪 Finding entry points..."
-rg "^import|^require" --type ts --type tsx -l | grep -E "(index|main|app)\." | head -20 > "$OUTPUT_DIR/entry_points.txt" || true
+if command -v rg >/dev/null 2>&1; then
+  RG_AVAILABLE=true
+  echo "✅ ripgrep available"
+else
+  echo "⚠️  ripgrep not installed (optional: brew install ripgrep)"
+fi
 
-# 7. Database migrations
+# 1. Language statistics (fallback if scc not available)
+echo "📊 Analyzing languages..."
+if [ "$SCC_AVAILABLE" = true ]; then
+  scc --format json . > "$OUTPUT_DIR/repo_stats.json" 2>/dev/null || echo "[]" > "$OUTPUT_DIR/repo_stats.json"
+  TOTAL_LOC=$(scc --no-cocomo --no-complexity . | tail -1 | awk '{print $3}')
+else
+  # Fallback: count lines in TypeScript files
+  echo "[]" > "$OUTPUT_DIR/repo_stats.json"
+  TOTAL_LOC=$(find apps packages -name "*.ts" -o -name "*.tsx" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
+fi
+
+# 2. Find TypeScript/JavaScript files
+echo "📁 Finding source files..."
+find apps packages -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) 2>/dev/null | grep -v node_modules | grep -v dist > "$OUTPUT_DIR/source_files.txt" || true
+
+# 3. Extract package info
+echo "📦 Analyzing packages..."
+if [ -f package.json ]; then
+  cat package.json | jq -r '.workspaces[]' 2>/dev/null > "$OUTPUT_DIR/workspaces.txt" || echo "" > "$OUTPUT_DIR/workspaces.txt"
+fi
+
+# 4. Detect services from docker-compose
+echo "🐳 Detecting services..."
+if [ -f docker-compose.yml ]; then
+  cat docker-compose.yml | grep -E "^  [a-z-]+:" | sed 's/://' > "$OUTPUT_DIR/docker_services.txt" || true
+else
+  echo "" > "$OUTPUT_DIR/docker_services.txt"
+fi
+
+# 5. Find entry points
+echo "🚪 Finding entry points..."
+if [ "$RG_AVAILABLE" = true ]; then
+  rg "^import|^require" --type ts --type tsx -l 2>/dev/null | grep -E "(index|main|app)\." | head -20 > "$OUTPUT_DIR/entry_points.txt" || true
+else
+  find apps -name "index.ts" -o -name "main.tsx" -o -name "app.ts" 2>/dev/null | head -20 > "$OUTPUT_DIR/entry_points.txt" || true
+fi
+
+# 6. Database migrations
 echo "🗄️  Checking migrations..."
 ls -1 db/migrations/*.sql 2>/dev/null | wc -l > "$OUTPUT_DIR/migration_count.txt" || echo "0" > "$OUTPUT_DIR/migration_count.txt"
 
-# 8. Generate INDEX.md
+# 7. Generate INDEX.md
 echo "📝 Generating INDEX.md..."
 cat > "$OUTPUT_DIR/INDEX.md" << EOF
 # Cap3 Repository Index
@@ -132,3 +157,7 @@ This audit run generates:
 EOF
 
 echo "✅ Index complete: $OUTPUT_DIR/INDEX.md"
+echo ""
+echo "Tools status:"
+echo "  - scc: $([ "$SCC_AVAILABLE" = true ] && echo "✅" || echo "⚠️  install with: brew install scc")"
+echo "  - rg: $([ "$RG_AVAILABLE" = true ] && echo "✅" || echo "⚠️  install with: brew install ripgrep")"

@@ -13,6 +13,7 @@ export default [
       parser: ts.parser,
       parserOptions: {
         project: './tsconfig.json',
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         ...globals.node,
@@ -38,12 +39,17 @@ export default [
     },
   },
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.cjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
     rules: {
       '@typescript-eslint/no-var-requires': 'off',
     },
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.config.js'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/*.config.js', '**/*.config.cjs'],
   },
 ];
