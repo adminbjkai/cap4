@@ -1,144 +1,382 @@
-# Local Development
+# Local Development Setup
 
-## Prerequisites
-- Docker + Docker Compose
-- `pnpm` (host-side checks when needed)
+Get cap4 running on your machine in 5 minutes.
 
-## 1) Configure environment
+---
+
+## Requirements
+
+- **Docker & Docker Compose** (latest stable)
+- **Node.js 20+** (for running tests)
+- **pnpm** (package manager)
+
+---
+
+## Quick Start (5 Minutes)
 
 ```bash
+# 1. Clone repo
+git clone https://github.com/yourorg/cap4
+cd cap4
+
+# 2. Setup environment
 cp .env.example .env
-```
 
-Required backend provider vars for transcript + AI:
-- `DEEPGRAM_API_KEY`
-- `GROQ_API_KEY`
-
-Optional provider overrides:
-- `DEEPGRAM_MODEL`
-- `GROQ_MODEL`
-- `DEEPGRAM_BASE_URL`
-- `GROQ_BASE_URL`
-- `PROVIDER_TIMEOUT_MS`
-
-```bash
-make setup
-```
-
-This command builds/starts the services, waits for health checks, and applies database migrations automatically.
-
-Services:
-- `postgres`
-- `minio`
-- `minio-setup`
-- `web-api`
-- `worker`
-- `media-server`
-- `web-builder` (builds `apps/web` into a shared volume)
-- `web-internal` (nginx serving built `apps/web` + proxying `/api` + `/health`)
-
-`minio-setup` applies bucket CORS from `/Users/m17/2026/gh_repo_tests/cap3/docker/minio/cors.json`.
-
-## 3) (Optional) Manual migrations
-
-If you need to re-run migrations manually:
-
-```bash
-make reset-db
-```
-
-## 4) Health checks
-
-```bash
-curl -sS http://localhost:3000/health
-curl -sS http://localhost:3100/health
-```
-
-## 5) Milestone 4 baseline smoke (record/upload/process)
-
-```bash
-cd /Users/m17/2026/gh_repo_tests/cap3
-make down
+# 3. Start services
 make up
-make reset-db
+
+# 4. Verify it works
+make smoke
+
+# 5. Open in browser
+open http://localhost:8022
 ```
 
-1. Open `http://localhost:8022`.
-2. Record or upload a file on `/record`.
-3. Confirm `/video/:videoId` reaches `processingPhase=complete`.
-4. Confirm playback and download links work.
+That's it! All services are running.
 
-Notes:
-- Docker-first UI (production-like): open `http://localhost:8022`.
-- Frontend dev server (optional, host-side): run `pnpm dev:web` and open `http://localhost:5173`.
+---
 
-## 6) Transcript + AI API smoke (Docker-only)
+## What's Running
 
-Audio path expected terminal state:
-- `processingPhase=complete`
-- `transcriptionStatus=complete`
-- `aiStatus=complete`
+After `make up`:
 
-No-audio path expected terminal state:
-- `processingPhase=complete`
-- `transcriptionStatus=no_audio`
-- `aiStatus=skipped`
+| Service | URL | Purpose |
+|---------|-----|---------|
+| **web** | http://localhost:8022 | React frontend |
+| **web-api** | http://localhost:3000 | HTTP API |
+| **media-server** | http://localhost:3001 | FFmpeg |
+| **postgres** | localhost:5432 | Database |
+| **minio** | http://localhost:9000 | S3 storage |
 
-Failure-path expected behavior:
-- bounded retries in `job_queue` until `attempts >= max_attempts`
-- terminal `job_queue.status=dead`
-- `/api/videos/:id/status` includes `aiStatus=failed` and `aiErrorMessage`
+---
 
-## 7) Current Known UX Gap
-- Video detail live updates may require manual refresh in some timing windows after processing completes while transcript/AI continue.
-- This is tracked for Phase E.
+## Testing Your Setup
 
-See:
-- `docs/ops/PHASE_E_PLAYBACK_INTELLIGENCE_PLAN.md`
-- `docs/ops/PHASE_E_ACCEPTANCE_CHECKLIST.md`
-
-## 8) View logs
-
+### Quick Smoke Test
 ```bash
-make logs
+make smoke
+# Automatically:
+# 1. Uploads a test video
+# 2. Waits for processing to complete
+# 3. Verifies outputs
 ```
 
-## 9) Stop stack
+### Manual Upload via Web UI
+1. Open http://localhost:8022
+2. Click "Upload Video"
+3. Select a test video (MP4 recommended)
+4. Wait for processing to complete
+5. View chapters, transcript, AI metadata
+
+### Manual Upload via curl
+```bash
+# 1. Upload
+curl -X POST http://localhost:3000/api/videos \
+  -H "Idempotency-Key: test-001" \
+  -F "video=@sample.mp4"
+
+# 2. Get video ID from response
+# 3. Poll status
+curl http://localhost:3000/api/videos/{id}
+
+# 4. Watch worker logs
+docker compose logs -f worker
+```
+
+---
+
+## Common Commands
 
 ```bash
+# Start all services
+make up
+
+# Stop all services
 make down
+
+# View logs
+docker compose logs            # All services
+docker compose logs worker     # Just worker
+docker compose logs -f web-api # Follow logs
+
+# Reset database (WARNING: deletes all data)
+make reset-db
+
+# Run tests
+pnpm test
+pnpm test:integration
+
+# Format code
+pnpm format
+
+# Lint code
+pnpm lint
+
+# Run frontend dev server (hot reload)
+cd apps/web
+pnpm dev
+# Or from root:
+pnpm dev:web
 ```
 
-### Deep Workspace Clean
-If artifacts or database states become corrupted:
+---
 
+## .env Configuration
+
+See `.env.example` for all available options.
+
+Key variables:
 ```bash
-make prune
+# API Port
+API_PORT=3000
+
+# Database
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=cap4
+DB_PASSWORD=password123
+DB_NAME=cap4
+
+# MinIO S3
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+
+# External APIs
+DEEPGRAM_API_KEY=your-key-here
+GROQ_API_KEY=your-key-here
 ```
 
-This removes all volumes, orphan containers, and cleans the build cache.
+---
 
 ## Troubleshooting
 
-### Missing or Updated API Keys
-If you update the `.env` file (e.g., adding `DEEPGRAM_API_KEY` or `GROQ_API_KEY`) after the Docker containers are already running, the `worker` and `web-api` containers will not automatically pick up the new variables.
-
-A simple `docker restart` will **not** reload the .env file. You must recreate the containers using Docker Compose:
+### Port Already in Use
 
 ```bash
-# Recreate containers to load the new .env variables
-docker compose -p cap3-dev up -d --force-recreate worker web-api
+# Find what's using the port
+lsof -i :3000
+lsof -i :8022
+
+# Kill the process
+kill -9 <PID>
+
+# Or change port in .env
+API_PORT=3001
 ```
 
-If a transcription or AI job failed because of missing keys and reached the maximum retry limit (status: `dead`), you can manually reset it in the database to force a retry once the containers are recreated:
+### Database Connection Error
 
 ```bash
-# Find the failed job ID
-docker exec cap3-postgres psql -U app -d cap3 -c "SELECT id, job_type, status, attempts FROM job_queue WHERE video_id = '<VIDEO_ID>';"
+# Check if postgres is running
+docker compose ps
 
-# Reset the job
-docker exec cap3-postgres psql -U app -d cap3 -c "UPDATE job_queue SET status = 'queued', attempts = 0, run_after = now(), last_error = NULL, locked_by = NULL, locked_until = NULL, lease_token = NULL WHERE id = <JOB_ID>;"
+# Restart postgres
+docker compose restart postgres
 
-# Reset the video state
-docker exec cap3-postgres psql -U app -d cap3 -c "UPDATE videos SET transcription_status = 'processing', ai_status = 'not_started', error_message = NULL WHERE id = '<VIDEO_ID>';"
+# Or reset everything
+make down && make up
 ```
+
+### Video Won't Process
+
+```bash
+# Check worker logs
+docker compose logs worker
+
+# Common issues:
+# 1. External API failure (Deepgram, Groq) - try retry
+# 2. Video format unsupported - use MP4
+# 3. Worker crashed - restart: docker compose restart worker
+```
+
+### S3 Upload Fails
+
+```bash
+# Check MinIO is running
+curl http://localhost:9000/minio/health/live
+
+# Check credentials in .env
+# MinIO UI: http://localhost:9000
+```
+
+### Out of Disk Space
+
+```bash
+# Clean up Docker volumes
+docker system prune -a
+
+# Or clean specific project
+docker volume rm cap4_postgres cap4_minio_data
+```
+
+---
+
+## Frontend Development
+
+### Run Vite Dev Server (with Hot Reload)
+
+```bash
+# From cap4 root
+pnpm dev:web
+
+# Or from apps/web
+cd apps/web
+pnpm dev
+```
+
+This starts frontend on `http://localhost:5173` with hot module reloading.
+
+Backend still runs at `http://localhost:3000`.
+
+### Debugging Frontend
+
+Chrome DevTools work normally. Check Console, Network, and React DevTools extension.
+
+---
+
+## Backend Development
+
+### Running Individual Services
+
+Instead of `make up` (all services), run just what you need:
+
+```bash
+# Just database and MinIO (for API testing)
+docker compose up -d postgres minio
+
+# Leave worker down if testing just API endpoints
+```
+
+### Testing API Endpoints
+
+```bash
+# Test upload endpoint
+curl -X POST http://localhost:3000/api/videos \
+  -H "Idempotency-Key: test-001" \
+  -F "video=@sample.mp4"
+
+# Test status endpoint
+curl http://localhost:3000/api/videos/{id}
+```
+
+### Debugging Worker
+
+```bash
+# Watch worker logs in real-time
+docker compose logs -f worker
+
+# Check worker code
+cat apps/worker/src/index.ts
+```
+
+---
+
+## Database Access
+
+### Using psql (PostgreSQL Client)
+
+```bash
+# Install psql if not already
+brew install postgresql  # macOS
+apt-get install postgresql-client  # Ubuntu
+
+# Connect to database
+psql -h localhost -p 5432 -U cap4 -d cap4
+```
+
+### Useful SQL Queries
+
+```sql
+-- See all videos
+SELECT id, processingPhase, rank, uploadedAt FROM videos;
+
+-- See pending jobs
+SELECT * FROM jobs WHERE status = 'pending';
+
+-- See recent errors
+SELECT * FROM jobs WHERE status = 'failed' ORDER BY createdAt DESC LIMIT 5;
+
+-- Clear all data (WARNING!)
+DELETE FROM videos CASCADE;
+```
+
+---
+
+## MinIO (S3) Access
+
+### Web UI
+Open http://localhost:9000 in browser.
+
+Login:
+- Username: `minioadmin`
+- Password: `minioadmin`
+
+### Using AWS CLI (Optional)
+
+```bash
+# Configure AWS CLI for MinIO
+aws configure --profile minio
+# Endpoint: http://localhost:9000
+# Access Key: minioadmin
+# Secret Key: minioadmin
+# Region: us-east-1
+
+# List buckets
+aws --endpoint-url http://localhost:9000 --profile minio s3 ls
+
+# List video files
+aws --endpoint-url http://localhost:9000 --profile minio s3 ls s3://cap4/
+```
+
+---
+
+## Git Workflow
+
+```bash
+# Create feature branch
+git checkout -b feature/my-feature
+
+# Make changes
+# Test: pnpm test, make smoke
+
+# Commit
+git add .
+git commit -m "feat: add chapter navigation"
+
+# Push
+git push origin feature/my-feature
+
+# Open Pull Request on GitHub
+```
+
+See [../../CONTRIBUTING.md](../../CONTRIBUTING.md) for full guidelines.
+
+---
+
+## Performance Tips
+
+- **Keep Docker containers running** — Don't rebuild constantly
+- **Use `make smoke` for validation** — Faster than manual testing
+- **Monitor worker logs** — Quick insight into what's happening
+- **Clear volume data between major changes** — Prevents state conflicts
+
+---
+
+## Architecture Details
+
+See [../../ARCHITECTURE.md](../../ARCHITECTURE.md) for deep dive into:
+- State machine
+- Job queue
+- Webhook handling
+- Failure recovery
+
+---
+
+## Still Having Issues?
+
+1. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+2. Read service logs: `docker compose logs {service}`
+3. Ask in GitHub Discussions
+4. Check ARCHITECTURE.md for design details
+
+**Remember:** Most issues are solved by `make down && make up` + `make reset-db`

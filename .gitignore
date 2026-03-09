@@ -1,5 +1,5 @@
 # ==========================================
-# CAP3 Monorepo - Git Ignore
+# CAP4 — Git Ignore
 # ==========================================
 
 # Dependencies
@@ -75,20 +75,36 @@ apps/media-server/uploads/
 apps/worker/tmp/
 
 # ==========================================
-# cap4 — files not for the public repo
+# CAP4 — files not for the public repo
 # ==========================================
 
-# Previous AI agent audit artifacts (Kimi)
+# AI agent audit artifacts
 .audit/
 bykimi.md
 AGENTS.md
 
-# Old Linear issue export
-Cap3\ ›\ All\ issues.csv
-
-# AI agent session directories (Cowork / Claude Code)
+# AI agent session directories
 .claude/
 .gemini/
 
-# cap4_new reference copy (working source is cap3test)
+# Reference copies / legacy
 cap4_new/
+cap4/
+
+# npm lockfile (project uses pnpm)
+package-lock.json
+**/package-lock.json
+
+# Dev sample files
+sample_videos/
+
+# Runtime logs (use docker logs instead)
+logs/
+
+# Temp scripts
+run-me.sh
+start-cap3.sh
+stop-cap3.sh
+
+# Productivity plugin memory (local only)
+memory/
