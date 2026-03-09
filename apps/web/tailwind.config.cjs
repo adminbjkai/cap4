@@ -49,6 +49,15 @@ module.exports = {
         card:     "0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)",
         elevated: "0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)",
         tooltip:  "0 4px 16px rgba(0, 0, 0, 0.14), 0 1px 4px rgba(0, 0, 0, 0.08)",
+        "accent-glow": "0 0 0 3px color-mix(in srgb, var(--accent-blue) 28%, transparent), 0 0 24px color-mix(in srgb, var(--accent-blue) 30%, transparent)",
+      },
+      backgroundImage: {
+        "accent-gradient": "var(--accent-blue-gradient)",
+        "accent-gradient-soft": "var(--accent-blue-gradient-soft)",
+        "status-success-gradient": "var(--status-success-gradient)",
+        "status-warning-gradient": "var(--status-warning-gradient)",
+        "status-danger-gradient": "var(--status-danger-gradient)",
+        "status-info-gradient": "var(--status-info-gradient)",
       },
       transitionTimingFunction: {
         spring: "cubic-bezier(0.22, 1, 0.36, 1)",

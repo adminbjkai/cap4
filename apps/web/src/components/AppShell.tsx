@@ -59,7 +59,12 @@ export function AppShell({ children, overlays }: AppShellProps) {
       {/* Sidebar - Desktop */}
       <aside className="sidebar p-4">
         <div className="mb-8 flex items-center gap-2 px-2">
-          <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center text-white dark:bg-white dark:text-black font-bold text-xl">C</div>
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg font-bold text-xl text-white"
+            style={{ background: "var(--accent-blue-gradient)", boxShadow: "0 10px 24px rgba(59,130,246,0.25)" }}
+          >
+            C
+          </div>
           <span className="text-xl font-bold tracking-tight">Cap4</span>
         </div>
 
@@ -98,7 +103,8 @@ export function AppShell({ children, overlays }: AppShellProps) {
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 w-full z-50 bg-surface border-b px-4 py-3 flex items-center justify-between backdrop-blur-md bg-opacity-80">
+      <div className="lg:hidden fixed top-0 w-full z-50 border-b px-4 py-3 flex items-center justify-between backdrop-blur-md bg-opacity-80"
+           style={{ background: "color-mix(in srgb, var(--bg-surface) 82%, transparent)", borderColor: "color-mix(in srgb, var(--border-default) 82%, transparent)" }}>
         <Link to="/" className="text-lg font-bold">Cap4</Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -119,7 +125,10 @@ export function AppShell({ children, overlays }: AppShellProps) {
       )}
 
       {/* Mobile Menu Content */}
-      <aside className={`lg:hidden fixed left-0 top-0 z-50 h-full w-64 bg-surface transform transition-transform duration-300 ease-in-out p-6 ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside
+        className={`lg:hidden fixed left-0 top-0 z-50 h-full w-64 transform transition-transform duration-300 ease-in-out p-6 ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
+        style={{ background: "color-mix(in srgb, var(--bg-surface) 86%, transparent)", borderRight: "1px solid color-mix(in srgb, var(--border-default) 86%, transparent)", backdropFilter: "blur(14px) saturate(140%)" }}
+      >
         <div className="mb-8 font-bold text-xl">Cap4</div>
         <nav className="flex flex-col gap-2">
           {navItems.map((item) => (

@@ -16,6 +16,8 @@
   --bg-surface-subtle:#f3f4f6;   /* gray-100 */
   --bg-surface-muted: #e5e7eb;   /* gray-200 */
   --bg-elevated:      #ffffff;
+  --bg-app-overlay:   linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.96));
+  --bg-app-noise:     none;
 
   /* ── Typography ───────────────────────────────────────────────────────── */
   --text-primary:   #1f2937;     /* gray-800 */
@@ -40,6 +42,9 @@
   --accent-blue-subtle: #eff6ff; /* blue-50 */
   --accent-blue-border: #bfdbfe; /* blue-200 */
   --accent-blue-muted:  #dbeafe; /* blue-100 */
+  --accent-blue-gradient: linear-gradient(96deg, #3b82f6 0%, #4f46e5 100%);
+  --accent-blue-gradient-soft: linear-gradient(120deg, rgba(59, 130, 246, 0.16) 0%, rgba(79, 70, 229, 0.14) 100%);
+  --accent-blue-glow: 0 0 0 3px rgba(59, 130, 246, 0.22), 0 0 24px rgba(59, 130, 246, 0.24);
 
   /* ── Status ───────────────────────────────────────────────────────────── */
   --warning-bg:     #fffbeb;
@@ -52,6 +57,10 @@
   --info-bg:        #eff6ff;
   --info-text:      #1e40af;
   --info-border:    #bfdbfe;
+  --status-success-gradient: linear-gradient(110deg, rgba(16, 185, 129, 0.22), rgba(5, 150, 105, 0.16));
+  --status-warning-gradient: linear-gradient(110deg, rgba(245, 158, 11, 0.23), rgba(217, 119, 6, 0.17));
+  --status-danger-gradient:  linear-gradient(110deg, rgba(244, 63, 94, 0.2), rgba(225, 29, 72, 0.14));
+  --status-info-gradient:    linear-gradient(110deg, rgba(59, 130, 246, 0.22), rgba(79, 70, 229, 0.14));
 
   /* ── Misc ─────────────────────────────────────────────────────────────── */
   --chip-bg:     #f3f4f6;
@@ -63,11 +72,15 @@
 
 :root.theme-dark {
   /* ── Backgrounds (slate family — blue-tinted dark) ───────────────────── */
-  --bg-app:           #0f172a;   /* slate-900 */
-  --bg-surface:       #1e293b;   /* slate-800 */
-  --bg-surface-subtle:#253348;   /* between slate-800/700 */
+  --bg-app:           #020617;   /* slate-950 */
+  --bg-surface:       #0f172a;   /* slate-900 */
+  --bg-surface-subtle:#1e293b;   /* slate-800 */
   --bg-surface-muted: #334155;   /* slate-700 */
   --bg-elevated:      #1e293b;
+  --bg-app-overlay:
+    radial-gradient(circle at 16% 0%, rgba(59, 130, 246, 0.16), transparent 44%),
+    radial-gradient(circle at 84% 14%, rgba(79, 70, 229, 0.11), transparent 38%);
+  --bg-app-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
 
   /* ── Typography ───────────────────────────────────────────────────────── */
   --text-primary:   #f1f5f9;     /* slate-100 */
@@ -92,6 +105,9 @@
   --accent-blue-subtle: rgba(96, 165, 250, 0.12);
   --accent-blue-border: rgba(96, 165, 250, 0.30);
   --accent-blue-muted:  rgba(96, 165, 250, 0.18);
+  --accent-blue-gradient: linear-gradient(96deg, #60a5fa 0%, #818cf8 100%);
+  --accent-blue-gradient-soft: linear-gradient(120deg, rgba(96, 165, 250, 0.24) 0%, rgba(129, 140, 248, 0.2) 100%);
+  --accent-blue-glow: 0 0 0 3px rgba(96, 165, 250, 0.34), 0 0 28px rgba(96, 165, 250, 0.34);
 
   /* ── Status ───────────────────────────────────────────────────────────── */
   --warning-bg:     rgba(245,158,11,0.12);
@@ -104,6 +120,10 @@
   --info-bg:        rgba(96,165,250,0.10);
   --info-text:      #60a5fa;
   --info-border:    rgba(96,165,250,0.30);
+  --status-success-gradient: linear-gradient(110deg, rgba(16, 185, 129, 0.24), rgba(5, 150, 105, 0.18));
+  --status-warning-gradient: linear-gradient(110deg, rgba(245, 158, 11, 0.24), rgba(217, 119, 6, 0.2));
+  --status-danger-gradient:  linear-gradient(110deg, rgba(244, 63, 94, 0.22), rgba(225, 29, 72, 0.18));
+  --status-info-gradient:    linear-gradient(110deg, rgba(96, 165, 250, 0.28), rgba(129, 140, 248, 0.22));
 
   --chip-bg:     #334155;
   --chip-text:   #e2e8f0;
@@ -119,7 +139,10 @@
 body {
   margin: 0;
   color: var(--text-primary);
-  background: var(--bg-app);
+  background-color: var(--bg-app);
+  background-image: var(--bg-app-overlay), var(--bg-app-noise);
+  background-size: cover, 220px 220px;
+  background-attachment: fixed;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -264,8 +287,11 @@ body {
 
   .sidebar {
     @apply fixed left-0 top-0 hidden h-full w-64 flex-col border-r lg:flex;
-    background: var(--bg-surface);
-    border-color: var(--border-default);
+    background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+    border-color: color-mix(in srgb, var(--border-default) 88%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border-default) 48%, transparent);
   }
 
   .sidebar-link {
@@ -387,13 +413,14 @@ body {
 
   .btn-primary {
     @apply relative inline-flex items-center justify-center overflow-hidden rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all duration-150 active:scale-[0.98] select-none;
-    background: var(--accent);
-    color: var(--bg-app);
+    background: var(--accent-blue-gradient);
+    color: #f8fafc;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16), 0 8px 18px rgba(59, 130, 246, 0.2);
     isolation: isolate;
   }
-  .btn-primary:hover   { filter: brightness(1.15); }
+  .btn-primary:hover   { filter: brightness(0.95); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  :root.theme-dark .btn-primary:hover { filter: brightness(0.88); }
+  :root.theme-dark .btn-primary:hover { filter: brightness(1.08); }
 
   .btn-secondary {
     @apply relative inline-flex items-center justify-center overflow-hidden rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
@@ -454,7 +481,7 @@ body {
   .input-control::placeholder { color: var(--text-muted); }
   .input-control:focus {
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 3px var(--focus-ring);
+    box-shadow: 0 0 0 3px var(--focus-ring), var(--accent-blue-glow);
   }
 
   /* ── Status chips ───────────────────────────────────────────────────── */
@@ -467,18 +494,33 @@ body {
   }
   .status-chip-compact { @apply px-2.5 py-1; }
   .status-chip-success {
-    border-color: color-mix(in srgb, var(--success-text) 30%, transparent);
-    background: color-mix(in srgb, var(--success-bg) 88%, transparent);
+    border-color: color-mix(in srgb, var(--success-text) 34%, transparent);
+    background: var(--status-success-gradient);
     color: var(--success-text);
   }
-  .status-chip-failed {
-    border-color: color-mix(in srgb, var(--danger-text) 30%, transparent);
-    background: color-mix(in srgb, var(--danger-bg) 88%, transparent);
+  .status-chip-warning {
+    border-color: color-mix(in srgb, var(--warning-text) 36%, transparent);
+    background: var(--status-warning-gradient);
+    color: var(--warning-text);
+  }
+  .status-chip-danger {
+    border-color: color-mix(in srgb, var(--danger-text) 34%, transparent);
+    background: var(--status-danger-gradient);
     color: var(--danger-text);
+  }
+  .status-chip-failed { /* alias for existing usage */
+    border-color: color-mix(in srgb, var(--danger-text) 34%, transparent);
+    background: var(--status-danger-gradient);
+    color: var(--danger-text);
+  }
+  .status-chip-info {
+    border-color: color-mix(in srgb, var(--info-text) 34%, transparent);
+    background: var(--status-info-gradient);
+    color: var(--info-text);
   }
   .status-chip-processing {
     border-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
-    background: color-mix(in srgb, var(--accent-blue-subtle) 88%, transparent);
+    background: var(--accent-blue-gradient-soft);
     color: var(--accent-blue);
   }
 
@@ -542,7 +584,9 @@ body {
   /* ── Progress track ─────────────────────────────────────────────────── */
   .progress-track { background: var(--bg-surface-muted); }
   .progress-active-bar {
+    background: var(--accent-blue-gradient);
     animation: progress-glow 1.5s ease-in-out infinite;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent-blue) 40%, transparent);
   }
 
   /* ── Misc surface styles ────────────────────────────────────────────── */
@@ -577,6 +621,7 @@ body {
   .line-item-active {
     background: var(--accent-blue-subtle) !important;
     border-left: 2px solid var(--accent-blue);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-blue) 22%, transparent);
   }
   .line-item-active:hover { background: var(--accent-blue-muted) !important; }
 
@@ -625,6 +670,37 @@ body {
     color: white;
   }
 
+  .speaker-filter-chip {
+    @apply inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium transition-opacity;
+    background: var(--bg-surface);
+  }
+  .speaker-filter-chip:hover {
+    opacity: 0.85;
+  }
+  .speaker-filter-chip-hidden {
+    opacity: 0.45;
+    text-decoration: line-through;
+  }
+  .speaker-badge {
+    @apply mr-2 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold align-middle;
+  }
+  .speaker-badge-input {
+    @apply min-w-[70px] rounded-sm border px-1 py-0.5 text-[10px] font-medium outline-none;
+    border-color: var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  .speaker-badge-action {
+    @apply rounded-sm border px-1 py-0.5 text-[10px] font-medium;
+    border-color: var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  .speaker-badge-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   /* Transcript scroll container */
   .scroll-panel {
     scrollbar-width: thin;
@@ -650,13 +726,13 @@ body {
     @apply scale-125;
     border-color: var(--accent-blue);
     background: var(--accent-blue);
-    box-shadow: 0 0 0 3px var(--accent-blue-muted);
+    box-shadow: var(--accent-blue-glow);
     outline: none;
   }
   .chapter-handle-active {
     border-color: var(--accent-blue) !important;
     background: var(--accent-blue) !important;
-    box-shadow: 0 0 0 3px var(--accent-blue-muted) !important;
+    box-shadow: var(--accent-blue-glow) !important;
   }
 
   /* Chapter / seeker tooltip bubble */
@@ -686,6 +762,13 @@ body {
     background: var(--accent-blue);
   }
   .seeker-track:hover .seeker-hover-indicator { @apply opacity-60; }
+  .speaker-timeline-bar {
+    @apply relative mt-1 h-1.5 overflow-hidden rounded-full;
+    background: var(--bg-surface-muted);
+  }
+  .speaker-timeline-segment {
+    @apply absolute top-0 h-full;
+  }
 
   .custom-video-shell {
     @apply absolute inset-0;
@@ -725,7 +808,8 @@ body {
   }
   .controls-progress-played {
     right: auto;
-    background: var(--accent-blue);
+    background: var(--accent-blue-gradient);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent-blue) 42%, transparent);
   }
   .controls-chapter-dot {
     @apply absolute top-1/2 z-[1] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2;
@@ -735,8 +819,9 @@ body {
   .controls-chapter-dot:hover,
   .controls-chapter-dot:focus-visible {
     @apply scale-110 outline-none;
-    background: var(--accent-blue);
+    background: var(--accent-blue-gradient);
     border-color: #fff;
+    box-shadow: var(--accent-blue-glow);
   }
   .controls-progress-tooltip {
     @apply pointer-events-none absolute bottom-full mb-1.5 -translate-x-1/2 rounded-md px-2 py-0.5 text-[11px] font-semibold text-white;
@@ -759,7 +844,7 @@ body {
     border-color: rgba(255, 255, 255, 0.36);
   }
   .controls-btn-primary {
-    background: var(--accent-blue);
+    background: var(--accent-blue-gradient);
     border-color: rgba(191, 219, 254, 0.82);
   }
   .controls-btn-full {
@@ -844,12 +929,32 @@ body {
     border-bottom: 2px solid transparent;
     margin-bottom: -1px; /* overlap the border-bottom of .rail-tab-bar */
   }
+  .rail-tab::after {
+    content: "";
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 999px;
+    opacity: 0;
+    transform: scaleX(0.72);
+    transform-origin: center;
+    transition: opacity 160ms ease, transform 160ms ease;
+    background: var(--accent-blue-gradient);
+  }
   .rail-tab:hover { color: var(--text-secondary); }
 
   /* Active tab */
   .rail-tab-active {
     color: var(--text-primary) !important;
-    border-bottom-color: var(--accent-blue) !important;
+    border-bottom-color: transparent !important;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--accent-blue) 32%, transparent);
+  }
+  .rail-tab-active::after {
+    opacity: 1;
+    transform: scaleX(1);
+    box-shadow: var(--accent-blue-glow);
   }
   .rail-tab-stack {
     @apply relative min-h-0 flex-1 overflow-y-auto;

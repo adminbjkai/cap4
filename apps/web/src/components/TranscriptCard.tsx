@@ -8,6 +8,7 @@ type TranscriptCardProps = {
   playbackTimeSeconds: number;
   onSeekToSeconds: (seconds: number) => void;
   onSaveTranscript: (text: string) => Promise<boolean>;
+  onSaveSpeakerLabels: (labels: Record<string, string>) => Promise<boolean>;
   /** When true, omits the outer card wrapper — for embedding in the right rail */
   compact?: boolean;
 };
@@ -19,7 +20,40 @@ type TranscriptLine = {
   text: string;
   originalText: string | null;
   confidence: number | null;
+  speaker: number | null;
 };
+
+const SPEAKER_PALETTE = [
+  "#0ea5e9",
+  "#f97316",
+  "#22c55e",
+  "#a855f7",
+  "#e11d48",
+  "#14b8a6",
+  "#f59e0b",
+  "#6366f1",
+];
+
+function defaultSpeakerLabel(speaker: number): string {
+  return `Speaker ${speaker + 1}`;
+}
+
+function speakerColor(speaker: number): string {
+  return SPEAKER_PALETTE[Math.abs(speaker) % SPEAKER_PALETTE.length]!;
+}
+
+function normalizeSpeakerLabels(input: unknown): Record<string, string> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(input as Record<string, unknown>)) {
+    const keyNum = Number(rawKey);
+    if (!Number.isInteger(keyNum) || keyNum < 0) continue;
+    const value = String(rawValue ?? "").trim();
+    if (!value) continue;
+    out[String(keyNum)] = value.slice(0, 80);
+  }
+  return out;
+}
 
 function formatTimestamp(secondsInput: number): string {
   const totalSeconds = Math.max(0, Math.floor(secondsInput));
@@ -39,6 +73,7 @@ export function TranscriptCard({
   playbackTimeSeconds,
   onSeekToSeconds,
   onSaveTranscript,
+  onSaveSpeakerLabels,
   compact = false
 }: TranscriptCardProps) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -61,6 +96,15 @@ export function TranscriptCard({
   const [reviewIndex, setReviewIndex] = useState(0);
   const [hoveredLineIndex, setHoveredLineIndex] = useState<number | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+  const [speakerLabels, setSpeakerLabels] = useState<Record<string, string>>(
+    () => normalizeSpeakerLabels(transcript?.speakerLabels ?? {})
+  );
+  const [hiddenSpeakers, setHiddenSpeakers] = useState<Set<number>>(new Set());
+  const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
+  const [editingSpeakerLineIndex, setEditingSpeakerLineIndex] = useState<number | null>(null);
+  const [speakerDraft, setSpeakerDraft] = useState("");
+  const [speakerSaveError, setSpeakerSaveError] = useState<string | null>(null);
+  const [isSavingSpeaker, setIsSavingSpeaker] = useState(false);
 
   // Track verified segments in localStorage
   const videoId = transcript?.vttKey?.split("/")[0] ?? "unknown";
@@ -118,12 +162,19 @@ export function TranscriptCard({
           endSeconds: Number.isFinite(end) ? Math.max(start, end) : null,
           text,
           originalText: typeof segment.originalText === "string" && segment.originalText.trim().length > 0 ? segment.originalText : null,
-          confidence
+          confidence,
+          speaker: Number.isInteger(Number(segment.speaker)) && Number(segment.speaker) >= 0
+            ? Number(segment.speaker)
+            : null
         };
       })
       .filter((line): line is TranscriptLine => Boolean(line))
       .sort((a, b) => a.startSeconds - b.startSeconds);
   }, [transcript?.segments]);
+
+  useEffect(() => {
+    setSpeakerLabels(normalizeSpeakerLabels(transcript?.speakerLabels ?? {}));
+  }, [transcript?.speakerLabels]);
 
   const transcriptText = useMemo(() => {
     if (transcriptLines.length > 0) {
@@ -131,6 +182,26 @@ export function TranscriptCard({
     }
     return transcript?.text?.trim() ?? "";
   }, [transcript?.text, transcriptLines]);
+
+  const speakerIds = useMemo(() => {
+    const unique = new Set<number>();
+    for (const line of transcriptLines) {
+      if (line.speaker !== null) unique.add(line.speaker);
+    }
+    return Array.from(unique.values()).sort((a, b) => a - b);
+  }, [transcriptLines]);
+
+  useEffect(() => {
+    setHiddenSpeakers((prev) => {
+      if (speakerIds.length === 0) return new Set();
+      const allowed = new Set(speakerIds);
+      const next = new Set<number>();
+      for (const speaker of prev) {
+        if (allowed.has(speaker)) next.add(speaker);
+      }
+      return next;
+    });
+  }, [speakerIds]);
 
   // Find all matches for the search query
   const searchMatches = useMemo(() => {
@@ -342,6 +413,56 @@ export function TranscriptCard({
       }
       return next;
     });
+  };
+
+  const getSpeakerLabel = (speaker: number | null): string | null => {
+    if (speaker === null) return null;
+    const custom = speakerLabels[String(speaker)]?.trim();
+    return custom && custom.length > 0 ? custom : defaultSpeakerLabel(speaker);
+  };
+
+  const toggleSpeakerVisibility = (speaker: number) => {
+    setHiddenSpeakers((prev) => {
+      const next = new Set(prev);
+      if (next.has(speaker)) next.delete(speaker);
+      else next.add(speaker);
+      return next;
+    });
+  };
+
+  const startSpeakerEdit = (speaker: number, lineIndex: number) => {
+    setEditingSpeaker(speaker);
+    setEditingSpeakerLineIndex(lineIndex);
+    setSpeakerDraft(getSpeakerLabel(speaker) ?? defaultSpeakerLabel(speaker));
+    setSpeakerSaveError(null);
+  };
+
+  const cancelSpeakerEdit = () => {
+    setEditingSpeaker(null);
+    setEditingSpeakerLineIndex(null);
+    setSpeakerDraft("");
+    setSpeakerSaveError(null);
+    setIsSavingSpeaker(false);
+  };
+
+  const saveSpeakerLabel = async (speaker: number) => {
+    const normalized = speakerDraft.trim();
+    if (!normalized) {
+      setSpeakerSaveError("Label cannot be empty.");
+      return;
+    }
+    const nextLabels = { ...speakerLabels, [String(speaker)]: normalized };
+    setIsSavingSpeaker(true);
+    setSpeakerSaveError(null);
+    const ok = await onSaveSpeakerLabels(nextLabels);
+    setIsSavingSpeaker(false);
+    if (!ok) {
+      setSpeakerSaveError("Unable to save speaker label.");
+      return;
+    }
+    setSpeakerLabels(nextLabels);
+    setSaveFeedback("Speaker labels saved.");
+    cancelSpeakerEdit();
   };
 
   const copyTranscript = async () => {
@@ -574,6 +695,32 @@ export function TranscriptCard({
               </>
             )}
           </div>
+          {speakerIds.length > 0 && (
+            <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "px-2.5 pb-2" : "mb-3"}`}>
+              <span className="text-[11px] font-medium text-muted">Speakers:</span>
+              {speakerIds.map((speaker) => {
+                const isHidden = hiddenSpeakers.has(speaker);
+                return (
+                  <button
+                    key={`speaker-filter-${speaker}`}
+                    type="button"
+                    onClick={() => toggleSpeakerVisibility(speaker)}
+                    className={`speaker-filter-chip ${isHidden ? "speaker-filter-chip-hidden" : ""}`}
+                    style={{
+                      borderColor: speakerColor(speaker),
+                      color: isHidden ? "var(--text-muted)" : speakerColor(speaker)
+                    }}
+                    title={isHidden ? "Show speaker" : "Hide speaker"}
+                  >
+                    {getSpeakerLabel(speaker)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {speakerSaveError && (
+            <p className={`text-[11px] text-red-700 ${compact ? "px-2.5 pb-2" : "mb-3"}`}>{speakerSaveError}</p>
+          )}
 
           {/* Edit mode */}
           {isEditing ? (
@@ -610,11 +757,14 @@ export function TranscriptCard({
               {transcriptLines.map((line, index) => {
                 // Review mode filtering
                 if (isReviewMode && (line.confidence === null || line.confidence >= 0.8)) return null;
+                if (line.speaker !== null && hiddenSpeakers.has(line.speaker)) return null;
 
                 const isActive = index === activeLineIndex && textViewMode === "current";
                 const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
                 const highlightedContent = highlightText(lineText, index);
                 const isVerified = verifiedSegments.has(line.index);
+                const speakerName = getSpeakerLabel(line.speaker);
+                const isEditingThisSpeaker = line.speaker !== null && editingSpeaker === line.speaker && editingSpeakerLineIndex === index;
 
                 // Determine confidence class
                 let confidenceClass = "";
@@ -623,11 +773,16 @@ export function TranscriptCard({
                 }
 
                 return (
-                  <button
+                  <div
                     key={`${line.index}-${line.startSeconds}`}
-                    type="button"
                     data-transcript-line-index={index}
                     onClick={() => onSeekToSeconds(line.startSeconds)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSeekToSeconds(line.startSeconds);
+                      }
+                    }}
                     onMouseEnter={(e) => {
                       setHoveredLineIndex(index);
                       if (line.confidence !== null && line.confidence < 1.0) {
@@ -642,10 +797,84 @@ export function TranscriptCard({
                     className={`line-item w-full rounded-none px-3 py-2 text-left transition focus-visible:outline-none ${
                       isActive ? "line-item-active" : ""
                     }`}
+                    role="button"
+                    tabIndex={0}
                   >
                     <span className="mr-2 inline-block min-w-[44px] font-mono text-[11px] text-muted leading-[1.4]">
                       {formatTimestamp(line.startSeconds)}
                     </span>
+                    {line.speaker !== null && (
+                      <span
+                        className="speaker-badge"
+                        style={{
+                          borderColor: speakerColor(line.speaker),
+                          backgroundColor: `${speakerColor(line.speaker)}22`,
+                          color: speakerColor(line.speaker)
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (isSavingSpeaker) return;
+                          if (!isEditingThisSpeaker) startSpeakerEdit(line.speaker as number, index);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (line.speaker === null || isSavingSpeaker) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            if (!isEditingThisSpeaker) startSpeakerEdit(line.speaker, index);
+                          }
+                        }}
+                      >
+                        {isEditingThisSpeaker ? (
+                          <span className="inline-flex items-center gap-1">
+                            <input
+                              autoFocus
+                              value={speakerDraft}
+                              onChange={(event) => setSpeakerDraft(event.target.value)}
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => {
+                                event.stopPropagation();
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  if (line.speaker !== null && !isSavingSpeaker) {
+                                    void saveSpeakerLabel(line.speaker);
+                                  }
+                                } else if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  cancelSpeakerEdit();
+                                }
+                              }}
+                              className="speaker-badge-input"
+                            />
+                            <button
+                              type="button"
+                              className="speaker-badge-action"
+                              disabled={isSavingSpeaker}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (line.speaker !== null && !isSavingSpeaker) void saveSpeakerLabel(line.speaker);
+                              }}
+                            >
+                              {isSavingSpeaker ? "..." : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              className="speaker-badge-action"
+                              disabled={isSavingSpeaker}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                cancelSpeakerEdit();
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
+                          speakerName
+                        )}
+                      </span>
+                    )}
                     <span className={`text-[13px] leading-[1.4] ${confidenceClass}`}>
                       {highlightedContent}
                     </span>
@@ -668,7 +897,7 @@ export function TranscriptCard({
                         ✓ Verify
                       </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
 

@@ -95,17 +95,22 @@ export function StatusPanel({
   const currentStepLabel = currentStepLabelMap[phase] ?? "Updating";
   const isFailureTerminal = phase === "failed" || phase === "cancelled";
   const progressWidth = Math.max(4, Math.min(100, progress));
+  const phaseChipClass = isFailureTerminal
+    ? "status-chip-danger"
+    : phase === "complete"
+      ? "status-chip-success"
+      : "status-chip-processing";
 
   return (
     <div className="space-y-4">
-      <section className={`workspace-card ${isFailureTerminal ? "border-red-200" : ""}`}>
+      <section className="workspace-card">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="workspace-label">System status</p>
             <h2 className="workspace-title">Processing lifecycle</h2>
             <p className="workspace-copy">Pipeline health across processing, transcript, and AI.</p>
           </div>
-          <span className={`status-chip ${isFailureTerminal ? "border-red-200 bg-red-100 text-red-700" : ""}`}>
+          <span className={`status-chip ${phaseChipClass}`}>
             {phaseLabel}
           </span>
         </div>
@@ -170,10 +175,11 @@ export function StatusPanel({
         </div>
         <div className="progress-track h-3 w-full overflow-hidden rounded-full">
           <div
-            className={`h-full transition-all duration-500 ${
-              isFailureTerminal ? "bg-red-500" : "bg-gradient-to-r from-emerald-500 via-green-500 to-sky-500"
-            }`}
-            style={{ width: `${progressWidth}%` }}
+            className={`h-full transition-all duration-500 ${isFailureTerminal ? "" : "progress-active-bar"}`}
+            style={{
+              width: `${progressWidth}%`,
+              background: isFailureTerminal ? "var(--status-danger-gradient)" : undefined
+            }}
           />
         </div>
         <p className="mt-2 text-xs text-muted">{helperText}</p>

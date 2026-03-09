@@ -603,7 +603,7 @@ export function RecordPage() {
                 </div>
                 <div className="progress-track h-2 overflow-hidden rounded-full">
                   <div
-                    className="h-full rounded-full bg-zinc-900 transition-all duration-150 dark:bg-zinc-100"
+                    className="progress-active-bar h-full rounded-full transition-all duration-150"
                     style={{ width: `${micEnabled ? micLevel : 0}%` }}
                   />
                 </div>
@@ -740,7 +740,7 @@ export function RecordPage() {
               </div>
               <div className="progress-track mb-2 h-2 w-full rounded-full">
                 <div
-                  className="h-full rounded-full bg-zinc-900 transition-all dark:bg-zinc-100"
+                  className="progress-active-bar h-full rounded-full transition-all"
                   style={{ width: `${Math.max(0, Math.min(100, uploadProgress.progressPct))}%` }}
                 />
               </div>

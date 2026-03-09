@@ -4,6 +4,22 @@ import { CustomVideoControls } from "./CustomVideoControls";
 
 type SeekRequest = { seconds: number; requestId: number };
 type ChapterItem  = { title: string; seconds: number };
+type TranscriptSegment = {
+  startSeconds?: number;
+  endSeconds?: number;
+  speaker?: number | null;
+};
+
+const SPEAKER_PALETTE = [
+  "#0ea5e9",
+  "#f97316",
+  "#22c55e",
+  "#a855f7",
+  "#e11d48",
+  "#14b8a6",
+  "#f59e0b",
+  "#6366f1",
+];
 
 function formatTimestamp(secondsInput: number): string {
   const totalSeconds = Math.max(0, Math.floor(secondsInput));
@@ -24,6 +40,7 @@ export function PlayerCard({
   onDurationChange,
   chapters,
   onSeekToSeconds,
+  transcriptSegments,
 }: {
   resultKey: string | null;
   thumbnailKey: string | null;
@@ -32,6 +49,7 @@ export function PlayerCard({
   onDurationChange?: (seconds: number) => void;
   chapters: ChapterItem[];
   onSeekToSeconds: (seconds: number) => void;
+  transcriptSegments: TranscriptSegment[];
 }) {
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
   const [durationSeconds,     setDurationSeconds]     = useState(0);
@@ -65,6 +83,33 @@ export function PlayerCard({
   const timelineChapters = durationSeconds > 0
     ? chapters.filter((c) => c.seconds >= 0 && c.seconds <= durationSeconds)
     : [];
+  const speakerSlices = useMemo(() => {
+    if (durationSeconds <= 0) return [];
+    const validSegments = (Array.isArray(transcriptSegments) ? transcriptSegments : [])
+      .map((segment) => {
+        const startSeconds = Number(segment.startSeconds);
+        const fallbackEnd = startSeconds + 0.25;
+        const rawEnd = Number(segment.endSeconds);
+        const endSeconds = Number.isFinite(rawEnd) ? rawEnd : fallbackEnd;
+        const speaker = Number(segment.speaker);
+        if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds)) return null;
+        if (!Number.isInteger(speaker) || speaker < 0) return null;
+        const safeStart = Math.max(0, Math.min(durationSeconds, startSeconds));
+        const safeEnd = Math.max(safeStart, Math.min(durationSeconds, endSeconds));
+        if (safeEnd <= safeStart) return null;
+        return { startSeconds: safeStart, endSeconds: safeEnd, speaker };
+      })
+      .filter((segment): segment is { startSeconds: number; endSeconds: number; speaker: number } => Boolean(segment))
+      .sort((a, b) => a.startSeconds - b.startSeconds);
+
+    return validSegments.map((segment, index) => ({
+      key: `${segment.speaker}-${segment.startSeconds}-${index}`,
+      leftPct: (segment.startSeconds / durationSeconds) * 100,
+      widthPct: ((segment.endSeconds - segment.startSeconds) / durationSeconds) * 100,
+      color: SPEAKER_PALETTE[segment.speaker % SPEAKER_PALETTE.length]!,
+      speaker: segment.speaker
+    }));
+  }, [durationSeconds, transcriptSegments]);
 
   const activeChapterIndex = useMemo(() => {
     if (timelineChapters.length === 0) return -1;
@@ -317,6 +362,22 @@ export function PlayerCard({
               );
             })}
           </div>
+          {speakerSlices.length > 0 && (
+            <div className="speaker-timeline-bar" aria-label="Speaker timeline">
+              {speakerSlices.map((slice) => (
+                <div
+                  key={slice.key}
+                  className="speaker-timeline-segment"
+                  style={{
+                    left: `${slice.leftPct}%`,
+                    width: `${slice.widthPct}%`,
+                    backgroundColor: slice.color
+                  }}
+                  title={`Speaker ${slice.speaker + 1}`}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Time display + Prev / Next */}
           <div className="mt-2.5 flex items-center justify-between gap-2">

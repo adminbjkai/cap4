@@ -327,6 +327,16 @@ export function VideoPage() {
     catch { return false; }
   }, [videoId, refresh]);
 
+  const saveSpeakerLabels = useCallback(async (labels: Record<string, string>): Promise<boolean> => {
+    try {
+      await saveWatchEdits(videoId, { speakerLabels: labels }, buildIdempotencyKey());
+      await refresh();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [videoId, refresh]);
+
   /* ── Delete ──────────────────────────────────────────────────────────── */
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!videoId || isDeleting) return;
@@ -374,6 +384,7 @@ export function VideoPage() {
         playbackTimeSeconds={playbackTimeSeconds}
         onSeekToSeconds={requestSeek}
         onSaveTranscript={saveTranscript}
+        onSaveSpeakerLabels={saveSpeakerLabels}
         compact
       />
     );
@@ -558,19 +569,19 @@ export function VideoPage() {
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
               {isProcessing && (
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "var(--accent-blue)" }} />
                   Processing
                 </span>
               )}
               {!isProcessing && status?.processingPhase === "complete" && (
-                <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                <span className="inline-flex items-center gap-1 status-chip-success">
                   <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                   Complete
                 </span>
               )}
-              {status?.processingPhase === "failed" && <span className="text-red-600">Failed</span>}
+              {status?.processingPhase === "failed" && <span className="status-chip status-chip-danger">Failed</span>}
               {lastUpdatedAt && <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span>}
             </div>
           </div>
@@ -631,14 +642,14 @@ export function VideoPage() {
         {/* Processing progress bar */}
         {isProcessing && status && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-1.5"
-               style={{ borderColor: "rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.07)" }}>
-            <div className="h-1 flex-1 rounded-full" style={{ background: "rgba(245,158,11,0.2)" }}>
+               style={{ borderColor: "var(--accent-blue-border)", background: "var(--accent-blue-subtle)" }}>
+            <div className="h-1 flex-1 rounded-full" style={{ background: "var(--bg-surface-muted)" }}>
               <div
-                className="progress-active-bar h-full rounded-full bg-amber-500 transition-all duration-500"
+                className="progress-active-bar h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.max(5, status.processingProgress ?? 0)}%` }}
               />
             </div>
-            <span className="text-[11px] font-medium shrink-0" style={{ color: "rgba(180,110,0,1)" }}>
+            <span className="text-[11px] font-medium shrink-0" style={{ color: "var(--accent-blue)" }}>
               {status.processingProgress != null ? `${status.processingProgress}%` : status.processingPhase}
             </span>
           </div>
@@ -689,6 +700,7 @@ export function VideoPage() {
               onDurationChange={setVideoDurationSeconds}
               chapters={chapters}
               onSeekToSeconds={requestSeek}
+              transcriptSegments={status?.transcript?.segments ?? []}
             />
           )}
         </div>
