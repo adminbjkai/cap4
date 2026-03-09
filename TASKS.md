@@ -1,6 +1,6 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-09 (Phase 1–4 complete ✓ — 18/18 integration tests passing)
+**Last updated:** 2026-03-09 (Phase 4.5 complete ✓ — auto-migrations, local dev docs, config audit)
 
 ---
 
@@ -16,6 +16,18 @@
 
 ## Recently Completed
 
+### Phase 4.5 — Docker & Config Audit (✓ Complete)
+- [x] **Auto-migrations** — `migrate` service in docker-compose; `docker/postgres/run-migrations.sh`
+      applies all pending SQL on every startup; no manual `psql` ever needed
+- [x] **Makefile** — `reset-db` simplified to `down -v + up`; `migrate` target added
+- [x] **package.json** — `migrate` + `reset-db` scripts updated
+- [x] **`.env.example`** — comprehensive comments; `VITE_S3_PUBLIC_ENDPOINT` section;
+      internal vs external URL guidance for S3_ENDPOINT vs S3_PUBLIC_ENDPOINT
+- [x] **LOCAL_DEV.md** — full rewrite: Docker and no-Docker paths, port table, URL routing table
+- [x] **`scripts/dev-local.sh`** — run all 4 services without Docker
+- [x] **CAP4_MASTER_PLAN.md** — phases 1–4.5 updated as complete, Phase 5 added, quick-reference updated
+- [x] **TASKS.md** — this file updated
+
 ### Phase 4 — Integration Tests (✓ Complete — 18/18 passing)
 - [x] **Vitest integration config** — 180s timeout, singleFork execution
 - [x] **Test fixtures** — vid0.mp4 (30s, 2.6 MB) for fast real-pipeline tests
@@ -24,7 +36,7 @@
 - [x] **Polling** — waits for all 3 pipelines: processingPhase + transcriptionStatus + aiStatus
 - [x] **transcript.language** — defaults to 'en' at 3 layers (deepgram.ts, worker SQL COALESCE, API COALESCE)
 - [x] **Migration 0004** — backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
-- [x] **Phase 4.5 audit** — branding, docs, docker-compose container names, TASKS.md, CAP4_MASTER_PLAN.md
+- [x] **Branding audit** — all cap3 → cap4 references cleaned up
 
 ---
 

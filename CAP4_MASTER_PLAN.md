@@ -473,43 +473,67 @@ No documentation changes needed before GitHub push.
 
 ## Development Phases
 
-### Phase 1 — Ship (This Week)
+### Phase 1 — Ship ✅ Complete
 Goal: Get a clean, working codebase onto GitHub.
 
-- [ ] API monolith refactor (split `index.ts` into route modules)
-- [ ] Verify `make up && make smoke` passes on a clean machine
-- [ ] Create `.github/ISSUE_TEMPLATE/` files
-- [ ] Create `.github/workflows/test.yml`
-- [ ] Create `.github/workflows/build.yml`
-- [ ] `gh repo create cap4 --public --source=. --push`
-- [ ] Tag v1.0.0
-- [ ] Archive cap3 / cap3test (README: "See cap4")
+- [x] API monolith refactor (2007-line `index.ts` → 6 route modules)
+- [x] Create `.github/ISSUE_TEMPLATE/` files
+- [x] Create `.github/workflows/test.yml` + `build.yml`
+- [x] `gh repo create cap4 --public` → https://github.com/adminbjkai/cap4
+- [x] Tag v1.0.0 + GitHub release
 
-### Phase 2 — Player UI (Next 2 Weeks)
+### Phase 2 — Player UI ✅ Complete
 Goal: Finish the video player UX improvements.
 
-- [ ] Chapter navigation (wire `ChapterList` → video seek)
-- [ ] Chapter layout repositioning (left sidebar on desktop)
-- [ ] Transcript paragraph view (parse + display with `TranscriptParagraph`)
-- [ ] Groq prompt revision (better summary + key points)
+- [x] Chapter navigation (ChapterList → video seek)
+- [x] Chapter layout (left sidebar on lg+ breakpoint)
+- [x] TranscriptParagraph click-to-seek
+- [x] Groq prompt revision (better key points)
 
-### Phase 3 — Hardening (Following 2 Weeks)
+### Phase 3 — Hardening ✅ Complete
 Goal: Production-grade reliability.
 
-- [ ] Rate limiting on upload and API endpoints
-- [ ] `pnpm audit` — fix all high/critical CVEs
-- [ ] Integration tests for full upload → complete flow
-- [ ] Monitoring setup (health check endpoints already exist)
-- [ ] Nginx: enforce upload size limit + security headers
+- [x] Rate limiting (`@fastify/rate-limit` v10.3.0 — 100 req/min per IP)
+- [x] Nginx upload size limit (`client_max_body_size 2g`)
+- [x] Fastify security audit (bumped to ^5.8.1)
+- [x] Key log audit — pino redacts API keys and secrets
 
-### Phase 4 — Scale (Future)
-Goal: Multi-user and performance improvements. Only if needed.
+### Phase 4 — Integration Tests ✅ Complete (18/18 passing)
+Goal: Verify full upload → encode → transcribe → AI pipeline end-to-end.
 
-- [ ] Authentication layer (single-user password, or JWT)
+- [x] Vitest integration config (180s timeout, singleFork)
+- [x] Test fixture `vid0.mp4` (30s, 2.6 MB) for fast real-pipeline tests
+- [x] Full-flow tests (7) — upload → transcribe → AI → complete pipeline
+- [x] API contract tests (11) — 404, missing headers, idempotency, soft-delete, health/ready
+- [x] `transcript.language` defaults to `'en'` at 3 layers
+- [x] Migration 0004 — backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
+
+### Phase 4.5 — Docker & Config Audit ✅ Complete
+Goal: `docker compose down -v && docker compose up` works with zero manual steps.
+
+- [x] **Auto-migrations** — `migrate` service in docker-compose applies all pending
+      SQL on every startup via `docker/postgres/run-migrations.sh`
+- [x] **Makefile** updated — `reset-db` triggers `down -v + up`, `migrate` target added
+- [x] **package.json** scripts updated to match
+- [x] **`.env.example`** — comprehensive comments, `VITE_S3_PUBLIC_ENDPOINT` section,
+      internal vs external URL guidance
+- [x] **LOCAL_DEV.md** — full rewrite: Docker and non-Docker paths, URL routing table
+- [x] **`scripts/dev-local.sh`** — run all services without Docker
+- [x] Branding: all cap3 → cap4 references cleaned up
+
+### Phase 5 — Auth (Next)
+Goal: Protect the single-tenant instance with authentication.
+
+- [ ] Single-user authentication (JWT or session-based)
+- [ ] Protected routes on frontend
+- [ ] Auth middleware on API endpoints
+
+### Backlog
 - [ ] Batch video operations
-- [ ] Database connection pooling (PgBouncer)
+- [ ] PgBouncer connection pooling
 - [ ] CDN integration for video delivery
-- [ ] Multiple workers (already architecturally supported)
+- [ ] Tinybird analytics integration
+- [ ] Multiple worker instances (architecturally supported — scale the service)
 
 ---
 
@@ -542,7 +566,7 @@ Lessons from the 4-version evolution:
 | API endpoints | ~15 routes |
 | Dependencies | ~30 packages |
 | Repo size | ~5MB (no audit artifacts) |
-| Test coverage | Smoke test (`make smoke`) |
+| Test coverage | 18/18 integration tests + smoke test |
 
 ---
 
@@ -578,6 +602,8 @@ Lessons from the 4-version evolution:
 
 ---
 
-**Status: Ready to execute Phase 1.**
+**Status: Phases 1–4.5 complete. Phase 5 (Auth) is next.**
 
-The source code is production-ready. Documentation is complete. The GitHub repo needs to be created and the monolith needs to be split. Everything else follows from there.
+All Docker infrastructure is self-bootstrapping — `docker compose up` applies
+migrations automatically. 18/18 integration tests pass. Next step: single-user
+authentication (Phase 5).

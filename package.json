@@ -19,7 +19,8 @@
     "up": "docker compose up -d --build",
     "down": "docker compose down",
     "logs": "docker compose logs -f --tail=200",
-    "reset-db": "for f in $(docker compose exec -T postgres sh -lc 'ls /migrations/*.sql | sort'); do docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap4} -f \"$f\"; done",
+    "migrate": "docker compose run --rm migrate",
+    "reset-db": "docker compose down -v && docker compose up -d --build",
     "smoke": "curl -sS -X POST http://localhost:3000/debug/smoke",
     "test:integration": "pnpm --filter @cap/web-api test:integration"
   },

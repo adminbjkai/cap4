@@ -1,382 +1,293 @@
-# Local Development Setup
+# Local Development
 
-Get cap4 running on your machine in 5 minutes.
-
----
-
-## Requirements
-
-- **Docker & Docker Compose** (latest stable)
-- **Node.js 20+** (for running tests)
-- **pnpm** (package manager)
+Two ways to run cap4 locally. **Docker (recommended)** is the fastest path and
+mirrors production exactly. **Local (no Docker)** is useful for rapid iteration
+on individual services.
 
 ---
 
-## Quick Start (5 Minutes)
+## Option A — Docker (Recommended)
+
+### Requirements
+
+- Docker Desktop (or Engine + Compose v2)
+- Node 20+ and pnpm (for running tests and the Vite dev server)
+- A Deepgram API key and a Groq API key
+
+### Quick Start
 
 ```bash
-# 1. Clone repo
-git clone https://github.com/yourorg/cap4
+# 1. Clone and enter the repo
+git clone https://github.com/adminbjkai/cap4
 cd cap4
 
-# 2. Setup environment
+# 2. Create your .env from the example
 cp .env.example .env
+# Edit .env — set DEEPGRAM_API_KEY and GROQ_API_KEY at minimum.
 
-# 3. Start services
+# 3. Start everything (build + migrate + launch)
 make up
+# or: docker compose up -d --build
 
-# 4. Verify it works
-make smoke
-
-# 5. Open in browser
+# 4. Open the app
 open http://localhost:8022
 ```
 
-That's it! All services are running.
+**Migrations run automatically.** On every `docker compose up`, the `migrate`
+service applies any pending SQL files from `db/migrations/` using
+`docker/postgres/run-migrations.sh`. No manual `psql` commands are ever needed.
 
----
+### Services & Ports
 
-## What's Running
-
-After `make up`:
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **web** | http://localhost:8022 | React frontend |
-| **web-api** | http://localhost:3000 | HTTP API |
-| **media-server** | http://localhost:3001 | FFmpeg |
+| Service | Host URL | Purpose |
+|---------|----------|---------|
+| **web (nginx)** | http://localhost:8022 | React frontend + MinIO proxy |
+| **web-api** | http://localhost:3000 | Fastify HTTP API |
+| **media-server** | http://localhost:3100 | FFmpeg processing |
 | **postgres** | localhost:5432 | Database |
-| **minio** | http://localhost:9000 | S3 storage |
+| **minio API** | http://localhost:8922 | S3-compatible object storage |
+| **minio console** | http://localhost:8923 | MinIO admin UI |
 
----
+MinIO default credentials (from `.env.example`): `minio` / `minio123`
 
-## Testing Your Setup
+### Resetting Everything
 
-### Quick Smoke Test
 ```bash
-make smoke
-# Automatically:
-# 1. Uploads a test video
-# 2. Waits for processing to complete
-# 3. Verifies outputs
+# Wipe all data and restart fresh — migrations auto-run on startup
+make reset-db
+# or: docker compose down -v && docker compose up -d --build
 ```
 
-### Manual Upload via Web UI
-1. Open http://localhost:8022
-2. Click "Upload Video"
-3. Select a test video (MP4 recommended)
-4. Wait for processing to complete
-5. View chapters, transcript, AI metadata
-
-### Manual Upload via curl
-```bash
-# 1. Upload
-curl -X POST http://localhost:3000/api/videos \
-  -H "Idempotency-Key: test-001" \
-  -F "video=@sample.mp4"
-
-# 2. Get video ID from response
-# 3. Poll status
-curl http://localhost:3000/api/videos/{id}
-
-# 4. Watch worker logs
-docker compose logs -f worker
-```
-
----
-
-## Common Commands
+### Running Just the Frontend in Dev Mode (Hot Reload)
 
 ```bash
-# Start all services
+# 1. Start the Docker backend (API + worker + DB + MinIO)
 make up
 
-# Stop all services
-make down
-
-# View logs
-docker compose logs            # All services
-docker compose logs worker     # Just worker
-docker compose logs -f web-api # Follow logs
-
-# Reset database (WARNING: deletes all data)
-make reset-db
-
-# Run tests
-pnpm test
-pnpm test:integration
-
-# Format code
-pnpm format
-
-# Lint code
-pnpm lint
-
-# Run frontend dev server (hot reload)
-cd apps/web
-pnpm dev
-# Or from root:
+# 2. Start the Vite dev server for hot-reload
 pnpm dev:web
+# Opens at http://localhost:5173
+
+# The Vite proxy routes:
+#   /api     → http://localhost:3000
+#   /health  → http://localhost:3000
+#   /cap4    → http://localhost:9000  (for local MinIO dev)
+#
+# When using Docker infrastructure (MinIO mapped to :8922), add to .env:
+#   VITE_S3_PUBLIC_ENDPOINT=http://localhost:8922
+```
+
+### Common Commands
+
+```bash
+make up          # Build + start all services (migrations auto-apply)
+make down        # Stop services (data preserved)
+make reset-db    # Wipe all data + restart (migrations auto-apply)
+make migrate     # Re-run migration runner on an already-running stack
+make logs        # Follow all service logs
+make smoke       # Run smoke test against running stack
+pnpm test:integration  # Full integration test suite (requires running stack)
 ```
 
 ---
 
-## .env Configuration
+## Option B — Local (No Docker)
 
-See `.env.example` for all available options.
+Run every service as a native process. Useful for rapid backend iteration
+without Docker rebuild cycles.
 
-Key variables:
+### Requirements
+
+- Node 20+ and pnpm
+- PostgreSQL 15+ running on localhost:5432
+- MinIO running on localhost:9000
+- ffmpeg
+
+### One-Time Infrastructure Setup
+
+**PostgreSQL (macOS with Homebrew):**
+
 ```bash
-# API Port
-API_PORT=3000
+brew install postgresql@16
+brew services start postgresql@16
+createdb cap4
+psql cap4 -c "CREATE USER app WITH PASSWORD 'app';"
+psql cap4 -c "GRANT ALL PRIVILEGES ON DATABASE cap4 TO app;"
+```
 
-# Database
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=cap4
-DB_PASSWORD=password123
-DB_NAME=cap4
+**PostgreSQL (Ubuntu/Debian):**
 
-# MinIO S3
+```bash
+apt-get install postgresql
+sudo -u postgres createuser app --pwprompt   # use "app" as password
+sudo -u postgres createdb cap4 --owner=app
+```
+
+**MinIO (macOS):**
+
+```bash
+brew install minio/stable/minio
+minio server ~/minio-data --address ":9000" --console-address ":9001" &
+# Create bucket
+brew install minio/stable/mc
+mc alias set local http://localhost:9000 minioadmin minioadmin
+mc mb local/cap4
+mc anonymous set public local/cap4
+```
+
+**MinIO (Linux — binary):**
+
+```bash
+wget https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x minio
+./minio server ~/minio-data --address ":9000" --console-address ":9001" &
+```
+
+**ffmpeg:**
+
+```bash
+brew install ffmpeg      # macOS
+apt-get install ffmpeg   # Ubuntu/Debian
+```
+
+### Apply Migrations (One-Time, and After Each New Migration File)
+
+```bash
+psql -U app -d cap4 -f db/migrations/0001_init.sql
+psql -U app -d cap4 -f db/migrations/0002_video_soft_delete.sql
+psql -U app -d cap4 -f db/migrations/0003_add_webhook_reporting.sql
+psql -U app -d cap4 -f db/migrations/0004_fix_transcript_language.sql
+```
+
+### Environment File for Local Dev
+
+```bash
+cp .env.example .env
+```
+
+Then update `.env` to point to `localhost` instead of Docker service names:
+
+```bash
+# Override for local (no Docker)
+DATABASE_URL=postgres://app:app@localhost:5432/cap4
+S3_ENDPOINT=http://localhost:9000
+S3_PUBLIC_ENDPOINT=http://localhost:9000
+WEB_API_BASE_URL=http://localhost:3000
+MEDIA_SERVER_BASE_URL=http://localhost:3100
+
+# MinIO credentials (match your local MinIO setup)
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 
-# External APIs
-DEEPGRAM_API_KEY=your-key-here
-GROQ_API_KEY=your-key-here
+# Real API keys required
+DEEPGRAM_API_KEY=<your key>
+GROQ_API_KEY=<your key>
+```
+
+### Start All Services
+
+```bash
+# Convenience script (starts all 4 services concurrently)
+./scripts/dev-local.sh
+
+# Or start each service in a separate terminal:
+pnpm dev:web-api        # terminal 1 — Fastify API on :3000
+pnpm dev:worker         # terminal 2 — background job worker
+pnpm dev:media-server   # terminal 3 — FFmpeg service on :3100
+pnpm dev:web            # terminal 4 — Vite dev server on :5173
+```
+
+Open the app at `http://localhost:5173`.
+
+---
+
+## URL Routing — How the Frontend Accesses MinIO
+
+Understanding where video files are loaded from:
+
+| Runtime | URL pattern | Resolved by |
+|---------|------------|-------------|
+| **Docker via nginx** | `/cap4/videos/.../result.mp4` (relative) | nginx proxies `/cap4/` → MinIO (internal :9000) |
+| **Docker Vite dev** + `VITE_S3_PUBLIC_ENDPOINT=http://localhost:8922` | `http://localhost:8922/cap4/...` | Browser → MinIO directly at host port 8922 |
+| **Local (no Docker) Vite dev** | `/cap4/videos/.../result.mp4` (relative) | Vite dev server proxies `/cap4/` → `http://localhost:9000` |
+
+`buildPublicObjectUrl(key)` in `apps/web/src/lib/format.ts` reads
+`VITE_S3_PUBLIC_ENDPOINT` at build time. If unset, it falls back to a relative
+path — the correct default for both Docker nginx and local Vite dev.
+
+---
+
+## Running Tests
+
+```bash
+# Unit tests (no Docker required)
+pnpm test
+
+# Integration tests (Docker stack must be running + real API keys set)
+make up
+pnpm test:integration
+# or: pnpm --filter @cap/web-api test:integration
+```
+
+Integration tests run the real upload → transcode → transcribe → AI pipeline
+end-to-end. Expect 2–5 minutes.
+
+---
+
+## Database Access
+
+```bash
+# Docker
+docker compose exec postgres psql -U app -d cap4
+
+# Local
+psql -U app -d cap4
+```
+
+Useful queries:
+
+```sql
+-- All videos
+SELECT id, processing_phase, created_at FROM videos ORDER BY created_at DESC;
+
+-- Pending jobs
+SELECT id, job_type, status, attempts FROM job_queue WHERE status = 'pending';
+
+-- Recent failures
+SELECT id, job_type, last_error, updated_at FROM job_queue
+WHERE status = 'failed' ORDER BY updated_at DESC LIMIT 10;
+
+-- Applied migrations
+SELECT version, applied_at FROM schema_migrations ORDER BY version;
 ```
 
 ---
 
 ## Troubleshooting
 
-### Port Already in Use
-
+### Port already in use
 ```bash
-# Find what's using the port
-lsof -i :3000
-lsof -i :8022
-
-# Kill the process
-kill -9 <PID>
-
-# Or change port in .env
-API_PORT=3001
+lsof -i :3000   # web-api
+lsof -i :8022   # nginx
+lsof -i :8922   # MinIO
 ```
 
-### Database Connection Error
+### `relation "..." does not exist` (empty database)
+- **Docker:** `make reset-db` — migrations auto-apply on startup
+- **Local:** Run the migration SQL files manually (see above)
 
+### Presigned upload fails
+`S3_PUBLIC_ENDPOINT` must be browser-accessible (not a Docker service name):
+- Docker: `http://localhost:8922`
+- Local: `http://localhost:9000`
+
+### Worker not processing jobs
 ```bash
-# Check if postgres is running
-docker compose ps
-
-# Restart postgres
-docker compose restart postgres
-
-# Or reset everything
-make down && make up
+docker compose logs worker      # Docker
+# or check the terminal running pnpm dev:worker
 ```
+Confirm `DATABASE_URL` and MinIO credentials are correct in `.env`.
 
-### Video Won't Process
-
-```bash
-# Check worker logs
-docker compose logs worker
-
-# Common issues:
-# 1. External API failure (Deepgram, Groq) - try retry
-# 2. Video format unsupported - use MP4
-# 3. Worker crashed - restart: docker compose restart worker
-```
-
-### S3 Upload Fails
-
-```bash
-# Check MinIO is running
-curl http://localhost:9000/minio/health/live
-
-# Check credentials in .env
-# MinIO UI: http://localhost:9000
-```
-
-### Out of Disk Space
-
-```bash
-# Clean up Docker volumes
-docker system prune -a
-
-# Or clean specific project
-docker volume rm cap4_postgres cap4_minio_data
-```
-
----
-
-## Frontend Development
-
-### Run Vite Dev Server (with Hot Reload)
-
-```bash
-# From cap4 root
-pnpm dev:web
-
-# Or from apps/web
-cd apps/web
-pnpm dev
-```
-
-This starts frontend on `http://localhost:5173` with hot module reloading.
-
-Backend still runs at `http://localhost:3000`.
-
-### Debugging Frontend
-
-Chrome DevTools work normally. Check Console, Network, and React DevTools extension.
-
----
-
-## Backend Development
-
-### Running Individual Services
-
-Instead of `make up` (all services), run just what you need:
-
-```bash
-# Just database and MinIO (for API testing)
-docker compose up -d postgres minio
-
-# Leave worker down if testing just API endpoints
-```
-
-### Testing API Endpoints
-
-```bash
-# Test upload endpoint
-curl -X POST http://localhost:3000/api/videos \
-  -H "Idempotency-Key: test-001" \
-  -F "video=@sample.mp4"
-
-# Test status endpoint
-curl http://localhost:3000/api/videos/{id}
-```
-
-### Debugging Worker
-
-```bash
-# Watch worker logs in real-time
-docker compose logs -f worker
-
-# Check worker code
-cat apps/worker/src/index.ts
-```
-
----
-
-## Database Access
-
-### Using psql (PostgreSQL Client)
-
-```bash
-# Install psql if not already
-brew install postgresql  # macOS
-apt-get install postgresql-client  # Ubuntu
-
-# Connect to database
-psql -h localhost -p 5432 -U cap4 -d cap4
-```
-
-### Useful SQL Queries
-
-```sql
--- See all videos
-SELECT id, processingPhase, rank, uploadedAt FROM videos;
-
--- See pending jobs
-SELECT * FROM jobs WHERE status = 'pending';
-
--- See recent errors
-SELECT * FROM jobs WHERE status = 'failed' ORDER BY createdAt DESC LIMIT 5;
-
--- Clear all data (WARNING!)
-DELETE FROM videos CASCADE;
-```
-
----
-
-## MinIO (S3) Access
-
-### Web UI
-Open http://localhost:9000 in browser.
-
-Login:
-- Username: `minioadmin`
-- Password: `minioadmin`
-
-### Using AWS CLI (Optional)
-
-```bash
-# Configure AWS CLI for MinIO
-aws configure --profile minio
-# Endpoint: http://localhost:9000
-# Access Key: minioadmin
-# Secret Key: minioadmin
-# Region: us-east-1
-
-# List buckets
-aws --endpoint-url http://localhost:9000 --profile minio s3 ls
-
-# List video files
-aws --endpoint-url http://localhost:9000 --profile minio s3 ls s3://cap4/
-```
-
----
-
-## Git Workflow
-
-```bash
-# Create feature branch
-git checkout -b feature/my-feature
-
-# Make changes
-# Test: pnpm test, make smoke
-
-# Commit
-git add .
-git commit -m "feat: add chapter navigation"
-
-# Push
-git push origin feature/my-feature
-
-# Open Pull Request on GitHub
-```
-
-See [../../CONTRIBUTING.md](../../CONTRIBUTING.md) for full guidelines.
-
----
-
-## Performance Tips
-
-- **Keep Docker containers running** — Don't rebuild constantly
-- **Use `make smoke` for validation** — Faster than manual testing
-- **Monitor worker logs** — Quick insight into what's happening
-- **Clear volume data between major changes** — Prevents state conflicts
-
----
-
-## Architecture Details
-
-See [../../ARCHITECTURE.md](../../ARCHITECTURE.md) for deep dive into:
-- State machine
-- Job queue
-- Webhook handling
-- Failure recovery
-
----
-
-## Still Having Issues?
-
-1. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-2. Read service logs: `docker compose logs {service}`
-3. Ask in GitHub Discussions
-4. Check ARCHITECTURE.md for design details
-
-**Remember:** Most issues are solved by `make down && make up` + `make reset-db`
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more common fixes.

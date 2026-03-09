@@ -1,34 +1,37 @@
-.PHONY: up down logs reset-db smoke
+.PHONY: up down logs migrate reset-db smoke prune
 
 # Canonical docker compose project name.
 # Override: `make PROJECT=cap4-staging up`
 PROJECT ?= cap4
 
+# Start all services. Migrations run automatically via the 'migrate' service.
 up:
 	docker compose -p $(PROJECT) up -d --build
 
+# Stop all services (preserves volumes / data).
 down:
 	docker compose -p $(PROJECT) down
 
+# Follow logs for all services.
 logs:
 	docker compose -p $(PROJECT) logs -f --tail=200
 
-reset-db:
-	for f in $$(docker compose -p $(PROJECT) exec -T postgres sh -lc 'ls /migrations/*.sql | sort'); do \
-		docker compose -p $(PROJECT) exec -T postgres psql -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-cap4} -f $$f; \
-	done
-setup: up
-	@echo "Waiting for services to be healthy..."
-	@until [ "$$(docker compose -p $(PROJECT) ps -q web-api)" ] && [ "$$(docker inspect $$(docker compose -p $(PROJECT) ps -q web-api) --format='{{.State.Health.Status}}')" = "healthy" ]; do \
-		echo "Waiting for web-api..."; \
-		sleep 2; \
-	done
-	$(MAKE) PROJECT=$(PROJECT) reset-db
-	@echo "Setup complete! UI at http://localhost:8022"
+# Re-run the migration runner against the running database.
+# Useful after adding a new migration file without a full restart.
+migrate:
+	docker compose -p $(PROJECT) run --rm migrate
 
+# Hard-reset: wipe volumes and restart from scratch.
+# Migrations run automatically on fresh startup — no manual SQL needed.
+reset-db:
+	docker compose -p $(PROJECT) down -v
+	docker compose -p $(PROJECT) up -d --build
+
+# Run the smoke test (requires services to be up and healthy).
+smoke:
+	curl -sS -X POST http://localhost:3000/debug/smoke
+
+# Remove containers, volumes, and dangling build cache.
 prune:
 	docker compose -p $(PROJECT) down -v --remove-orphans
 	docker builder prune -f
-
-smoke:
-	curl -sS -X POST http://localhost:3000/debug/smoke

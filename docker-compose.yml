@@ -12,12 +12,29 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./db/migrations:/migrations:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap4}" ]
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Runs all pending SQL migrations once on every stack startup.
+  # web-api and worker wait for this to complete before starting.
+  migrate:
+    image: postgres:16-alpine
+    # container_name: cap4-migrate
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      - ./db/migrations:/migrations:ro
+      - ./docker/postgres/run-migrations.sh:/run-migrations.sh:ro
+    entrypoint: [ "sh", "/run-migrations.sh" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   minio:
     image: minio/minio:RELEASE.2025-01-20T14-49-07Z
@@ -65,8 +82,8 @@ services:
     ports:
       - "${WEB_API_PORT:-3000}:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       minio:
         condition: service_started
       minio-setup:
@@ -93,8 +110,8 @@ services:
       # SECURITY: DATABASE_URL must be provided via environment - no default credentials
       DATABASE_URL: ${DATABASE_URL}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   media-server:
     build:

@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-03-09 (Phase 4.5 complete — branding + docs audit done)
+**Last updated:** 2026-03-09 (Phase 4.5 complete — auto-migrations, local dev docs, config audit)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -9,23 +9,29 @@
 
 ## Current State
 
-Phases 1–4 complete. Repository clean.
+Phases 1–4.5 complete. Repository clean. **Next: Phase 5 — Auth**
+
 **Phase 4 — Integration Tests: ✅ 18/18 passing** (7 pipeline + 11 API contract)
 
-### Latest Changes
-- ✅ Phase 4.5 audit: branding, docker-compose, TASKS.md, CAP4_MASTER_PLAN.md, ROADMAP.md
+### Latest Changes (Phase 4.5 — Docker & Config Audit)
+- ✅ **Auto-migrations** — `migrate` service in docker-compose applies all pending SQL on startup
+- ✅ `docker/postgres/run-migrations.sh` — migration runner with `schema_migrations` tracking table
+- ✅ **Makefile** — `reset-db` = `down -v + up`; `migrate` target added
+- ✅ **package.json** — `migrate` + `reset-db` scripts updated
+- ✅ **`.env.example`** — comprehensive comments; `VITE_S3_PUBLIC_ENDPOINT` section documented
+- ✅ **LOCAL_DEV.md** — full rewrite: Docker + no-Docker, port table, URL routing explanation
+- ✅ **`scripts/dev-local.sh`** — run all 4 services without Docker
+- ✅ **CAP4_MASTER_PLAN.md** — phases 1–4.5 complete, Phase 5 Auth, quick-reference updated
+- ✅ **TASKS.md** — updated
+
+### Earlier Changes (Phase 4 + 4.5 branding)
 - ✅ apps/web/index.html: title cap3 → cap4
-- ✅ system.ts dev UI: "Cap3 Upload UI" / "Cap3 Milestone 3 UI" → "Cap4 Upload UI" / "Cap4 Dev UI"
-- ✅ docker-compose.yml: commented container names cap3-* → cap4-*
-- ✅ TASKS.md: Phase 4 marked complete, Phase 5 Auth listed as next
-- ✅ CAP4_MASTER_PLAN.md: DB migrations count 3 → 4
-- ✅ ROADMAP.md: added ARCHIVED header, no longer claims to be source of truth
+- ✅ system.ts dev UI: "Cap3 Upload UI" → "Cap4 Dev UI"
+- ✅ docker-compose.yml: container names cap3-* → cap4-* (commented)
 - ✅ Integration test suite: 18/18 passing — full upload → transcribe → AI → complete pipeline
 - ✅ transcript.language defaulted to 'en' at 3 layers (deepgram.ts, worker SQL COALESCE, API COALESCE)
 - ✅ Migration 0004: backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
 - ✅ Video player thumbnail: added `poster` attribute to `<video>` element
-
-**Next Phase:** Phase 5 — Auth
 
 ---
 
@@ -41,9 +47,11 @@ Phases 1–4 complete. Repository clean.
 | `docs/api/WEBHOOKS.md` | Webhook payload + HMAC verification |
 | `docs/DATABASE.md` | Schema reference |
 | `docs/ops/DEPLOYMENT.md` | Production deployment guide |
-| `docs/ops/LOCAL_DEV.md` | Local dev setup |
+| `docs/ops/LOCAL_DEV.md` | Local dev setup (Docker + no-Docker) |
 | `docs/ops/TROUBLESHOOTING.md` | Common issues + fixes |
 | `docs/ui/DESIGN_SYSTEM.md` | UI tokens and component guide |
+| `docker/postgres/run-migrations.sh` | Migration runner script |
+| `scripts/dev-local.sh` | Run all services without Docker |
 | `apps/web-api/src/index.ts` | Fastify entry — rate limiting + route modules |
 | `apps/web/src/` | React/Vite frontend |
 
@@ -51,11 +59,23 @@ Phases 1–4 complete. Repository clean.
 
 ## Architecture in 30 Seconds
 
-- **7 Docker services:** Nginx → web (React/Vite) + web-api (Fastify) → PostgreSQL + MinIO + media-server; worker polls separately
+- **8 Docker services:** postgres + migrate (auto-runs SQL) + minio + minio-setup + web-api + worker + media-server + nginx
+- **Migrations:** `migrate` service uses `schema_migrations` table to track applied migrations; runs on every `docker compose up`
 - **Job queue:** PostgreSQL `FOR UPDATE SKIP LOCKED` — no Redis
 - **State machine:** Monotonic `processing_phase_rank`, terminal states: `complete`, `failed`, `cancelled`
 - **Webhooks:** media-server → web-api via HMAC-signed HTTP (replay-protected)
 - **AI:** Deepgram (transcription) + Groq (title/summary/chapters)
+- **URL routing:** Frontend uses relative `/cap4/...` paths → nginx proxies to MinIO (Docker); Vite dev server proxies to `localhost:9000` (local dev)
+
+---
+
+## URL Configuration Notes
+
+| Env var | Used by | Purpose |
+|---------|---------|---------|
+| `S3_ENDPOINT` | Backend (server→MinIO) | Internal Docker URL: `http://minio:9000` |
+| `S3_PUBLIC_ENDPOINT` | Backend (presigned PUT URLs + dev UI) | Browser-accessible: `http://localhost:8922` |
+| `VITE_S3_PUBLIC_ENDPOINT` | Frontend (build-time) | Leave unset for Docker nginx (uses relative path); set to `http://localhost:8922` for Vite dev + Docker infra |
 
 ---
 
@@ -64,13 +84,16 @@ Phases 1–4 complete. Repository clean.
 | Term | Meaning |
 |------|---------|
 | cap3test | The working source directory (virtiofs mount — IS cap4) |
-| cap4 | The project name (the old `cap4/` docs subdirectory has been removed) |
+| cap4 | The project name |
 | monolith | Was `apps/web-api/src/index.ts` (2007 lines) — now split into route modules ✓ |
 | Phase 1 | API split + GitHub repo creation ✓ |
 | Phase 2 | Player UI (ChapterList, TranscriptParagraph, lg breakpoint) ✓ |
 | Phase 3 | Hardening (rate limiting, nginx, fastify v5, key log audit) ✓ |
-| Phase 4 | Integration tests — 18/18 passing, full upload → AI pipeline verified ✓ |
-| Phase 4.5 | Branding audit, docs alignment, docker-compose cleanup ✓ |
+| Phase 4 | Integration tests — 18/18 passing ✓ |
+| Phase 4.5 | Docker/config audit — auto-migrations, local dev docs ✓ |
+| Phase 5 | Auth — single-user JWT/session (NEXT UP) |
+| schema_migrations | Table tracking which SQL migrations have been applied |
+| migrate service | Docker Compose service that auto-runs migrations on startup |
 | progress_bucket | Webhook dedup column — prevents duplicate 10%-bucket updates |
 | delivery_id | Webhook idempotency key stored in webhook_deliveries table |
 | phase_rank | Integer enforcing monotonic state transitions |
