@@ -6,7 +6,7 @@
  * and { config: { rawBody: true } } on this route).
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { getEnv } from "@cap/config";
 import { withTransaction } from "@cap/db";
 import {
@@ -27,6 +27,10 @@ function log(app: FastifyInstance, fields: Record<string, unknown>) {
 }
 
 export async function webhookRoutes(app: FastifyInstance) {
+  // Register a custom content-type parser that returns the raw buffer
+  // This prevents Fastify from parsing/validating the JSON, allowing us to handle invalid JSON
+  app.addContentTypeParser("application/json", { parseAs: "buffer" }, async (_req: FastifyRequest, body: Buffer) => body.toString("utf8"));
+
   app.post(
     "/api/webhooks/media-server/progress",
     { config: { rawBody: true, rateLimit: false } },

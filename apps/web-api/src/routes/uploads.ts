@@ -19,6 +19,7 @@ import {
   idempotencyBegin,
   idempotencyFinish,
   getS3ClientAndBucket,
+  getInternalS3ClientAndBucket,
   PutObjectCommand,
   CreateMultipartUploadCommand,
   UploadPartCommand,
@@ -222,7 +223,7 @@ export async function uploadRoutes(app: FastifyInstance) {
       }
 
       const rawKey = uploadLookup.rows[0]!.raw_key;
-      const { client: s3Client, bucket } = getS3ClientAndBucket();
+      const { client: s3Client, bucket } = getInternalS3ClientAndBucket();
 
       const multCommand = new CreateMultipartUploadCommand({
         Bucket: bucket,
