@@ -11,103 +11,103 @@
 
 :root {
   /* ── Backgrounds ──────────────────────────────────────────────────────── */
-  --bg-app:           #f9f9fb;
+  --bg-app:           #f9fafb;   /* gray-50 */
   --bg-surface:       #ffffff;
-  --bg-surface-subtle:#f4f4f6;
-  --bg-surface-muted: #ebebed;
+  --bg-surface-subtle:#f3f4f6;   /* gray-100 */
+  --bg-surface-muted: #e5e7eb;   /* gray-200 */
   --bg-elevated:      #ffffff;
 
   /* ── Typography ───────────────────────────────────────────────────────── */
-  --text-primary:   #111113;
-  --text-secondary: #3d3d44;
-  --text-muted:     #717179;
+  --text-primary:   #1f2937;     /* gray-800 */
+  --text-secondary: #6b7280;     /* gray-500 */
+  --text-muted:     #9ca3af;     /* gray-400 */
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
-  --border-default: #e2e2e6;
-  --border-strong:  #c8c8ce;
+  --border-default: #e5e7eb;     /* gray-200 */
+  --border-strong:  #d1d5db;     /* gray-300 */
 
   /* ── Surface states ───────────────────────────────────────────────────── */
-  --hover-surface:  #f0f0f3;
-  --focus-ring:     rgba(37, 99, 235, 0.18);
+  --hover-surface:  #f3f4f6;
+  --focus-ring:     rgba(59, 130, 246, 0.20);
 
   /* ── Accent (primary action / ink) ───────────────────────────────────── */
-  --accent:         #111113;
-  --accent-strong:  #000000;
+  --accent:         #1f2937;     /* same as text-primary for buttons */
+  --accent-strong:  #111827;
 
-  /* ── Blue accent (interactive: tabs, focus, active markers, links) ────── */
-  --accent-blue:        #2563eb;
-  --accent-blue-hover:  #1d4ed8;
-  --accent-blue-subtle: #eff6ff;
-  --accent-blue-border: #bfdbfe;
-  --accent-blue-muted:  #dbeafe;
+  /* ── Blue accent (tabs, focus, active markers, links) ────────────────── */
+  --accent-blue:        #3b82f6; /* blue-500 */
+  --accent-blue-hover:  #2563eb; /* blue-600 */
+  --accent-blue-subtle: #eff6ff; /* blue-50 */
+  --accent-blue-border: #bfdbfe; /* blue-200 */
+  --accent-blue-muted:  #dbeafe; /* blue-100 */
 
-  /* ── Status colors ────────────────────────────────────────────────────── */
-  --warning-bg:     #fffbe6;
-  --warning-text:   #854d0e;
+  /* ── Status ───────────────────────────────────────────────────────────── */
+  --warning-bg:     #fffbeb;
+  --warning-text:   #92400e;
   --danger-bg:      #fef2f2;
-  --danger-text:    #991b1b;
-  --success-bg:     #f0fdf4;
-  --success-text:   #166534;
-  --success-border: #bbf7d0;
-  --info-bg:        #f0f9ff;
-  --info-text:      #075985;
-  --info-border:    #bae6fd;
+  --danger-text:    #b91c1c;
+  --success-bg:     #ecfdf5;
+  --success-text:   #065f46;
+  --success-border: #a7f3d0;
+  --info-bg:        #eff6ff;
+  --info-text:      #1e40af;
+  --info-border:    #bfdbfe;
 
   /* ── Misc ─────────────────────────────────────────────────────────────── */
-  --chip-bg:     #f4f4f6;
-  --chip-text:   #3d3d44;
-  --chip-border: #e2e2e6;
+  --chip-bg:     #f3f4f6;
+  --chip-text:   #374151;
+  --chip-border: #e5e7eb;
 
   color-scheme: light;
 }
 
 :root.theme-dark {
-  /* ── Backgrounds ──────────────────────────────────────────────────────── */
-  --bg-app:           #09090b;
-  --bg-surface:       #111113;
-  --bg-surface-subtle:#18181b;
-  --bg-surface-muted: #27272a;
-  --bg-elevated:      #1a1a1f;
+  /* ── Backgrounds (slate family — blue-tinted dark) ───────────────────── */
+  --bg-app:           #0f172a;   /* slate-900 */
+  --bg-surface:       #1e293b;   /* slate-800 */
+  --bg-surface-subtle:#253348;   /* between slate-800/700 */
+  --bg-surface-muted: #334155;   /* slate-700 */
+  --bg-elevated:      #1e293b;
 
   /* ── Typography ───────────────────────────────────────────────────────── */
-  --text-primary:   #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted:     #71717a;
+  --text-primary:   #f1f5f9;     /* slate-100 */
+  --text-secondary: #cbd5e1;     /* slate-300 */
+  --text-muted:     #94a3b8;     /* slate-400 */
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
-  --border-default: #27272a;
-  --border-strong:  #3f3f46;
+  --border-default: #334155;     /* slate-700 */
+  --border-strong:  #475569;     /* slate-600 */
 
   /* ── Surface states ───────────────────────────────────────────────────── */
-  --hover-surface:  #1c1c21;
-  --focus-ring:     rgba(96, 165, 250, 0.22);
+  --hover-surface:  #253348;
+  --focus-ring:     rgba(96, 165, 250, 0.25);
 
   /* ── Accent ───────────────────────────────────────────────────────────── */
-  --accent:         #fafafa;
+  --accent:         #f1f5f9;
   --accent-strong:  #ffffff;
 
   /* ── Blue accent ──────────────────────────────────────────────────────── */
-  --accent-blue:        #3b82f6;
-  --accent-blue-hover:  #60a5fa;
-  --accent-blue-subtle: rgba(59, 130, 246, 0.10);
-  --accent-blue-border: rgba(59, 130, 246, 0.28);
-  --accent-blue-muted:  rgba(59, 130, 246, 0.16);
+  --accent-blue:        #60a5fa; /* blue-400 — brighter for dark bg */
+  --accent-blue-hover:  #93c5fd; /* blue-300 */
+  --accent-blue-subtle: rgba(96, 165, 250, 0.12);
+  --accent-blue-border: rgba(96, 165, 250, 0.30);
+  --accent-blue-muted:  rgba(96, 165, 250, 0.18);
 
   /* ── Status ───────────────────────────────────────────────────────────── */
-  --warning-bg:     #422006;
+  --warning-bg:     rgba(245,158,11,0.12);
   --warning-text:   #fbbf24;
-  --danger-bg:      #450a0a;
+  --danger-bg:      rgba(239,68,68,0.12);
   --danger-text:    #f87171;
-  --success-bg:     #064e3b;
+  --success-bg:     rgba(52,211,153,0.10);
   --success-text:   #34d399;
-  --success-border: #065f46;
-  --info-bg:        #082f49;
-  --info-text:      #38bdf8;
-  --info-border:    #0c4a6e;
+  --success-border: rgba(52,211,153,0.30);
+  --info-bg:        rgba(96,165,250,0.10);
+  --info-text:      #60a5fa;
+  --info-border:    rgba(96,165,250,0.30);
 
-  --chip-bg:     #27272a;
-  --chip-text:   #e4e4e7;
-  --chip-border: #3f3f46;
+  --chip-bg:     #334155;
+  --chip-text:   #e2e8f0;
+  --chip-border: #475569;
 
   color-scheme: dark;
 }
