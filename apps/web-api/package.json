@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node --enable-source-maps dist/index.js",
     "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "typecheck": "tsc --noEmit"

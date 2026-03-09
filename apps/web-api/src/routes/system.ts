@@ -24,7 +24,7 @@ import {
 
 const env = getEnv();
 
-const uiPublicBucketBase = `${(process.env.S3_PUBLIC_ENDPOINT ?? "http://localhost:9000").replace(/\/$/, "")}/${process.env.S3_BUCKET ?? "cap3"}`;
+const uiPublicBucketBase = `${(process.env.S3_PUBLIC_ENDPOINT ?? "http://localhost:9000").replace(/\/$/, "")}/${process.env.S3_BUCKET ?? "cap4"}`;
 
 function log(app: FastifyInstance, fields: Record<string, unknown>) {
   if ((app as any).serviceLogger) {

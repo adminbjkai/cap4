@@ -174,7 +174,7 @@ app.post<{ Body: ProcessRequest }>("/process", async (req, reply) => {
     return reply.code(400).send({ ok: false, error: "videoId and rawKey are required" });
   }
 
-  const workDir = join("/tmp", "cap3-media", videoId);
+  const workDir = join("/tmp", "cap4-media", videoId);
   const inputPath = join(workDir, "source-input.mp4");
   const resultPath = join(workDir, "result.mp4");
   const thumbPath = join(workDir, "screen-capture.jpg");

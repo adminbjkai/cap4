@@ -1,5 +1,5 @@
 {
-  "name": "cap3",
+  "name": "cap4",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@9.12.3",
@@ -19,8 +19,9 @@
     "up": "docker compose up -d --build",
     "down": "docker compose down",
     "logs": "docker compose logs -f --tail=200",
-    "reset-db": "for f in $(docker compose exec -T postgres sh -lc 'ls /migrations/*.sql | sort'); do docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap3} -f \"$f\"; done",
-    "smoke": "curl -sS -X POST http://localhost:3000/debug/smoke"
+    "reset-db": "for f in $(docker compose exec -T postgres sh -lc 'ls /migrations/*.sql | sort'); do docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap4} -f \"$f\"; done",
+    "smoke": "curl -sS -X POST http://localhost:3000/debug/smoke",
+    "test:integration": "pnpm --filter @cap/web-api test:integration"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

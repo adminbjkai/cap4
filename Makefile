@@ -1,8 +1,8 @@
 .PHONY: up down logs reset-db smoke
 
 # Canonical docker compose project name.
-# Override: `make PROJECT=cap3-staging up`
-PROJECT ?= cap3
+# Override: `make PROJECT=cap4-staging up`
+PROJECT ?= cap4
 
 up:
 	docker compose -p $(PROJECT) up -d --build
@@ -15,7 +15,7 @@ logs:
 
 reset-db:
 	for f in $$(docker compose -p $(PROJECT) exec -T postgres sh -lc 'ls /migrations/*.sql | sort'); do \
-		docker compose -p $(PROJECT) exec -T postgres psql -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-cap3} -f $$f; \
+		docker compose -p $(PROJECT) exec -T postgres psql -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-cap4} -f $$f; \
 	done
 setup: up
 	@echo "Waiting for services to be healthy..."

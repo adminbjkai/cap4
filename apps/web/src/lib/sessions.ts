@@ -9,7 +9,7 @@ export type RecentSession = {
   errorMessage?: string | null;
 };
 
-const KEY = "cap3.recent_sessions";
+const KEY = "cap4.recent_sessions";
 
 export function loadRecentSessions(): RecentSession[] {
   try {

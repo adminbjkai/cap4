@@ -60,9 +60,9 @@ jobs:
       postgres:
         image: postgres:15-alpine
         env:
-          POSTGRES_USER: cap3
-          POSTGRES_PASSWORD: cap3_test
-          POSTGRES_DB: cap3_test
+          POSTGRES_USER: cap4
+          POSTGRES_PASSWORD: cap4_test
+          POSTGRES_DB: cap4_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -104,12 +104,12 @@ jobs:
 
       - name: Run database migrations
         env:
-          DATABASE_URL: postgres://cap3:cap3_test@localhost:5432/cap3_test
+          DATABASE_URL: postgres://cap4:cap4_test@localhost:5432/cap4_test
         run: pnpm db:migrate
 
       - name: Test
         env:
-          DATABASE_URL: postgres://cap3:cap3_test@localhost:5432/cap3_test
+          DATABASE_URL: postgres://cap4:cap4_test@localhost:5432/cap4_test
         run: pnpm test
 
   build:
