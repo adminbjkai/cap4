@@ -12,7 +12,6 @@ import {
 import { ConfirmationDialog } from "../components/ConfirmationDialog";
 import { upsertRecentSession } from "../lib/sessions";
 import { PlayerCard } from "../components/PlayerCard";
-import { SummaryCard } from "../components/SummaryCard";
 import { TranscriptCard } from "../components/TranscriptCard";
 import { ChapterList } from "../components/ChapterList";
 import { buildPublicObjectUrl } from "../lib/format";
@@ -125,7 +124,6 @@ export function VideoPage() {
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
   const [seekRequest, setSeekRequest] = useState<{ seconds: number; requestId: number } | null>(null);
-  const [railTab, setRailTab] = useState<"summary" | "transcript">("transcript");
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -315,6 +313,9 @@ export function VideoPage() {
     window.setTimeout(() => setCopyFeedback(null), 1600);
   };
 
+  // Suppress unused-variable warning for isAutoRefreshActive (kept for future use)
+  void isAutoRefreshActive;
+
   if (!videoId) {
     return (
       <div className="workspace-card">
@@ -342,14 +343,14 @@ export function VideoPage() {
         onConfirm={() => void handleDelete()}
       />
 
-      {/* ── Page Header ─────────────────────────────────────────────── */}
-      <div className="mb-5">
+      {/* ── Page Header ─────────────────────────────────────────── */}
+      <div className="mb-3">
         {/* Title row */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             {!isTitleEditing ? (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl font-bold tracking-tight truncate">{displayTitle}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight truncate">{displayTitle}</h1>
                 <button
                   type="button"
                   onClick={() => {
@@ -363,35 +364,35 @@ export function VideoPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <input
                   value={titleDraft}
                   onChange={(event) => setTitleDraft(event.target.value)}
                   onKeyDown={handleTitleDraftKeyDown}
                   autoFocus
                   aria-label="Edit title"
-                  className="input-control text-xl font-bold w-full max-w-lg"
+                  className="input-control text-base font-bold w-full max-w-md"
                 />
-                <button type="button" onClick={() => void saveTitle()} disabled={isSavingTitle} className="btn-primary px-3 py-1.5 text-xs">
-                  {isSavingTitle ? "Saving..." : "Save"}
+                <button type="button" onClick={() => void saveTitle()} disabled={isSavingTitle} className="btn-primary px-2.5 py-1 text-xs">
+                  {isSavingTitle ? "Saving…" : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setTitleDraft(displayTitle); setIsTitleEditing(false); }}
                   disabled={isSavingTitle}
-                  className="btn-secondary px-3 py-1.5 text-xs"
+                  className="btn-secondary px-2.5 py-1 text-xs"
                 >
                   Cancel
                 </button>
               </div>
             )}
             {titleSaveMessage && (
-              <p className={`mt-1 text-xs font-medium ${titleSaveMessage.includes("Unable") || titleSaveMessage.includes("cannot") ? "text-red-600" : "text-green-600"}`}>
+              <p className={`mt-0.5 text-xs font-medium ${titleSaveMessage.includes("Unable") || titleSaveMessage.includes("cannot") ? "text-red-600" : "text-green-600"}`}>
                 {titleSaveMessage}
               </p>
             )}
-            {/* Subtitle meta line */}
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+            {/* Status meta line */}
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
               {isProcessing && (
                 <span className="inline-flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -400,7 +401,7 @@ export function VideoPage() {
               )}
               {!isProcessing && status?.processingPhase === "complete" && (
                 <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                   Complete
@@ -416,17 +417,17 @@ export function VideoPage() {
           </div>
 
           {/* Right header actions */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             {shareableResultUrl && (
-              <div className="flex items-center gap-1.5 rounded-lg border bg-surface-muted px-3 py-1.5 text-sm max-w-[240px] overflow-hidden">
-                <span className="truncate text-muted font-mono text-xs">{shareableResultUrl.replace(/^https?:\/\//, "")}</span>
+              <div className="flex items-center gap-1 rounded-md border bg-surface-muted px-2 py-1 max-w-[200px] overflow-hidden">
+                <span className="truncate text-muted font-mono text-[11px]">{shareableResultUrl.replace(/^https?:\/\//, "")}</span>
                 <button
                   type="button"
                   onClick={() => void copyToClipboard(shareableResultUrl, "URL")}
                   className="shrink-0 text-muted hover:text-foreground transition-colors"
                   title="Copy URL"
                 >
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                     <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
                   </svg>
@@ -438,10 +439,10 @@ export function VideoPage() {
                 href={videoUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-secondary px-3 py-1.5 text-sm"
+                className="btn-secondary px-2.5 py-1 text-xs flex items-center gap-1"
                 title="Download video"
               >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                 </svg>
                 Download
@@ -451,55 +452,53 @@ export function VideoPage() {
               type="button"
               onClick={() => void refresh()}
               disabled={loading}
-              className="btn-secondary px-3 py-1.5 text-sm"
+              className="btn-secondary p-1.5"
               title="Refresh status"
             >
-              <svg className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
             <button
               type="button"
               onClick={() => { setDeleteError(null); setIsDeleteDialogOpen(true); }}
-              className="btn-secondary px-3 py-1.5 text-sm text-red-600 hover:text-red-700"
-              title="Delete recording"
+              className="btn-secondary px-2.5 py-1 text-xs text-red-600 hover:text-red-700"
             >
               Delete
             </button>
           </div>
         </div>
 
-        {/* Processing banner — only shown while active */}
+        {/* Processing progress bar — slim, only while active */}
         {isProcessing && status && (
-          <div className="mt-3 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-900/50 dark:bg-amber-900/20">
-            <div className="h-1.5 flex-1 rounded-full bg-amber-200 dark:bg-amber-900/50">
+          <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 dark:border-amber-900/50 dark:bg-amber-900/20">
+            <div className="h-1 flex-1 rounded-full bg-amber-200 dark:bg-amber-900/50">
               <div
                 className="h-full rounded-full bg-amber-500 transition-all duration-500"
                 style={{ width: `${Math.max(5, status.processingProgress ?? 0)}%` }}
               />
             </div>
-            <span className="text-amber-800 dark:text-amber-300 font-medium shrink-0">
+            <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium shrink-0">
               {status.processingProgress != null ? `${status.processingProgress}%` : status.processingPhase}
             </span>
           </div>
         )}
 
-        {errorMessage && <p className="panel-warning mt-3">{errorMessage}</p>}
-        {copyFeedback && <p className="mt-2 text-xs text-muted">{copyFeedback}</p>}
+        {errorMessage && <p className="panel-warning mt-2 text-xs">{errorMessage}</p>}
+        {copyFeedback && <p className="mt-1 text-[11px] text-muted">{copyFeedback}</p>}
 
-        {/* Retry button */}
         {showRetryButton && (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-1.5 flex items-center gap-2">
             <button
               type="button"
               onClick={() => void handleRetry()}
               disabled={isRetrying}
-              className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1.5"
+              className="btn-primary px-2.5 py-1 text-xs flex items-center gap-1"
             >
               <svg className={`h-3 w-3 ${isRetrying ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              {isRetrying ? "Retrying..." : "Retry processing"}
+              {isRetrying ? "Retrying…" : "Retry processing"}
             </button>
             {retryMessage && (
               <span className={`text-xs font-medium ${retryMessage.includes("Failed") || retryMessage.includes("failed") ? "text-red-600" : "text-green-600"}`}>
@@ -511,10 +510,11 @@ export function VideoPage() {
         {jobStatus ? <p className="sr-only">Queue status: {jobStatus.status}</p> : null}
       </div>
 
-      {/* ── Main two-column layout ───────────────────────────────────── */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+      {/* ── Main two-column layout ─────────────────────────────────── */}
+      {/* Video left (~62%), Transcript rail right (~38%) */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)]">
 
-        {/* Left col — Video player */}
+        {/* Left col — Video */}
         <div className="min-w-0">
           <PlayerCard
             resultKey={status?.resultKey ?? null}
@@ -527,79 +527,51 @@ export function VideoPage() {
           />
         </div>
 
-        {/* Right col — Summary / Transcript tabs */}
+        {/* Right col — Transcript only */}
         <div className="min-w-0">
-          <div className="rounded-xl border bg-surface shadow-sm h-full flex flex-col" style={{ minHeight: "420px" }}>
-            {/* Tab bar */}
-            <div className="flex border-b px-4">
-              <button
-                type="button"
-                onClick={() => setRailTab("transcript")}
-                className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                  railTab === "transcript"
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted hover:text-foreground"
-                }`}
-              >
-                Transcript
-              </button>
-              <button
-                type="button"
-                onClick={() => setRailTab("summary")}
-                className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                  railTab === "summary"
-                    ? "border-foreground text-foreground"
-                    : "border-transparent text-muted hover:text-foreground"
-                }`}
-              >
-                Summary
-              </button>
-            </div>
-
-            {/* Tab content */}
-            <div className="flex-1 overflow-hidden">
-              {railTab === "transcript" ? (
-                <TranscriptCard
-                  transcriptionStatus={status?.transcriptionStatus}
-                  transcript={status?.transcript}
-                  errorMessage={status?.transcriptErrorMessage}
-                  playbackTimeSeconds={playbackTimeSeconds}
-                  onSeekToSeconds={requestSeek}
-                  onSaveTranscript={saveTranscript}
-                  compact
-                />
-              ) : (
-                <SummaryCard
-                  aiStatus={status?.aiStatus}
-                  aiOutput={status?.aiOutput}
-                  errorMessage={status?.aiErrorMessage}
-                  shareableResultUrl={shareableResultUrl}
-                  chapters={chapters}
-                  onJumpToSeconds={requestSeek}
-                  compact
-                />
+          <div className="rounded-lg border bg-surface flex flex-col" style={{ maxHeight: "520px" }}>
+            {/* Slim header */}
+            <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
+              <span className="text-[13px] font-semibold">Transcript</span>
+              {status?.transcriptionStatus && status.transcriptionStatus !== "not_started" && (
+                <span className="text-[11px] text-muted">{status.transcriptionStatus}</span>
               )}
+            </div>
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <TranscriptCard
+                transcriptionStatus={status?.transcriptionStatus}
+                transcript={status?.transcript}
+                errorMessage={status?.transcriptErrorMessage}
+                playbackTimeSeconds={playbackTimeSeconds}
+                onSeekToSeconds={requestSeek}
+                onSaveTranscript={saveTranscript}
+                compact
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Below the fold: Summary text + Chapters list ─────────────── */}
+      {/* ── Below-the-fold: Summary + Chapters ────────────────────── */}
       {status?.aiOutput && (
-        <div className="mt-8 space-y-8">
-          {/* Summary text */}
+        <div className="mt-5 space-y-5">
+
+          {/* Summary — compact inline */}
           {status.aiOutput.summary && (
             <section>
-              <h2 className="text-lg font-semibold mb-1">Summary</h2>
-              <p className="text-xs text-muted mb-3">Generated by Cap AI</p>
-              <p className="text-sm leading-relaxed text-secondary">{status.aiOutput.summary}</p>
+              <div className="flex items-baseline gap-3 mb-1">
+                <h2 className="text-sm font-semibold">Summary</h2>
+                <span className="text-[11px] text-muted italic">Generated by Cap AI</span>
+              </div>
+              <p className="text-[13px] leading-[1.5] text-secondary">{status.aiOutput.summary}</p>
             </section>
           )}
 
-          {/* Chapters list — Cap-style clean table */}
+          {/* Chapters — flat compact list */}
           {chapters.length > 0 && (
             <section>
-              <h2 className="text-lg font-semibold mb-3">Chapters</h2>
+              <h2 className="text-sm font-semibold mb-2">Chapters</h2>
               <ChapterList
                 chapters={chapters}
                 currentSeconds={playbackTimeSeconds}

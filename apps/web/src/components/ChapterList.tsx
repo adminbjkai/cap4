@@ -76,14 +76,14 @@ export function ChapterList({
               key={`${chapter.title}-${index}-${chapter.seconds}`}
               type="button"
               onClick={() => onSeek(chapter.seconds)}
-              className={`w-full flex items-center gap-5 px-4 py-3 text-left transition-colors hover:bg-surface-muted ${
+              className={`w-full flex items-center gap-4 px-4 py-2 text-left transition-colors hover:bg-surface-muted ${
                 isActive ? "bg-surface-muted" : ""
               }`}
             >
-              <span className={`font-mono text-sm w-12 shrink-0 ${isActive ? "font-semibold text-foreground" : "text-muted"}`}>
+              <span className={`font-mono text-[11px] w-10 shrink-0 ${isActive ? "font-semibold text-foreground" : "text-muted"}`}>
                 {formatTimestamp(chapter.seconds)}
               </span>
-              <span className={`text-sm flex-1 ${isActive ? "font-medium text-foreground" : "text-secondary"}`}>
+              <span className={`text-[13px] flex-1 leading-snug ${isActive ? "font-medium text-foreground" : "text-secondary"}`}>
                 {chapter.title}
               </span>
               {isActive && (

@@ -210,8 +210,8 @@ export function TranscriptCard({
   };
 
   const Inner = (
-    <div className={compact ? "flex flex-col h-full" : ""}>
-      {/* Header — hidden in compact mode (tab bar in VideoPage handles it) */}
+    <div>
+      {/* Header — hidden in compact mode (VideoPage rail header handles it) */}
       {!compact && (
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
@@ -224,27 +224,35 @@ export function TranscriptCard({
 
       {/* Status messages */}
       {(transcriptionStatus === "queued" || transcriptionStatus === "processing") && (
-        <p className={`text-sm legacy-muted ${compact ? "px-4 pt-4" : ""}`}>Transcription is running. This section updates automatically.</p>
+        <p className={`legacy-muted ${compact ? "px-3 py-3 text-[13px]" : "text-sm"}`}>
+          Transcription is running. Updates automatically.
+        </p>
       )}
       {transcriptionStatus === "not_started" && (
-        <p className={`text-sm legacy-muted ${compact ? "px-4 pt-4" : ""}`}>Transcription will start after processing completes.</p>
+        <p className={`legacy-muted ${compact ? "px-3 py-3 text-[13px]" : "text-sm"}`}>
+          Transcription will start after processing completes.
+        </p>
       )}
       {transcriptionStatus === "no_audio" && (
-        <p className={`panel-subtle ${compact ? "m-4" : ""}`}>No audio track was detected for this recording.</p>
+        <p className={`panel-subtle ${compact ? "m-3 text-[13px]" : ""}`}>
+          No audio track was detected for this recording.
+        </p>
       )}
       {transcriptionStatus === "failed" && (
-        <p className={`panel-danger ${compact ? "m-4" : ""}`}>
+        <p className={`panel-danger ${compact ? "m-3 text-[13px]" : ""}`}>
           {errorMessage ? `Transcription failed: ${errorMessage}` : "Transcription failed after retries."}
         </p>
       )}
       {transcriptionStatus === "complete" && transcriptText.length === 0 && (
-        <p className={`panel-subtle ${compact ? "m-4" : ""}`}>Transcript completed, but no text was returned.</p>
+        <p className={`panel-subtle ${compact ? "m-3 text-[13px]" : ""}`}>
+          Transcript completed, but no text was returned.
+        </p>
       )}
 
       {transcriptionStatus === "complete" && transcriptText.length > 0 && (
-        <div className={`space-y-3 ${compact ? "flex flex-col flex-1 min-h-0 px-3 pt-3 pb-2" : ""}`}>
+        <div className={compact ? "" : "space-y-3"}>
           {/* Action bar */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "px-2.5 py-2 border-b" : "mb-3"}`}>
             <div className="pill-toggle">
               <button
                 type="button"
@@ -263,11 +271,11 @@ export function TranscriptCard({
                 Original
               </button>
             </div>
-            <button type="button" onClick={() => void copyTranscript()} className="btn-secondary text-xs px-2.5 py-1">
+            <button type="button" onClick={() => void copyTranscript()} className="btn-secondary text-[11px] px-2 py-0.5">
               Copy
             </button>
             {!isEditing && (
-              <button type="button" onClick={() => setIsEditing(true)} className="btn-secondary text-xs px-2.5 py-1">
+              <button type="button" onClick={() => setIsEditing(true)} className="btn-secondary text-[11px] px-2 py-0.5">
                 Edit
               </button>
             )}
@@ -275,35 +283,35 @@ export function TranscriptCard({
 
           {/* Edit mode */}
           {isEditing ? (
-            <div className="panel-subtle space-y-2 rounded-lg p-3">
+            <div className={`panel-subtle space-y-2 rounded-lg p-3 ${compact ? "mx-2.5 mb-2.5" : ""}`}>
               <textarea
                 value={draftText}
                 onChange={(event) => setDraftText(event.target.value)}
                 onKeyDown={onEditKeyDown}
-                className="input-control min-h-56 rounded-lg p-3 text-sm leading-relaxed"
+                className="input-control min-h-48 rounded-lg p-2.5 text-[13px] leading-relaxed"
               />
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => void submitEdit()} disabled={isSaving} className="btn-primary">
-                  {isSaving ? "Saving..." : "Save transcript"}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button type="button" onClick={() => void submitEdit()} disabled={isSaving} className="btn-primary text-xs px-2.5 py-1">
+                  {isSaving ? "Saving…" : "Save transcript"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setDraftText(transcriptText); setIsEditing(false); setSaveError(null); }}
                   disabled={isSaving}
-                  className="btn-secondary"
+                  className="btn-secondary text-xs px-2.5 py-1"
                 >
                   Cancel
                 </button>
-                <span className="text-xs text-muted">Cmd/Ctrl+Enter to save • Esc to cancel</span>
-                {saveError && <span className="text-xs text-red-700">{saveError}</span>}
+                <span className="text-[11px] text-muted">Cmd+Enter to save • Esc to cancel</span>
+                {saveError && <span className="text-[11px] text-red-700">{saveError}</span>}
               </div>
             </div>
           ) : transcriptLines.length > 0 ? (
+            /* Transcript lines — in compact mode we DON'T add overflow here;
+               the outer container in VideoPage controls the scroll */
             <div
               ref={transcriptScrollRef}
-              className={`scroll-panel space-y-1 overflow-auto rounded-lg p-1 ${
-                compact ? "flex-1 min-h-0" : "max-h-[32rem]"
-              }`}
+              className={`space-y-0 ${compact ? "" : "scroll-panel max-h-[32rem] overflow-auto rounded-lg p-1"}`}
             >
               {transcriptLines.map((line, index) => {
                 const isActive = index === activeLineIndex && textViewMode === "current";
@@ -314,30 +322,38 @@ export function TranscriptCard({
                     type="button"
                     data-transcript-line-index={index}
                     onClick={() => onSeekToSeconds(line.startSeconds)}
-                    className={`line-item w-full rounded-md px-3 py-2 text-left transition focus-visible:outline-none ${
+                    className={`line-item w-full rounded-none px-3 py-2 text-left transition focus-visible:outline-none ${
                       isActive ? "line-item-active" : ""
                     }`}
                   >
-                    <span className="mr-2 inline-block min-w-[52px] font-mono text-xs text-muted">{formatTimestamp(line.startSeconds)}</span>
-                    <span className="text-sm leading-relaxed">{lineText}</span>
+                    <span className="mr-2 inline-block min-w-[44px] font-mono text-[11px] text-muted leading-[1.4]">
+                      {formatTimestamp(line.startSeconds)}
+                    </span>
+                    <span className="text-[13px] leading-[1.4]">{lineText}</span>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <pre className={`scroll-panel overflow-auto whitespace-pre-wrap rounded-lg p-4 text-sm leading-relaxed ${compact ? "flex-1 min-h-0" : "max-h-[28rem]"}`}>
+            <pre className={`overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed ${compact ? "px-3 py-2" : "scroll-panel max-h-[28rem] rounded-lg p-4"}`}>
               {textViewMode === "original" ? originalTranscriptText : transcriptText}
             </pre>
           )}
 
           {transcript?.vttKey && (
-            <span className="text-xs text-muted">VTT key: <span className="font-mono">{transcript.vttKey}</span></span>
+            <span className={`text-[11px] text-muted block ${compact ? "px-3 pb-2" : ""}`}>
+              VTT: <span className="font-mono">{transcript.vttKey}</span>
+            </span>
           )}
         </div>
       )}
 
-      {copyFeedback && <p className={`text-xs font-medium text-muted ${compact ? "px-4 pb-2" : "mt-3"}`}>{copyFeedback}</p>}
-      {saveFeedback && <p className={`text-xs font-medium text-accent-700 ${compact ? "px-4 pb-2" : "mt-2"}`}>{saveFeedback}</p>}
+      {copyFeedback && (
+        <p className={`text-[11px] font-medium text-muted ${compact ? "px-3 pb-2" : "mt-3"}`}>{copyFeedback}</p>
+      )}
+      {saveFeedback && (
+        <p className={`text-[11px] font-medium text-accent-700 ${compact ? "px-3 pb-2" : "mt-2"}`}>{saveFeedback}</p>
+      )}
     </div>
   );
 
