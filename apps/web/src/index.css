@@ -142,6 +142,97 @@ body {
 *::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   MOTION TOKENS + KEYFRAMES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes rail-tab-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes rail-tab-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes progress-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+    filter: saturate(1);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+    filter: saturate(1.15);
+  }
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes button-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.32;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+@keyframes fullscreen-pop {
+  from { transform: scale(0.985); }
+  to { transform: scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    COMPONENT LAYER
    All reusable component classes live here.
    Organized by: Layout → Cards → Buttons → Inputs → Status → Transcript
@@ -172,6 +263,10 @@ body {
   }
 
   .app-content { @apply flex-1 lg:ml-64; }
+  .page-transition-enter {
+    animation: page-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform, opacity;
+  }
 
   /* ── Cards ──────────────────────────────────────────────────────────── */
 
@@ -185,6 +280,23 @@ body {
   .workspace-card:hover {
     border-color: var(--border-strong);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+  .library-card-reveal {
+    animation: card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform, opacity;
+  }
+
+  .skeleton-block {
+    border: 1px solid var(--border-default);
+    background:
+      linear-gradient(
+        110deg,
+        color-mix(in srgb, var(--bg-surface-subtle) 94%, #fff 6%) 30%,
+        color-mix(in srgb, var(--bg-surface-muted) 82%, #fff 18%) 45%,
+        color-mix(in srgb, var(--bg-surface-subtle) 94%, #fff 6%) 60%
+      );
+    background-size: 240% 100%;
+    animation: skeleton-shimmer 1.35s linear infinite;
   }
 
   .panel-subtle {
@@ -234,30 +346,62 @@ body {
   /* ── Buttons ────────────────────────────────────────────────────────── */
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all duration-150 active:scale-[0.98] select-none;
+    @apply relative inline-flex items-center justify-center overflow-hidden rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all duration-150 active:scale-[0.98] select-none;
     background: var(--accent);
     color: var(--bg-app);
+    isolation: isolate;
   }
   .btn-primary:hover   { filter: brightness(1.15); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   :root.theme-dark .btn-primary:hover { filter: brightness(0.88); }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
+    @apply relative inline-flex items-center justify-center overflow-hidden rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
     border: 1px solid var(--border-default);
     background: var(--bg-surface-subtle);
     color: var(--text-primary);
+    isolation: isolate;
   }
   .btn-secondary:hover   { background: var(--bg-surface-muted); border-color: var(--border-strong); }
   .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-tertiary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
+    @apply relative inline-flex items-center justify-center overflow-hidden rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
     border: 1px solid transparent;
     background: transparent;
     color: var(--text-secondary);
+    isolation: isolate;
   }
   .btn-tertiary:hover { background: var(--bg-surface-subtle); color: var(--text-primary); }
+  .btn-primary::after,
+  .btn-secondary::after,
+  .btn-tertiary::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 140%;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0);
+    z-index: 0;
+  }
+  .btn-primary::after { background: rgba(255,255,255,0.35); }
+  .btn-secondary::after,
+  .btn-tertiary::after { background: rgba(59,130,246,0.20); }
+  .btn-primary:active::after,
+  .btn-secondary:active::after,
+  .btn-tertiary:active::after {
+    animation: button-ripple 520ms ease-out;
+  }
+  .btn-primary > *,
+  .btn-secondary > *,
+  .btn-tertiary > * {
+    position: relative;
+    z-index: 1;
+  }
 
   /* ── Inputs ─────────────────────────────────────────────────────────── */
 
@@ -342,6 +486,9 @@ body {
 
   /* ── Progress track ─────────────────────────────────────────────────── */
   .progress-track { background: var(--bg-surface-muted); }
+  .progress-active-bar {
+    animation: progress-glow 1.5s ease-in-out infinite;
+  }
 
   /* ── Misc surface styles ────────────────────────────────────────────── */
   .tone-elevated {
@@ -377,6 +524,51 @@ body {
     border-left: 2px solid var(--accent-blue);
   }
   .line-item-active:hover { background: var(--accent-blue-muted) !important; }
+
+  /* Confidence indicators — underline low-confidence segments */
+  .confidence-low {
+    text-decoration: underline;
+    text-decoration-color: #fbbf24; /* amber-400 */
+    text-decoration-thickness: 2px;
+    text-decoration-style: solid;
+    text-underline-offset: 3px;
+  }
+  .confidence-very-low {
+    text-decoration: underline;
+    text-decoration-color: #fb923c; /* orange-400 */
+    text-decoration-thickness: 2px;
+    text-decoration-style: solid;
+    text-underline-offset: 3px;
+  }
+  :root.theme-dark .confidence-low {
+    text-decoration-color: #fde047; /* yellow-300 — brighter for dark mode */
+  }
+  :root.theme-dark .confidence-very-low {
+    text-decoration-color: #fdba74; /* orange-300 */
+  }
+
+  /* Confidence tooltip */
+  .confidence-tooltip {
+    @apply absolute z-10 rounded-md px-2 py-1 text-[11px] font-medium shadow-lg pointer-events-none;
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+
+  /* Review mode badge */
+  .confidence-badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+    color: var(--text-secondary);
+  }
+
+  /* Verified segment marker */
+  .verified-marker {
+    @apply inline-flex items-center justify-center h-3.5 w-3.5 rounded-full;
+    background: #10b981; /* green-500 */
+    color: white;
+  }
 
   /* Transcript scroll container */
   .scroll-panel {
@@ -440,6 +632,146 @@ body {
   }
   .seeker-track:hover .seeker-hover-indicator { @apply opacity-60; }
 
+  .custom-video-shell {
+    @apply absolute inset-0;
+  }
+  .custom-video-shell-fullscreen {
+    animation: fullscreen-pop 180ms ease-out;
+  }
+  .buffering-overlay {
+    @apply pointer-events-none absolute inset-0 z-10 flex items-center justify-center;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.22));
+  }
+  .buffering-pulse {
+    @apply h-16 w-40 animate-pulse rounded-xl;
+    background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.2), rgba(255,255,255,0.08));
+  }
+  .controls-overlay {
+    @apply pointer-events-none absolute inset-x-0 bottom-0 z-20 px-2 pb-2 opacity-0 transition-opacity duration-200 sm:px-3 sm:pb-3;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.66), rgba(0, 0, 0, 0.12), transparent);
+  }
+  .controls-overlay-visible {
+    @apply opacity-100;
+  }
+  .controls-progress {
+    @apply pointer-events-auto relative mb-2 h-7 cursor-pointer select-none sm:mb-2.5;
+  }
+  .controls-progress-track,
+  .controls-progress-buffered,
+  .controls-progress-played {
+    @apply absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full;
+  }
+  .controls-progress-track {
+    background: rgba(255, 255, 255, 0.23);
+  }
+  .controls-progress-buffered {
+    right: auto;
+    background: rgba(255, 255, 255, 0.48);
+  }
+  .controls-progress-played {
+    right: auto;
+    background: var(--accent-blue);
+  }
+  .controls-chapter-dot {
+    @apply absolute top-1/2 z-[1] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2;
+    border-color: rgba(255, 255, 255, 0.9);
+    background: rgba(17, 24, 39, 0.9);
+  }
+  .controls-chapter-dot:hover,
+  .controls-chapter-dot:focus-visible {
+    @apply scale-110 outline-none;
+    background: var(--accent-blue);
+    border-color: #fff;
+  }
+  .controls-progress-tooltip {
+    @apply pointer-events-none absolute bottom-full mb-1.5 -translate-x-1/2 rounded-md px-2 py-0.5 text-[11px] font-semibold text-white;
+    background: rgba(17, 24, 39, 0.92);
+  }
+  .controls-bar {
+    @apply pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl px-1 py-1.5 sm:gap-1.5 sm:px-2;
+    background: rgba(17, 24, 39, 0.65);
+    backdrop-filter: blur(4px);
+  }
+  .controls-btn {
+    @apply inline-flex h-12 min-w-12 items-center justify-center rounded-md px-2 text-xs font-semibold text-white transition sm:h-9 sm:min-w-9;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .controls-btn:hover,
+  .controls-btn:focus-visible {
+    @apply outline-none;
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.36);
+  }
+  .controls-btn-primary {
+    background: var(--accent-blue);
+    border-color: rgba(191, 219, 254, 0.82);
+  }
+  .controls-btn-full {
+    transition: transform 180ms ease;
+  }
+  .controls-btn-full:hover {
+    transform: scale(1.06);
+  }
+  .icon-play,
+  .icon-pause {
+    transition: opacity 140ms ease;
+  }
+  .icon-hidden {
+    opacity: 0;
+  }
+  .controls-volume-wrap {
+    @apply flex items-center gap-1.5;
+  }
+  .controls-volume-slider {
+    @apply h-12 w-0 cursor-pointer appearance-none rounded-full transition-all duration-200 sm:h-8;
+    background: transparent;
+  }
+  .controls-volume-wrap:hover .controls-volume-slider,
+  .controls-volume-slider:focus-visible {
+    @apply w-20;
+  }
+  .controls-volume-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.4);
+  }
+  .controls-volume-slider::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border-radius: 9999px;
+    appearance: none;
+    background: #fff;
+  }
+  .controls-time {
+    @apply ml-auto inline-flex h-12 items-center gap-1 rounded-md px-3 font-mono text-xs text-white sm:h-9;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .controls-time:hover,
+  .controls-time:focus-visible {
+    @apply outline-none;
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .controls-speed {
+    @apply relative;
+  }
+  .controls-speed-menu {
+    @apply absolute bottom-full right-0 mb-1.5 w-20 rounded-md p-1;
+    border: 1px solid rgba(255, 255, 255, 0.26);
+    background: rgba(17, 24, 39, 0.95);
+  }
+  .controls-speed-option {
+    @apply block w-full rounded px-2 py-1 text-left text-xs text-white;
+  }
+  .controls-speed-option:hover,
+  .controls-speed-option:focus-visible,
+  .controls-speed-option-active {
+    @apply outline-none;
+    background: rgba(96, 165, 250, 0.28);
+  }
+
   /* ══════════════════════════════════════════════════════════════════════
      RIGHT RAIL TABS (Notes / Summary / Transcript)
      ══════════════════════════════════════════════════════════════════════ */
@@ -463,6 +795,16 @@ body {
   .rail-tab-active {
     color: var(--text-primary) !important;
     border-bottom-color: var(--accent-blue) !important;
+  }
+  .rail-tab-stack {
+    @apply relative min-h-0 flex-1 overflow-y-auto;
+  }
+  .rail-tab-panel-enter {
+    animation: rail-tab-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .rail-tab-panel-exit {
+    @apply absolute inset-0 pointer-events-none;
+    animation: rail-tab-out 180ms ease both;
   }
 
   /* Notes tab textarea */
@@ -493,5 +835,37 @@ body {
   .chapter-row-active {
     background: var(--accent-blue-subtle);
     border-color: var(--accent-blue-border);
+  }
+
+  /* ── Dialog ─────────────────────────────────────────────────────────── */
+  .dialog-backdrop {
+    backdrop-filter: blur(20px);
+    background: color-mix(in srgb, #020617 72%, transparent);
+  }
+  .dialog-surface {
+    animation: modal-pop 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-default) 84%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .page-transition-enter,
+  .library-card-reveal,
+  .rail-tab-panel-enter,
+  .rail-tab-panel-exit,
+  .progress-active-bar,
+  .dialog-surface {
+    animation: none !important;
+    transform: none !important;
   }
 }
