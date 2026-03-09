@@ -1,19 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildPublicObjectUrl } from "../lib/format";
 
-type SeekRequest = {
-  seconds: number;
-  requestId: number;
-};
-
-type ChapterItem = {
-  title: string;
-  seconds: number;
-};
+type SeekRequest = { seconds: number; requestId: number };
+type ChapterItem  = { title: string; seconds: number };
 
 function formatTimestamp(secondsInput: number): string {
   const totalSeconds = Math.max(0, Math.floor(secondsInput));
-  const hours = Math.floor(totalSeconds / 3600);
+  const hours   = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   if (hours > 0) {
@@ -29,7 +22,7 @@ export function PlayerCard({
   onPlaybackTimeChange,
   onDurationChange,
   chapters,
-  onSeekToSeconds
+  onSeekToSeconds,
 }: {
   resultKey: string | null;
   thumbnailKey: string | null;
@@ -40,11 +33,19 @@ export function PlayerCard({
   onSeekToSeconds: (seconds: number) => void;
 }) {
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
-  const [durationSeconds, setDurationSeconds] = useState(0);
+  const [durationSeconds,     setDurationSeconds]     = useState(0);
   const [hoveredChapterIndex, setHoveredChapterIndex] = useState<number | null>(null);
-  const [pinnedTooltipChapterIndex, setPinnedTooltipChapterIndex] = useState<number | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [pinnedTooltip,       setPinnedTooltip]       = useState<number | null>(null);
 
+  // Timeline hover preview state
+  const [hoverPct,            setHoverPct]            = useState<number | null>(null);
+  const [hoverSeconds,        setHoverSeconds]        = useState<number | null>(null);
+  const [hoverChapterLabel,   setHoverChapterLabel]   = useState<string | null>(null);
+
+  const videoRef    = useRef<HTMLVideoElement | null>(null);
+  const trackRef    = useRef<HTMLDivElement | null>(null);
+
+  /* ── Seek on external request ─────────────────────────────────────────── */
   useEffect(() => {
     if (!seekRequest) return;
     const player = videoRef.current;
@@ -55,74 +56,116 @@ export function PlayerCard({
     onPlaybackTimeChange?.(clamped);
   }, [seekRequest, onPlaybackTimeChange]);
 
-  const hasResult = Boolean(resultKey);
-  const videoUrl = resultKey ? buildPublicObjectUrl(resultKey) : null;
+  /* ── Derived values ───────────────────────────────────────────────────── */
+  const hasResult   = Boolean(resultKey);
+  const videoUrl    = resultKey    ? buildPublicObjectUrl(resultKey)    : null;
   const thumbnailUrl = thumbnailKey ? buildPublicObjectUrl(thumbnailKey) : null;
-  const timelineChapters = durationSeconds > 0 ? chapters.filter((chapter) => chapter.seconds >= 0 && chapter.seconds <= durationSeconds) : [];
+  const timelineChapters = durationSeconds > 0
+    ? chapters.filter((c) => c.seconds >= 0 && c.seconds <= durationSeconds)
+    : [];
 
   const activeChapterIndex = useMemo(() => {
     if (timelineChapters.length === 0) return -1;
     let active = 0;
-    for (let index = 0; index < timelineChapters.length; index += 1) {
-      if (timelineChapters[index]!.seconds <= playbackTimeSeconds + 0.1) {
-        active = index;
-      } else {
-        break;
-      }
+    for (let i = 0; i < timelineChapters.length; i++) {
+      if (timelineChapters[i]!.seconds <= playbackTimeSeconds + 0.1) active = i;
+      else break;
     }
     return active;
   }, [timelineChapters, playbackTimeSeconds]);
 
   const currentChapter = activeChapterIndex >= 0 ? timelineChapters[activeChapterIndex] : null;
-  const nextChapter = activeChapterIndex >= 0 ? timelineChapters[activeChapterIndex + 1] ?? null : timelineChapters[0] ?? null;
-  const tooltipChapterIndex = pinnedTooltipChapterIndex ?? hoveredChapterIndex;
+  const nextChapter    = activeChapterIndex >= 0
+    ? (timelineChapters[activeChapterIndex + 1] ?? null)
+    : (timelineChapters[0] ?? null);
 
-  const handleChapterSeek = (seconds: number) => {
+  const tooltipChapterIndex = pinnedTooltip ?? hoveredChapterIndex;
+
+  /* ── Chapter seek helpers ─────────────────────────────────────────────── */
+  const handleChapterSeek = useCallback((seconds: number) => {
     const clamped = Math.max(0, seconds);
-    const player = videoRef.current;
-    if (player) {
-      player.currentTime = clamped;
-    }
+    const player  = videoRef.current;
+    if (player) player.currentTime = clamped;
     window.dispatchEvent(new CustomEvent("cap:seek", { detail: { seconds: clamped } }));
     setPlaybackTimeSeconds(clamped);
     onPlaybackTimeChange?.(clamped);
     onSeekToSeconds(clamped);
-  };
+  }, [onPlaybackTimeChange, onSeekToSeconds]);
 
   const goToPrevChapter = () => {
     if (activeChapterIndex <= 0) return;
     const prev = timelineChapters[activeChapterIndex - 1];
-    if (!prev) return;
-    handleChapterSeek(prev.seconds);
+    if (prev) handleChapterSeek(prev.seconds);
   };
-
   const goToNextChapter = () => {
     if (activeChapterIndex < 0 || activeChapterIndex >= timelineChapters.length - 1) return;
     const next = timelineChapters[activeChapterIndex + 1];
-    if (!next) return;
-    handleChapterSeek(next.seconds);
+    if (next) handleChapterSeek(next.seconds);
   };
 
+  /* ── Timeline hover tracking ──────────────────────────────────────────── */
+  const getSecondsFromEvent = useCallback((e: React.MouseEvent) => {
+    const track = trackRef.current;
+    if (!track || durationSeconds <= 0) return null;
+    const rect = track.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    return { pct, seconds: pct * durationSeconds };
+  }, [durationSeconds]);
+
+  const updateHover = useCallback((e: React.MouseEvent) => {
+    const result = getSecondsFromEvent(e);
+    if (!result) return;
+    setHoverPct(result.pct * 100);
+    setHoverSeconds(result.seconds);
+    // Find nearest chapter label
+    if (timelineChapters.length > 0) {
+      let nearest = timelineChapters[0]!;
+      for (const ch of timelineChapters) {
+        if (ch.seconds <= result.seconds) nearest = ch;
+        else break;
+      }
+      setHoverChapterLabel(nearest.title);
+    } else {
+      setHoverChapterLabel(null);
+    }
+  }, [getSecondsFromEvent, timelineChapters]);
+
+  const handleTrackClick = useCallback((e: React.MouseEvent) => {
+    const result = getSecondsFromEvent(e);
+    if (!result) return;
+    handleChapterSeek(result.seconds);
+    setPinnedTooltip(null);
+  }, [getSecondsFromEvent, handleChapterSeek]);
+
+  /* ── Not-ready state ──────────────────────────────────────────────────── */
   if (!hasResult) {
     return (
-      <div className="rounded-xl border bg-surface shadow-sm overflow-hidden">
-        <div className="aspect-video bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center">
+      <div className="rounded-xl border shadow-card overflow-hidden"
+           style={{ background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
+        <div className="aspect-video flex items-center justify-center"
+             style={{ background: "var(--bg-surface-subtle)" }}>
           <div className="text-center">
-            <svg className="h-10 w-10 text-muted mx-auto mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg className="h-10 w-10 mx-auto mb-3" style={{ color: "var(--text-muted)" }}
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            <p className="text-sm text-muted font-medium">Video processing…</p>
-            <p className="text-xs text-muted mt-1">This page updates automatically</p>
+            <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>Video processing…</p>
+            <p className="text-xs mt-1"        style={{ color: "var(--text-muted)" }}>This page updates automatically</p>
           </div>
         </div>
       </div>
     );
   }
 
+  /* ── Playback percent for the seeker fill ─────────────────────────────── */
+  const playPct = durationSeconds > 0 ? (playbackTimeSeconds / durationSeconds) * 100 : 0;
+
   return (
-    <div className="rounded-xl border bg-surface shadow-sm overflow-hidden">
+    <div className="rounded-xl border shadow-card overflow-hidden"
+         style={{ background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
+
       {/* Video */}
-      <div className="video-frame bg-black">
+      <div className="video-frame">
         <video
           ref={videoRef}
           controls
@@ -130,85 +173,143 @@ export function PlayerCard({
           className="aspect-video w-full bg-black"
           src={videoUrl ?? undefined}
           poster={thumbnailUrl ?? undefined}
-          onLoadedMetadata={(event) => {
-            const time = event.currentTarget.currentTime || 0;
-            const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0;
+          onLoadedMetadata={(e) => {
+            const time     = e.currentTarget.currentTime || 0;
+            const duration = Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0;
             setPlaybackTimeSeconds(time);
             setDurationSeconds(duration);
             onPlaybackTimeChange?.(time);
             onDurationChange?.(duration);
           }}
-          onTimeUpdate={(event) => {
-            const time = event.currentTarget.currentTime || 0;
+          onTimeUpdate={(e) => {
+            const time = e.currentTarget.currentTime || 0;
             setPlaybackTimeSeconds(time);
             onPlaybackTimeChange?.(time);
           }}
         />
       </div>
 
-      {/* Time display */}
-      <div className="px-4 pt-2.5 pb-2 flex items-center justify-center text-sm text-muted font-mono">
-        {formatTimestamp(playbackTimeSeconds)} / {durationSeconds > 0 ? formatTimestamp(durationSeconds) : "--:--"}
-      </div>
-
-      {/* Chapter timeline — only if chapters exist */}
+      {/* Chapter timeline — only shown if chapters exist */}
       {timelineChapters.length > 0 && durationSeconds > 0 && (
-        <div className="px-4 pb-4">
-          {/* Chapter name */}
-          <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2.5 text-xs text-muted">
+        <div className="px-4 pt-3 pb-4">
+
+          {/* Current / Next chapter labels */}
+          <div className="flex flex-wrap items-center justify-between gap-1 mb-2.5 text-xs"
+               style={{ color: "var(--text-muted)" }}>
             <span>
-              Now: <span className="font-medium text-foreground">{currentChapter ? currentChapter.title : "Start"}</span>
+              Now:&nbsp;
+              <span className="font-medium" style={{ color: "var(--text-primary)" }}>
+                {currentChapter ? currentChapter.title : "Start"}
+              </span>
             </span>
             {nextChapter && (
               <span>
-                Next: <span className="font-medium">{formatTimestamp(nextChapter.seconds)} {nextChapter.title}</span>
+                Next:&nbsp;
+                <span className="font-medium">{formatTimestamp(nextChapter.seconds)}&nbsp;{nextChapter.title}</span>
               </span>
             )}
           </div>
 
-          {/* Timeline scrubber with chapter markers */}
-          <div className="relative h-8">
-            <div className="progress-track absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full" />
+          {/* ── Interactive seeker timeline ─────────────────────────────── */}
+          <div
+            ref={trackRef}
+            className="seeker-track group"
+            onClick={handleTrackClick}
+            onMouseMove={updateHover}
+            onMouseLeave={() => { setHoverPct(null); setHoverSeconds(null); setHoverChapterLabel(null); }}
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(durationSeconds)}
+            aria-valuenow={Math.round(playbackTimeSeconds)}
+            aria-label="Chapter timeline"
+          >
+            {/* Track base */}
+            <div className="progress-track absolute left-0 right-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full" />
+
+            {/* Playback fill */}
+            <div
+              className="seeker-fill"
+              style={{ width: `${playPct}%` }}
+            />
+
+            {/* Hover time indicator (vertical hairline) */}
+            {hoverPct !== null && (
+              <div
+                className="seeker-hover-indicator"
+                style={{ left: `${hoverPct}%`, opacity: 0.5 }}
+              />
+            )}
+
+            {/* Hover tooltip */}
+            {hoverPct !== null && hoverSeconds !== null && (
+              <div
+                className="popover-panel pointer-events-none absolute bottom-full mb-2 w-auto min-w-[80px] px-2.5 py-1.5 text-center"
+                style={{
+                  left: `${Math.min(Math.max(hoverPct, 8), 92)}%`,
+                  transform: "translateX(-50%)",
+                }}
+              >
+                <p className="font-mono text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                  {formatTimestamp(hoverSeconds)}
+                </p>
+                {hoverChapterLabel && (
+                  <p className="text-xs leading-snug mt-0.5 max-w-[160px] text-left"
+                     style={{ color: "var(--text-primary)" }}>
+                    {hoverChapterLabel}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Chapter marker dots */}
             {timelineChapters.map((chapter, index) => {
-              const leftPercent = Math.max(0, Math.min(100, (chapter.seconds / durationSeconds) * 100));
-              const isActive = index === activeChapterIndex;
+              const leftPct   = Math.max(0, Math.min(100, (chapter.seconds / durationSeconds) * 100));
+              const isActive  = index === activeChapterIndex;
+              const showDotTip = tooltipChapterIndex === index && hoverPct === null;
               return (
                 <div
                   key={`${chapter.title}-${index}-${chapter.seconds}`}
                   className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${leftPercent}%` }}
+                  style={{ left: `${leftPct}%` }}
                 >
-                  {tooltipChapterIndex === index && (
-                    <div className="popover-panel pointer-events-none absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-left shadow-soft">
-                      <p className="font-mono text-[11px] font-semibold text-muted">{formatTimestamp(chapter.seconds)}</p>
-                      <p className="text-xs leading-snug">{chapter.title}</p>
+                  {showDotTip && (
+                    <div className="popover-panel pointer-events-none absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 px-2.5 py-1.5 text-left">
+                      <p className="font-mono text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+                        {formatTimestamp(chapter.seconds)}
+                      </p>
+                      <p className="text-xs leading-snug" style={{ color: "var(--text-primary)" }}>
+                        {chapter.title}
+                      </p>
                     </div>
                   )}
                   <button
                     type="button"
-                    title={`${formatTimestamp(chapter.seconds)} ${chapter.title}`}
-                    onClick={() => {
-                      setPinnedTooltipChapterIndex(index);
+                    title={`${formatTimestamp(chapter.seconds)} — ${chapter.title}`}
+                    onClick={(e) => {
+                      e.stopPropagation(); // don't also trigger the track click
+                      setPinnedTooltip(index);
                       handleChapterSeek(chapter.seconds);
                     }}
                     onMouseEnter={() => setHoveredChapterIndex(index)}
-                    onMouseLeave={() => setHoveredChapterIndex((current) => (current === index ? null : current))}
+                    onMouseLeave={() => setHoveredChapterIndex((c) => (c === index ? null : c))}
                     onFocus={() => setHoveredChapterIndex(index)}
-                    onBlur={() => setHoveredChapterIndex((current) => (current === index ? null : current))}
-                    onTouchStart={() => setPinnedTooltipChapterIndex(index)}
+                    onBlur={() => setHoveredChapterIndex((c) => (c === index ? null : c))}
+                    onTouchStart={() => setPinnedTooltip(index)}
                     className={`chapter-handle ${isActive ? "chapter-handle-active" : ""}`}
                   >
-                    <span className="sr-only">Jump to chapter {chapter.title}</span>
+                    <span className="sr-only">Jump to chapter: {chapter.title}</span>
                   </button>
                 </div>
               );
             })}
           </div>
 
-          {/* Prev / Next chapter nav */}
+          {/* Time display + Prev / Next */}
           <div className="mt-2.5 flex items-center justify-between gap-2">
-            <p className="text-xs text-muted">
-              Chapter {activeChapterIndex >= 0 ? activeChapterIndex + 1 : 1}/{timelineChapters.length}
+            <p className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+              {formatTimestamp(playbackTimeSeconds)}
+              <span className="mx-1 opacity-40">/</span>
+              {durationSeconds > 0 ? formatTimestamp(durationSeconds) : "--:--"}
             </p>
             <div className="flex items-center gap-1.5">
               <button
@@ -229,6 +330,16 @@ export function PlayerCard({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Time display when there are no chapters */}
+      {timelineChapters.length === 0 && (
+        <div className="px-4 pt-2.5 pb-2 flex items-center justify-center font-mono text-sm"
+             style={{ color: "var(--text-muted)" }}>
+          {formatTimestamp(playbackTimeSeconds)}
+          <span className="mx-1 opacity-40">/</span>
+          {durationSeconds > 0 ? formatTimestamp(durationSeconds) : "--:--"}
         </div>
       )}
     </div>
