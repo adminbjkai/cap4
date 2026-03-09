@@ -24,6 +24,7 @@ import { TranscriptCard } from "../components/TranscriptCard";
 import { SummaryCard } from "../components/SummaryCard";
 import { ChapterList } from "../components/ChapterList";
 import { buildPublicObjectUrl } from "../lib/format";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 
 /* ── Terminal-state sets ─────────────────────────────────────────────────── */
 const TERMINAL_PROCESSING_PHASES  = new Set(["complete", "failed", "cancelled"]);
@@ -190,6 +191,8 @@ export function VideoPage() {
 
   /* ── Right-rail tab ──────────────────────────────────────────────────── */
   const [railTab, setRailTab] = useState<RailTab>("transcript");
+  const [renderedRailTab, setRenderedRailTab] = useState<RailTab>("transcript");
+  const [outgoingRailTab, setOutgoingRailTab] = useState<RailTab | null>(null);
 
   /* ── Derived values ──────────────────────────────────────────────────── */
   const shareableResultUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
@@ -206,6 +209,14 @@ export function VideoPage() {
     if (!status) return false;
     return status.transcriptionStatus === "failed" || status.aiStatus === "failed";
   }, [status]);
+
+  useEffect(() => {
+    if (railTab === renderedRailTab) return;
+    setOutgoingRailTab(renderedRailTab);
+    setRenderedRailTab(railTab);
+    const timeout = window.setTimeout(() => setOutgoingRailTab(null), 180);
+    return () => window.clearTimeout(timeout);
+  }, [railTab, renderedRailTab]);
 
   /* ── Title sync ──────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -337,6 +348,134 @@ export function VideoPage() {
     catch { setCopyFeedback(`Unable to copy ${label.toLowerCase()}.`); }
     window.setTimeout(() => setCopyFeedback(null), 1600);
   };
+
+  const renderRailTabContent = (tab: RailTab) => {
+    if (tab === "notes") {
+      return <NotesPanel videoId={videoId} />;
+    }
+    if (tab === "summary") {
+      return (
+        <SummaryCard
+          aiStatus={status?.aiStatus}
+          aiOutput={status?.aiOutput}
+          errorMessage={status?.aiErrorMessage}
+          shareableResultUrl={shareableResultUrl}
+          chapters={chapters}
+          onJumpToSeconds={requestSeek}
+          compact
+        />
+      );
+    }
+    return (
+      <TranscriptCard
+        transcriptionStatus={status?.transcriptionStatus}
+        transcript={status?.transcript}
+        errorMessage={status?.transcriptErrorMessage}
+        playbackTimeSeconds={playbackTimeSeconds}
+        onSeekToSeconds={requestSeek}
+        onSaveTranscript={saveTranscript}
+        compact
+      />
+    );
+  };
+
+  const getActiveVideoElement = useCallback((): HTMLVideoElement | null => {
+    return document.querySelector("video");
+  }, []);
+
+  const togglePlayerPlayback = useCallback(() => {
+    const video = getActiveVideoElement();
+    if (!video) return;
+    if (video.paused) {
+      void video.play();
+      return;
+    }
+    video.pause();
+  }, [getActiveVideoElement]);
+
+  const seekPlayerBy = useCallback((deltaSeconds: number) => {
+    const video = getActiveVideoElement();
+    if (!video) return;
+    const duration = Number.isFinite(video.duration) ? video.duration : Number.MAX_SAFE_INTEGER;
+    const nextTime = Math.max(0, Math.min(duration, video.currentTime + deltaSeconds));
+    requestSeek(nextTime);
+  }, [getActiveVideoElement, requestSeek]);
+
+  const seekPlayerToPercent = useCallback((percent: number) => {
+    const video = getActiveVideoElement();
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    requestSeek(video.duration * Math.max(0, Math.min(1, percent)));
+  }, [getActiveVideoElement, requestSeek]);
+
+  const adjustPlayerVolume = useCallback((delta: number) => {
+    const video = getActiveVideoElement();
+    if (!video) return;
+    const nextVolume = Math.max(0, Math.min(1, video.volume + delta));
+    video.volume = nextVolume;
+    video.muted = nextVolume === 0;
+  }, [getActiveVideoElement]);
+
+  const adjustPlayerRate = useCallback((delta: number) => {
+    const video = getActiveVideoElement();
+    if (!video) return;
+    const nextRate = Math.max(0.25, Math.min(3, video.playbackRate + delta));
+    video.playbackRate = Math.round(nextRate * 100) / 100;
+  }, [getActiveVideoElement]);
+
+  const togglePlayerMute = useCallback(() => {
+    const video = getActiveVideoElement();
+    if (!video) return;
+    video.muted = !video.muted;
+  }, [getActiveVideoElement]);
+
+  const togglePlayerFullscreen = useCallback(() => {
+    const video = getActiveVideoElement();
+    if (!video) return;
+    const host = (video.closest(".custom-video-shell") as HTMLElement | null) ?? video;
+    if (document.fullscreenElement === host) {
+      void document.exitFullscreen();
+      return;
+    }
+    void host.requestFullscreen();
+  }, [getActiveVideoElement]);
+
+  useKeyboardShortcuts({
+    player: {
+      enabled: true,
+      onPlayPause: togglePlayerPlayback,
+      onSeekBy: seekPlayerBy,
+      onSeekToPercent: seekPlayerToPercent,
+      onVolumeBy: adjustPlayerVolume,
+      onRateBy: adjustPlayerRate,
+      onToggleMute: togglePlayerMute,
+      onToggleFullscreen: togglePlayerFullscreen,
+    },
+  });
+
+  useEffect(() => {
+    const onRequestDelete = () => {
+      setDeleteError(null);
+      setIsDeleteDialogOpen(true);
+    };
+    const onEscape = () => {
+      if (isDeleteDialogOpen && !isDeleting) {
+        setIsDeleteDialogOpen(false);
+        setDeleteError(null);
+      }
+      if (isTitleEditing && !isSavingTitle) {
+        setTitleDraft(displayTitle);
+        setIsTitleEditing(false);
+        setTitleSaveMessage(null);
+      }
+    };
+
+    window.addEventListener("cap:request-delete-active-video", onRequestDelete);
+    window.addEventListener("cap:escape", onEscape);
+    return () => {
+      window.removeEventListener("cap:request-delete-active-video", onRequestDelete);
+      window.removeEventListener("cap:escape", onEscape);
+    };
+  }, [displayTitle, isDeleteDialogOpen, isDeleting, isSavingTitle, isTitleEditing]);
 
   /* ── Guard ───────────────────────────────────────────────────────────── */
   if (!videoId) {
@@ -495,7 +634,7 @@ export function VideoPage() {
                style={{ borderColor: "rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.07)" }}>
             <div className="h-1 flex-1 rounded-full" style={{ background: "rgba(245,158,11,0.2)" }}>
               <div
-                className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                className="progress-active-bar h-full rounded-full bg-amber-500 transition-all duration-500"
                 style={{ width: `${Math.max(5, status.processingProgress ?? 0)}%` }}
               />
             </div>
@@ -537,15 +676,21 @@ export function VideoPage() {
 
         {/* ── Left: Player ──────────────────────────────────────────────── */}
         <div className="min-w-0">
-          <PlayerCard
-            resultKey={status?.resultKey ?? null}
-            thumbnailKey={status?.thumbnailKey ?? null}
-            seekRequest={seekRequest}
-            onPlaybackTimeChange={setPlaybackTimeSeconds}
-            onDurationChange={setVideoDurationSeconds}
-            chapters={chapters}
-            onSeekToSeconds={requestSeek}
-          />
+          {loading && !status ? (
+            <div className="workspace-card overflow-hidden p-0">
+              <div className="skeleton-block aspect-video w-full" />
+            </div>
+          ) : (
+            <PlayerCard
+              resultKey={status?.resultKey ?? null}
+              thumbnailKey={status?.thumbnailKey ?? null}
+              seekRequest={seekRequest}
+              onPlaybackTimeChange={setPlaybackTimeSeconds}
+              onDurationChange={setVideoDurationSeconds}
+              chapters={chapters}
+              onSeekToSeconds={requestSeek}
+            />
+          )}
         </div>
 
         {/* ── Right: 3-tab rail ─────────────────────────────────────────── */}
@@ -568,32 +713,15 @@ export function VideoPage() {
             </div>
 
             {/* Tab content — scrolls within the bounded container */}
-            <div className="flex-1 overflow-y-auto min-h-0 scroll-panel">
-              {railTab === "notes" && <NotesPanel videoId={videoId} />}
-
-              {railTab === "summary" && (
-                <SummaryCard
-                  aiStatus={status?.aiStatus}
-                  aiOutput={status?.aiOutput}
-                  errorMessage={status?.aiErrorMessage}
-                  shareableResultUrl={shareableResultUrl}
-                  chapters={chapters}
-                  onJumpToSeconds={requestSeek}
-                  compact
-                />
+            <div className="rail-tab-stack scroll-panel">
+              {outgoingRailTab && (
+                <div className="rail-tab-panel-exit">
+                  {renderRailTabContent(outgoingRailTab)}
+                </div>
               )}
-
-              {railTab === "transcript" && (
-                <TranscriptCard
-                  transcriptionStatus={status?.transcriptionStatus}
-                  transcript={status?.transcript}
-                  errorMessage={status?.transcriptErrorMessage}
-                  playbackTimeSeconds={playbackTimeSeconds}
-                  onSeekToSeconds={requestSeek}
-                  onSaveTranscript={saveTranscript}
-                  compact
-                />
-              )}
+              <div key={renderedRailTab} className="rail-tab-panel-enter">
+                {renderRailTabContent(renderedRailTab)}
+              </div>
             </div>
           </div>
         </div>

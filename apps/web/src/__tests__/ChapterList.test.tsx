@@ -94,10 +94,10 @@ describe("ChapterList", () => {
     );
     // At 60s, chapter index 1 (45s) is active, chapter 2 (120s) is not yet
     const buttons = container.querySelectorAll("button");
-    // Active chapter button (index 1) should have bg-primary/10 class
-    expect(buttons[1]?.className).toContain("bg-primary");
+    // Active chapter button (index 1) should have the active row class
+    expect(buttons[1]?.className).toContain("chapter-row-active");
     // Non-active should not
-    expect(buttons[2]?.className).not.toContain("bg-primary");
+    expect(buttons[2]?.className).not.toContain("chapter-row-active");
   });
 
   it("filters out chapters beyond durationSeconds", () => {

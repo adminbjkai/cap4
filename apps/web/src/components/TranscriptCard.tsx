@@ -110,13 +110,15 @@ export function TranscriptCard({
         const text = String(segment.text ?? "").trim();
         const start = Number(segment.startSeconds);
         const end = Number(segment.endSeconds);
+        const confidence = typeof segment.confidence === "number" ? segment.confidence : null;
         if (!text || !Number.isFinite(start)) return null;
         return {
           index,
           startSeconds: start,
           endSeconds: Number.isFinite(end) ? Math.max(start, end) : null,
           text,
-          originalText: typeof segment.originalText === "string" && segment.originalText.trim().length > 0 ? segment.originalText : null
+          originalText: typeof segment.originalText === "string" && segment.originalText.trim().length > 0 ? segment.originalText : null,
+          confidence
         };
       })
       .filter((line): line is TranscriptLine => Boolean(line))
@@ -158,6 +160,22 @@ export function TranscriptCard({
     return matches;
   }, [searchQuery, transcriptLines, textViewMode]);
 
+  // Confidence stats
+  const confidenceStats = useMemo(() => {
+    const withConfidence = transcriptLines.filter((line) => line.confidence !== null);
+    if (withConfidence.length === 0) return null;
+    const highConfidenceCount = withConfidence.filter((line) => line.confidence! >= 0.8).length;
+    const percentage = Math.round((highConfidenceCount / withConfidence.length) * 100);
+    return { percentage, total: withConfidence.length, highCount: highConfidenceCount };
+  }, [transcriptLines]);
+
+  // Uncertain segments (confidence < 80%)
+  const uncertainSegments = useMemo(() => {
+    return transcriptLines
+      .map((line, idx) => ({ line, lineIndex: idx }))
+      .filter(({ line }) => line.confidence !== null && line.confidence < 0.8);
+  }, [transcriptLines]);
+
   const originalTranscriptText = useMemo(() => {
     const withOriginal = transcriptLines.filter((line) => line.originalText && line.originalText.trim().length > 0);
     if (withOriginal.length > 0) {
@@ -165,6 +183,17 @@ export function TranscriptCard({
     }
     return transcriptText;
   }, [transcriptLines, transcriptText]);
+
+  // Save verified segments to localStorage whenever it changes
+  useEffect(() => {
+    if (verifiedSegments.size === 0) {
+      try { localStorage.removeItem(verifiedSegmentsKey); } catch { /* ignore */ }
+    } else {
+      try {
+        localStorage.setItem(verifiedSegmentsKey, JSON.stringify(Array.from(verifiedSegments)));
+      } catch { /* quota exceeded */ }
+    }
+  }, [verifiedSegments, verifiedSegmentsKey]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -284,6 +313,36 @@ export function TranscriptCard({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchQuery, searchMatches, transcriptLines, onSeekToSeconds]);
+
+  // Review mode helpers
+  const toggleReviewMode = () => {
+    setIsReviewMode((prev) => !prev);
+    setReviewIndex(0);
+    if (!isReviewMode && uncertainSegments.length > 0) {
+      onSeekToSeconds(uncertainSegments[0]!.line.startSeconds);
+    }
+  };
+
+  const navigateReview = (direction: "prev" | "next") => {
+    if (uncertainSegments.length === 0) return;
+    const newIndex = direction === "next"
+      ? (reviewIndex + 1) % uncertainSegments.length
+      : (reviewIndex - 1 + uncertainSegments.length) % uncertainSegments.length;
+    setReviewIndex(newIndex);
+    onSeekToSeconds(uncertainSegments[newIndex]!.line.startSeconds);
+  };
+
+  const toggleVerified = (segmentIndex: number) => {
+    setVerifiedSegments((prev) => {
+      const next = new Set(prev);
+      if (next.has(segmentIndex)) {
+        next.delete(segmentIndex);
+      } else {
+        next.add(segmentIndex);
+      }
+      return next;
+    });
+  };
 
   const copyTranscript = async () => {
     if (!transcriptText) return;
@@ -476,6 +535,44 @@ export function TranscriptCard({
                 Edit
               </button>
             )}
+            {/* Confidence stats badge */}
+            {confidenceStats && (
+              <span className="confidence-badge" title={`${confidenceStats.highCount}/${confidenceStats.total} segments with ≥80% confidence`}>
+                {confidenceStats.percentage}% high confidence
+              </span>
+            )}
+            {/* Review mode toggle */}
+            {uncertainSegments.length > 0 && !isEditing && (
+              <button
+                type="button"
+                onClick={toggleReviewMode}
+                className={`btn-secondary text-[11px] px-2 py-0.5 ${isReviewMode ? "!bg-amber-50 !border-amber-300 !text-amber-900" : ""}`}
+                title={`${uncertainSegments.length} uncertain segments (<80% confidence)`}
+              >
+                {isReviewMode ? `Reviewing (${reviewIndex + 1}/${uncertainSegments.length})` : "Review uncertain"}
+              </button>
+            )}
+            {/* Review mode navigation */}
+            {isReviewMode && uncertainSegments.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigateReview("prev")}
+                  className="btn-secondary text-[11px] px-2 py-0.5"
+                  title="Previous uncertain segment"
+                >
+                  ‹ Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateReview("next")}
+                  className="btn-secondary text-[11px] px-2 py-0.5"
+                  title="Next uncertain segment"
+                >
+                  Next ›
+                </button>
+              </>
+            )}
           </div>
 
           {/* Edit mode */}
@@ -508,18 +605,40 @@ export function TranscriptCard({
                the outer container in VideoPage controls the scroll */
             <div
               ref={transcriptScrollRef}
-              className={`space-y-0 ${compact ? "" : "scroll-panel max-h-[32rem] overflow-auto rounded-lg p-1"}`}
+              className={`space-y-0 relative ${compact ? "" : "scroll-panel max-h-[32rem] overflow-auto rounded-lg p-1"}`}
             >
               {transcriptLines.map((line, index) => {
+                // Review mode filtering
+                if (isReviewMode && (line.confidence === null || line.confidence >= 0.8)) return null;
+
                 const isActive = index === activeLineIndex && textViewMode === "current";
                 const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
                 const highlightedContent = highlightText(lineText, index);
+                const isVerified = verifiedSegments.has(line.index);
+
+                // Determine confidence class
+                let confidenceClass = "";
+                if (line.confidence !== null && line.confidence < 0.8) {
+                  confidenceClass = line.confidence < 0.6 ? "confidence-very-low" : "confidence-low";
+                }
+
                 return (
                   <button
                     key={`${line.index}-${line.startSeconds}`}
                     type="button"
                     data-transcript-line-index={index}
                     onClick={() => onSeekToSeconds(line.startSeconds)}
+                    onMouseEnter={(e) => {
+                      setHoveredLineIndex(index);
+                      if (line.confidence !== null && line.confidence < 1.0) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setTooltipPosition({ x: rect.left + rect.width / 2, y: rect.top - 8 });
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredLineIndex(null);
+                      setTooltipPosition(null);
+                    }}
                     className={`line-item w-full rounded-none px-3 py-2 text-left transition focus-visible:outline-none ${
                       isActive ? "line-item-active" : ""
                     }`}
@@ -527,10 +646,46 @@ export function TranscriptCard({
                     <span className="mr-2 inline-block min-w-[44px] font-mono text-[11px] text-muted leading-[1.4]">
                       {formatTimestamp(line.startSeconds)}
                     </span>
-                    <span className="text-[13px] leading-[1.4]">{highlightedContent}</span>
+                    <span className={`text-[13px] leading-[1.4] ${confidenceClass}`}>
+                      {highlightedContent}
+                    </span>
+                    {/* Verified marker */}
+                    {isVerified && (
+                      <span className="verified-marker ml-2 inline-flex" title="Verified">
+                        <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                    )}
+                    {/* Verify button in review mode */}
+                    {isReviewMode && !isVerified && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleVerified(line.index); }}
+                        className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200"
+                        title="Mark as verified"
+                      >
+                        ✓ Verify
+                      </button>
+                    )}
                   </button>
                 );
               })}
+
+              {/* Confidence tooltip */}
+              {hoveredLineIndex !== null && tooltipPosition && transcriptLines[hoveredLineIndex]?.confidence !== null && (
+                <div
+                  className="confidence-tooltip"
+                  style={{
+                    position: "fixed",
+                    left: `${tooltipPosition.x}px`,
+                    top: `${tooltipPosition.y}px`,
+                    transform: "translate(-50%, -100%)"
+                  }}
+                >
+                  Confidence: {Math.round(transcriptLines[hoveredLineIndex]!.confidence! * 100)}%
+                </div>
+              )}
             </div>
           ) : (
             <pre className={`overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed ${compact ? "px-3 py-2" : "scroll-panel max-h-[28rem] rounded-lg p-4"}`}>

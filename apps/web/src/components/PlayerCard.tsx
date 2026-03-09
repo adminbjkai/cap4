@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildPublicObjectUrl } from "../lib/format";
+import { CustomVideoControls } from "./CustomVideoControls";
 
 type SeekRequest = { seconds: number; requestId: number };
 type ChapterItem  = { title: string; seconds: number };
@@ -36,6 +37,7 @@ export function PlayerCard({
   const [durationSeconds,     setDurationSeconds]     = useState(0);
   const [hoveredChapterIndex, setHoveredChapterIndex] = useState<number | null>(null);
   const [pinnedTooltip,       setPinnedTooltip]       = useState<number | null>(null);
+  const [isBuffering,         setIsBuffering]         = useState(false);
 
   // Timeline hover preview state
   const [hoverPct,            setHoverPct]            = useState<number | null>(null);
@@ -166,27 +168,39 @@ export function PlayerCard({
 
       {/* Video */}
       <div className="video-frame">
-        <video
-          ref={videoRef}
-          controls
-          playsInline
-          className="aspect-video w-full bg-black"
-          src={videoUrl ?? undefined}
-          poster={thumbnailUrl ?? undefined}
-          onLoadedMetadata={(e) => {
-            const time     = e.currentTarget.currentTime || 0;
-            const duration = Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0;
-            setPlaybackTimeSeconds(time);
-            setDurationSeconds(duration);
-            onPlaybackTimeChange?.(time);
-            onDurationChange?.(duration);
-          }}
-          onTimeUpdate={(e) => {
-            const time = e.currentTarget.currentTime || 0;
-            setPlaybackTimeSeconds(time);
-            onPlaybackTimeChange?.(time);
-          }}
-        />
+        <div className="relative h-full w-full">
+          <video
+            ref={videoRef}
+            playsInline
+            className="aspect-video w-full bg-black"
+            src={videoUrl ?? undefined}
+            poster={thumbnailUrl ?? undefined}
+            onLoadedMetadata={(e) => {
+              const time     = e.currentTarget.currentTime || 0;
+              const duration = Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0;
+              setPlaybackTimeSeconds(time);
+              setDurationSeconds(duration);
+              onPlaybackTimeChange?.(time);
+              onDurationChange?.(duration);
+            }}
+            onTimeUpdate={(e) => {
+              const time = e.currentTarget.currentTime || 0;
+              setPlaybackTimeSeconds(time);
+              onPlaybackTimeChange?.(time);
+            }}
+            onWaiting={() => setIsBuffering(true)}
+            onPlaying={() => setIsBuffering(false)}
+            onCanPlay={() => setIsBuffering(false)}
+          />
+          <CustomVideoControls
+            videoRef={videoRef}
+            playbackTimeSeconds={playbackTimeSeconds}
+            durationSeconds={durationSeconds}
+            chapters={timelineChapters}
+            isBuffering={isBuffering}
+            onSeek={handleChapterSeek}
+          />
+        </div>
       </div>
 
       {/* Chapter timeline — only shown if chapters exist */}

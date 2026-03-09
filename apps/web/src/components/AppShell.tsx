@@ -1,7 +1,11 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { useEffect, useMemo, useState, type PropsWithChildren, type ReactNode } from "react";
 
-export function AppShell({ children }: PropsWithChildren) {
+type AppShellProps = PropsWithChildren<{
+  overlays?: ReactNode;
+}>;
+
+export function AppShell({ children, overlays }: AppShellProps) {
   const location = useLocation();
   const storedTheme = useMemo<"light" | "dark" | null>(() => {
     if (typeof window === "undefined") return "light";
@@ -133,9 +137,12 @@ export function AppShell({ children }: PropsWithChildren) {
 
       <main className="app-content min-h-screen pt-16 lg:pt-0">
         <div className="mx-auto w-full max-w-[1720px] px-4 py-8 sm:px-12">
-          {children}
+          <div key={location.pathname} className="page-transition-enter">
+            {children}
+          </div>
         </div>
       </main>
+      {overlays}
     </div>
   );
 }

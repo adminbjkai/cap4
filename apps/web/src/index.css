@@ -131,6 +131,20 @@ body {
   box-sizing: border-box;
 }
 
+:where(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
 /* Fine scrollbars globally */
 * {
   scrollbar-width: thin;
@@ -170,6 +184,11 @@ body {
 @keyframes skeleton-shimmer {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
+}
+
+@keyframes processing-border {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 @keyframes rail-tab-in {
@@ -284,6 +303,27 @@ body {
   .library-card-reveal {
     animation: card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
     will-change: transform, opacity;
+  }
+  .library-card-deleting {
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 200ms ease, transform 200ms ease;
+  }
+  .library-card-processing::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: 0.75rem;
+    background: linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--accent-blue) 70%, #8b5cf6 30%) 30%, transparent 55%);
+    background-size: 220% 100%;
+    animation: processing-border 1.6s linear infinite;
+    pointer-events: none;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
 
   .skeleton-block {
@@ -426,6 +466,21 @@ body {
     color: var(--chip-text);
   }
   .status-chip-compact { @apply px-2.5 py-1; }
+  .status-chip-success {
+    border-color: color-mix(in srgb, var(--success-text) 30%, transparent);
+    background: color-mix(in srgb, var(--success-bg) 88%, transparent);
+    color: var(--success-text);
+  }
+  .status-chip-failed {
+    border-color: color-mix(in srgb, var(--danger-text) 30%, transparent);
+    background: color-mix(in srgb, var(--danger-bg) 88%, transparent);
+    color: var(--danger-text);
+  }
+  .status-chip-processing {
+    border-color: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+    background: color-mix(in srgb, var(--accent-blue-subtle) 88%, transparent);
+    color: var(--accent-blue);
+  }
 
   .step-pill {
     @apply flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider;

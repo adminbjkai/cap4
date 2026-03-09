@@ -24,8 +24,8 @@ export function ConfirmationDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <div className="workspace-card w-full max-w-md p-5 shadow-2xl">
+    <div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+      <div className="dialog-surface workspace-card w-full max-w-md p-5 shadow-2xl">
         <p className="workspace-label">Confirm action</p>
         <h2 className="mt-1 text-lg font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-secondary">{message}</p>
