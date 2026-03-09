@@ -960,8 +960,8 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
     }
 
     await client.query(
-      `INSERT INTO ai_outputs(video_id, provider, model, title, summary, chapters_json)
-    VALUES($1:: uuid, 'groq', $2, $3, $4, $5:: jsonb)
+      `INSERT INTO ai_outputs(video_id, provider, model, title, summary, chapters_json, entities_json, action_items_json, quotes_json)
+    VALUES($1:: uuid, 'groq', $2, $3, $4, $5:: jsonb, $6:: jsonb, $7:: jsonb, $8:: jsonb)
        ON CONFLICT(video_id)
        DO UPDATE SET
     provider = EXCLUDED.provider,
@@ -969,8 +969,20 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
       title = EXCLUDED.title,
       summary = EXCLUDED.summary,
       chapters_json = EXCLUDED.chapters_json,
+      entities_json = EXCLUDED.entities_json,
+      action_items_json = EXCLUDED.action_items_json,
+      quotes_json = EXCLUDED.quotes_json,
       updated_at = now()`,
-      [job.video_id, summary.model, summary.title, summary.summary, JSON.stringify(chaptersJson)]
+      [
+        job.video_id,
+        summary.model,
+        summary.title,
+        summary.summary,
+        JSON.stringify(chaptersJson),
+        summary.entities ? JSON.stringify(summary.entities) : null,
+        summary.actionItems ? JSON.stringify(summary.actionItems) : null,
+        summary.quotes ? JSON.stringify(summary.quotes) : null
+      ]
     );
 
     const updateResult = await client.query<{ webhook_url: string | null }>(

@@ -32,6 +32,19 @@ function log(app: FastifyInstance, fields: Record<string, unknown>) {
   }
 }
 
+function normalizeSpeakerLabels(input: unknown): Record<string, string> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(input as Record<string, unknown>)) {
+    const numericKey = Number(rawKey);
+    if (!Number.isInteger(numericKey) || numericKey < 0) continue;
+    const label = String(rawValue ?? "").trim();
+    if (!label) continue;
+    out[String(numericKey)] = label.slice(0, 80);
+  }
+  return out;
+}
+
 export async function videoRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------
   // POST /api/videos — create video
@@ -100,6 +113,7 @@ export async function videoRoutes(app: FastifyInstance) {
       transcript_language: string | null;
       transcript_vtt_key: string | null;
       transcript_segments_json: unknown;
+      transcript_speaker_labels_json: unknown;
       ai_provider: string | null;
       ai_model: string | null;
       ai_title: string | null;
@@ -122,6 +136,7 @@ export async function videoRoutes(app: FastifyInstance) {
          COALESCE(t.language, 'en') AS transcript_language,
          t.vtt_key AS transcript_vtt_key,
          t.segments_json AS transcript_segments_json,
+         t.speaker_labels_json AS transcript_speaker_labels_json,
          ao.provider::text AS ai_provider,
          ao.model AS ai_model,
          ao.title AS ai_title,
@@ -179,6 +194,7 @@ export async function videoRoutes(app: FastifyInstance) {
           language: row.transcript_language,
           vttKey: row.transcript_vtt_key,
           text: transcriptText,
+          speakerLabels: normalizeSpeakerLabels(row.transcript_speaker_labels_json),
           segments: Array.isArray(row.transcript_segments_json) ? row.transcript_segments_json : []
         }
         : null,
@@ -199,7 +215,7 @@ export async function videoRoutes(app: FastifyInstance) {
   // PATCH /api/videos/:id/watch-edits
   // ------------------------------------------------------------------
 
-  app.patch<{ Params: { id: string }; Body: { title?: string | null; transcriptText?: string | null } }>("/api/videos/:id/watch-edits", async (req, reply) => {
+  app.patch<{ Params: { id: string }; Body: { title?: string | null; transcriptText?: string | null; speakerLabels?: Record<string, string> | null } }>("/api/videos/:id/watch-edits", async (req, reply) => {
     const videoId = req.params.id;
     const idempotencyKey = req.headers["idempotency-key"];
     if (!idempotencyKey || typeof idempotencyKey !== "string" || idempotencyKey.trim().length === 0) {
@@ -208,14 +224,21 @@ export async function videoRoutes(app: FastifyInstance) {
 
     const titleProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, "title");
     const transcriptProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, "transcriptText");
-    if (!titleProvided && !transcriptProvided) {
-      return reply.code(400).send(badRequest("At least one field must be provided: title, transcriptText"));
+    const speakerLabelsProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, "speakerLabels");
+    if (!titleProvided && !transcriptProvided && !speakerLabelsProvided) {
+      return reply.code(400).send(badRequest("At least one field must be provided: title, transcriptText, speakerLabels"));
     }
 
     const title = titleProvided ? String(req.body?.title ?? "").trim() : null;
     const transcriptText = transcriptProvided ? String(req.body?.transcriptText ?? "").trim() : null;
+    const speakerLabels = speakerLabelsProvided ? normalizeSpeakerLabels(req.body?.speakerLabels ?? {}) : null;
     const endpointKey = `/api/videos/${videoId}/watch-edits`;
-    const requestHash = sha256Hex(JSON.stringify({ videoId, title: titleProvided ? title : undefined, transcriptText: transcriptProvided ? transcriptText : undefined }));
+    const requestHash = sha256Hex(JSON.stringify({
+      videoId,
+      title: titleProvided ? title : undefined,
+      transcriptText: transcriptProvided ? transcriptText : undefined,
+      speakerLabels: speakerLabelsProvided ? speakerLabels : undefined
+    }));
 
     const result = await withTransaction(env.DATABASE_URL, async (client) => {
       const idempotencyInsert = await client.query<{ endpoint: string; idempotency_key: string }>(
@@ -270,6 +293,7 @@ export async function videoRoutes(app: FastifyInstance) {
 
       let titleUpdated = false;
       let transcriptUpdated = false;
+      let speakerLabelsUpdated = false;
 
       if (titleProvided) {
         const aiLookup = await client.query<{ video_id: string }>(`SELECT video_id FROM ai_outputs WHERE video_id = $1::uuid`, [videoId]);
@@ -285,19 +309,36 @@ export async function videoRoutes(app: FastifyInstance) {
       }
 
       if (transcriptProvided) {
-        const transcriptLookup = await client.query<{ segments_json: unknown }>(
-          `SELECT segments_json FROM transcripts WHERE video_id = $1::uuid`,
+        const transcriptLookup = await client.query<{ segments_json: unknown; speaker_labels_json: unknown }>(
+          `SELECT segments_json, speaker_labels_json FROM transcripts WHERE video_id = $1::uuid`,
           [videoId]
         );
         if ((transcriptLookup.rowCount ?? 0) > 0) {
           const normalizedSegments = normalizeEditableTranscriptSegments(transcriptLookup.rows[0]?.segments_json ?? [], transcriptText ?? "");
+          const normalizedSpeakerLabels = normalizeSpeakerLabels(transcriptLookup.rows[0]?.speaker_labels_json ?? {});
           await client.query(
             `UPDATE transcripts
-             SET segments_json = $2::jsonb, updated_at = now()
+             SET segments_json = $2::jsonb, speaker_labels_json = $3::jsonb, updated_at = now()
              WHERE video_id = $1::uuid`,
-            [videoId, JSON.stringify(normalizedSegments)]
+            [videoId, JSON.stringify(normalizedSegments), JSON.stringify(normalizedSpeakerLabels)]
           );
           transcriptUpdated = true;
+        }
+      }
+
+      if (speakerLabelsProvided) {
+        const transcriptLookup = await client.query<{ video_id: string }>(
+          `SELECT video_id FROM transcripts WHERE video_id = $1::uuid`,
+          [videoId]
+        );
+        if ((transcriptLookup.rowCount ?? 0) > 0) {
+          await client.query(
+            `UPDATE transcripts
+             SET speaker_labels_json = $2::jsonb, updated_at = now()
+             WHERE video_id = $1::uuid`,
+            [videoId, JSON.stringify(speakerLabels ?? {})]
+          );
+          speakerLabelsUpdated = true;
         }
       }
 
@@ -306,7 +347,8 @@ export async function videoRoutes(app: FastifyInstance) {
         videoId,
         updated: {
           title: titleUpdated,
-          transcript: transcriptUpdated
+          transcript: transcriptUpdated,
+          speakerLabels: speakerLabelsUpdated
         }
       };
 

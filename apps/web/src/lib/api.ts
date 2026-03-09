@@ -55,6 +55,7 @@ export type VideoStatusResponse = {
     language: string | null;
     vttKey: string;
     text: string | null;
+    speakerLabels?: Record<string, string>;
     segments: Array<{
       startSeconds?: number;
       endSeconds?: number;
@@ -79,6 +80,7 @@ export type WatchEditsResponse = {
   updated: {
     title: boolean;
     transcript: boolean;
+    speakerLabels?: boolean;
   };
 };
 
@@ -223,7 +225,7 @@ export async function getSystemProviderStatus(): Promise<ProviderStatusResponse>
 
 export async function saveWatchEdits(
   videoId: string,
-  payload: { title?: string | null; transcriptText?: string | null },
+  payload: { title?: string | null; transcriptText?: string | null; speakerLabels?: Record<string, string> | null },
   idempotencyKey: string
 ): Promise<WatchEditsResponse> {
   return parseJson<WatchEditsResponse>(

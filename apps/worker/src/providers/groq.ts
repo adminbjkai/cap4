@@ -124,19 +124,19 @@ function normalizeKeyPoints(value: unknown): string[] {
 
 function normalizeChapters(value: unknown): GroqChapter[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const title = "title" in item && typeof item.title === "string" ? item.title.trim() : "";
-      const start = "start" in item && typeof item.start === "number" ? item.start :
-                   ("startSeconds" in item && typeof item.startSeconds === "number" ? item.startSeconds : 0);
-      const sentiment = "sentiment" in item &&
-                       (item.sentiment === 'positive' || item.sentiment === 'neutral' || item.sentiment === 'negative')
-                       ? item.sentiment : undefined;
-      if (!title) return null;
-      return { title, start, sentiment };
-    })
-    .filter((entry): entry is GroqChapter => entry !== null);
+  const chapters: GroqChapter[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const title = "title" in item && typeof item.title === "string" ? item.title.trim() : "";
+    const start = "start" in item && typeof item.start === "number" ? item.start :
+                 ("startSeconds" in item && typeof item.startSeconds === "number" ? item.startSeconds : 0);
+    const sentiment = "sentiment" in item &&
+                     (item.sentiment === 'positive' || item.sentiment === 'neutral' || item.sentiment === 'negative')
+                     ? item.sentiment : undefined;
+    if (!title) continue;
+    chapters.push({ title, start, sentiment });
+  }
+  return chapters;
 }
 
 function normalizeEntities(value: unknown): GroqEntity {
@@ -154,30 +154,30 @@ function normalizeEntities(value: unknown): GroqEntity {
 
 function normalizeActionItems(value: unknown): GroqActionItem[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const task = "task" in item && typeof item.task === "string" ? item.task.trim() : "";
-      if (!task) return null;
-      const assignee = "assignee" in item && typeof item.assignee === "string" ? item.assignee.trim() : undefined;
-      const deadline = "deadline" in item && typeof item.deadline === "string" ? item.deadline.trim() : undefined;
-      return { task, assignee, deadline };
-    })
-    .filter((entry): entry is GroqActionItem => entry !== null);
+  const items: GroqActionItem[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const task = "task" in item && typeof item.task === "string" ? item.task.trim() : "";
+    if (!task) continue;
+    const assignee = "assignee" in item && typeof item.assignee === "string" ? item.assignee.trim() : undefined;
+    const deadline = "deadline" in item && typeof item.deadline === "string" ? item.deadline.trim() : undefined;
+    items.push({ task, assignee, deadline });
+  }
+  return items;
 }
 
 function normalizeQuotes(value: unknown): GroqQuote[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const text = "text" in item && typeof item.text === "string" ? item.text.trim() : "";
-      const timestamp = "timestamp" in item && typeof item.timestamp === "number" ? item.timestamp :
-                       ("time" in item && typeof item.time === "number" ? item.time : 0);
-      if (!text) return null;
-      return { text, timestamp };
-    })
-    .filter((entry): entry is GroqQuote => entry !== null);
+  const quotes: GroqQuote[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const text = "text" in item && typeof item.text === "string" ? item.text.trim() : "";
+    const timestamp = "timestamp" in item && typeof item.timestamp === "number" ? item.timestamp :
+                     ("time" in item && typeof item.time === "number" ? item.time : 0);
+    if (!text) continue;
+    quotes.push({ text, timestamp });
+  }
+  return quotes;
 }
 
 export async function summarizeWithGroq(args: {
