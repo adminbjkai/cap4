@@ -61,11 +61,11 @@ export function AppShell({ children, overlays }: AppShellProps) {
         <div className="mb-8 flex items-center gap-2 px-2">
           <div
             className="flex h-8 w-8 items-center justify-center rounded-lg font-bold text-xl text-white"
-            style={{ background: "var(--accent-blue-gradient)", boxShadow: "0 10px 24px rgba(59,130,246,0.25)" }}
+            style={{ background: "var(--accent-blue-gradient)", boxShadow: "0 10px 24px rgba(107, 143, 113, 0.26)" }}
           >
             C
           </div>
-          <span className="text-xl font-bold tracking-tight">Cap4</span>
+          <span className="text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Cap4</span>
         </div>
 
         <nav className="flex flex-1 flex-col gap-1">
@@ -105,7 +105,7 @@ export function AppShell({ children, overlays }: AppShellProps) {
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 w-full z-50 border-b px-4 py-3 flex items-center justify-between backdrop-blur-md bg-opacity-80"
            style={{ background: "color-mix(in srgb, var(--bg-surface) 82%, transparent)", borderColor: "color-mix(in srgb, var(--border-default) 82%, transparent)" }}>
-        <Link to="/" className="text-lg font-bold">Cap4</Link>
+        <Link to="/" className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Cap4</Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2"
@@ -127,9 +127,9 @@ export function AppShell({ children, overlays }: AppShellProps) {
       {/* Mobile Menu Content */}
       <aside
         className={`lg:hidden fixed left-0 top-0 z-50 h-full w-64 transform transition-transform duration-300 ease-in-out p-6 ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
-        style={{ background: "color-mix(in srgb, var(--bg-surface) 86%, transparent)", borderRight: "1px solid color-mix(in srgb, var(--border-default) 86%, transparent)", backdropFilter: "blur(14px) saturate(140%)" }}
+        style={{ background: "var(--bg-surface)", borderRight: "1px solid var(--border-default)" }}
       >
-        <div className="mb-8 font-bold text-xl">Cap4</div>
+        <div className="mb-8 font-bold text-xl" style={{ color: "var(--text-primary)" }}>Cap4</div>
         <nav className="flex flex-col gap-2">
           {navItems.map((item) => (
             <NavLink

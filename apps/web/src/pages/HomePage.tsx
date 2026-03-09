@@ -256,7 +256,7 @@ export function HomePage() {
                   </div>
 
                   {/* Hover Actions Overlay */}
-                  <div className="hover-action absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-default bg-surface/90 p-2 backdrop-blur-md">
+                  <div className="hover-action absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between border-t border-default bg-surface/90 p-2 backdrop-blur-md">
                     <button
                       onClick={(e) => { e.preventDefault(); setDeleteTarget(item); }}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"

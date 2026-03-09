@@ -32,12 +32,12 @@ module.exports = {
         },
         // ── Legacy green accent (kept for build compat) ────────────────
         accent: {
-          50:  "#f6f7f5",
-          100: "#ecefe9",
-          200: "#d9e0d6",
-          500: "#5f7a5f",
-          600: "#4f694f",
-          700: "#3d523d",
+          50:  "#f0f5f1",
+          100: "#dce8dd",
+          200: "#b8d4bc",
+          500: "#6b8f71",
+          600: "#5a7d60",
+          700: "#4a6a50",
         },
       },
       fontFamily: {

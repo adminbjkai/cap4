@@ -30,30 +30,30 @@
 
   /* ── Surface states ───────────────────────────────────────────────────── */
   --hover-surface:  #f3f4f6;
-  --focus-ring:     rgba(59, 130, 246, 0.20);
+  --focus-ring:     rgba(107, 143, 113, 0.20);
 
   /* ── Accent (primary action / ink) ───────────────────────────────────── */
   --accent:         #1f2937;     /* same as text-primary for buttons */
   --accent-strong:  #111827;
 
   /* ── Blue accent (tabs, focus, active markers, links) ────────────────── */
-  --accent-blue:        #3b82f6; /* blue-500 */
-  --accent-blue-hover:  #2563eb; /* blue-600 */
-  --accent-blue-subtle: #eff6ff; /* blue-50 */
-  --accent-blue-border: #bfdbfe; /* blue-200 */
-  --accent-blue-muted:  #dbeafe; /* blue-100 */
-  --accent-blue-gradient: linear-gradient(96deg, #3b82f6 0%, #4f46e5 100%);
-  --accent-blue-gradient-soft: linear-gradient(120deg, rgba(59, 130, 246, 0.16) 0%, rgba(79, 70, 229, 0.14) 100%);
-  --accent-blue-glow: 0 0 0 3px rgba(59, 130, 246, 0.22), 0 0 24px rgba(59, 130, 246, 0.24);
+  --accent-blue:        #6b8f71;
+  --accent-blue-hover:  #5a7d60;
+  --accent-blue-subtle: #f0f5f1;
+  --accent-blue-border: #b8d4bc;
+  --accent-blue-muted:  #dce8dd;
+  --accent-blue-gradient: linear-gradient(96deg, #6b8f71 0%, #5a7d60 100%);
+  --accent-blue-gradient-soft: linear-gradient(120deg, rgba(107, 143, 113, 0.12) 0%, rgba(90, 125, 96, 0.10) 100%);
+  --accent-blue-glow: 0 0 0 3px rgba(107, 143, 113, 0.18), 0 0 24px rgba(107, 143, 113, 0.15);
 
   /* ── Status ───────────────────────────────────────────────────────────── */
   --warning-bg:     #fffbeb;
   --warning-text:   #92400e;
   --danger-bg:      #fef2f2;
   --danger-text:    #b91c1c;
-  --success-bg:     #ecfdf5;
-  --success-text:   #065f46;
-  --success-border: #a7f3d0;
+  --success-bg:     #f0f5f1;
+  --success-text:   #4a7c59;
+  --success-border: #b8d4bc;
   --info-bg:        #eff6ff;
   --info-text:      #1e40af;
   --info-border:    #bfdbfe;
@@ -71,52 +71,49 @@
 }
 
 :root.theme-dark {
-  /* ── Backgrounds (slate family — blue-tinted dark) ───────────────────── */
-  --bg-app:           #020617;   /* slate-950 */
-  --bg-surface:       #0f172a;   /* slate-900 */
-  --bg-surface-subtle:#1e293b;   /* slate-800 */
-  --bg-surface-muted: #334155;   /* slate-700 */
-  --bg-elevated:      #1e293b;
-  --bg-app-overlay:
-    radial-gradient(circle at 16% 0%, rgba(59, 130, 246, 0.16), transparent 44%),
-    radial-gradient(circle at 84% 14%, rgba(79, 70, 229, 0.11), transparent 38%);
-  --bg-app-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  --bg-app:            #0a0a0a;
+  --bg-surface:        #141414;
+  --bg-surface-subtle: #1e1e1e;
+  --bg-surface-muted:  #2a2a2a;
+  --bg-elevated:       #1e1e1e;
+  --bg-app-overlay:    none;
+  --bg-app-noise:      none;
 
   /* ── Typography ───────────────────────────────────────────────────────── */
-  --text-primary:   #f1f5f9;     /* slate-100 */
-  --text-secondary: #cbd5e1;     /* slate-300 */
-  --text-muted:     #94a3b8;     /* slate-400 */
+  --text-primary:   #e8e8e8;
+  --text-secondary: #a0a0a0;
+  --text-muted:     #6b6b6b;
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
-  --border-default: #334155;     /* slate-700 */
-  --border-strong:  #475569;     /* slate-600 */
+  --border-default: #2a2a2a;
+  --border-strong:  #3a3a3a;
 
   /* ── Surface states ───────────────────────────────────────────────────── */
-  --hover-surface:  #253348;
-  --focus-ring:     rgba(96, 165, 250, 0.25);
+  --hover-surface:  #1e1e1e;
+  --focus-ring:     rgba(107, 143, 113, 0.25);
 
   /* ── Accent ───────────────────────────────────────────────────────────── */
-  --accent:         #f1f5f9;
+  --accent:         #e8e8e8;
   --accent-strong:  #ffffff;
 
   /* ── Blue accent ──────────────────────────────────────────────────────── */
-  --accent-blue:        #60a5fa; /* blue-400 — brighter for dark bg */
-  --accent-blue-hover:  #93c5fd; /* blue-300 */
-  --accent-blue-subtle: rgba(96, 165, 250, 0.12);
-  --accent-blue-border: rgba(96, 165, 250, 0.30);
-  --accent-blue-muted:  rgba(96, 165, 250, 0.18);
-  --accent-blue-gradient: linear-gradient(96deg, #60a5fa 0%, #818cf8 100%);
-  --accent-blue-gradient-soft: linear-gradient(120deg, rgba(96, 165, 250, 0.24) 0%, rgba(129, 140, 248, 0.2) 100%);
-  --accent-blue-glow: 0 0 0 3px rgba(96, 165, 250, 0.34), 0 0 28px rgba(96, 165, 250, 0.34);
+  --accent-blue:        #7da882;
+  --accent-blue-hover:  #93bea0;
+  --accent-blue-subtle: rgba(125, 168, 130, 0.10);
+  --accent-blue-border: rgba(125, 168, 130, 0.25);
+  --accent-blue-muted:  rgba(125, 168, 130, 0.14);
+  --accent-blue-gradient: linear-gradient(96deg, #7da882 0%, #6b9a78 100%);
+  --accent-blue-gradient-soft: linear-gradient(120deg, rgba(125, 168, 130, 0.18) 0%, rgba(107, 154, 120, 0.14) 100%);
+  --accent-blue-glow: 0 0 0 3px rgba(125, 168, 130, 0.28), 0 0 28px rgba(125, 168, 130, 0.22);
 
   /* ── Status ───────────────────────────────────────────────────────────── */
   --warning-bg:     rgba(245,158,11,0.12);
   --warning-text:   #fbbf24;
   --danger-bg:      rgba(239,68,68,0.12);
   --danger-text:    #f87171;
-  --success-bg:     rgba(52,211,153,0.10);
-  --success-text:   #34d399;
-  --success-border: rgba(52,211,153,0.30);
+  --success-bg:     rgba(107, 143, 113, 0.10);
+  --success-text:   #7da882;
+  --success-border: rgba(125, 168, 130, 0.30);
   --info-bg:        rgba(96,165,250,0.10);
   --info-text:      #60a5fa;
   --info-border:    rgba(96,165,250,0.30);
@@ -125,9 +122,9 @@
   --status-danger-gradient:  linear-gradient(110deg, rgba(244, 63, 94, 0.22), rgba(225, 29, 72, 0.18));
   --status-info-gradient:    linear-gradient(110deg, rgba(96, 165, 250, 0.28), rgba(129, 140, 248, 0.22));
 
-  --chip-bg:     #334155;
-  --chip-text:   #e2e8f0;
-  --chip-border: #475569;
+  --chip-bg:     #1e1e1e;
+  --chip-text:   #c0c0c0;
+  --chip-border: #2a2a2a;
 
   color-scheme: dark;
 }
@@ -287,23 +284,21 @@ body {
 
   .sidebar {
     @apply fixed left-0 top-0 hidden h-full w-64 flex-col border-r lg:flex;
-    background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
-    border-color: color-mix(in srgb, var(--border-default) 88%, transparent);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border-default) 48%, transparent);
+    background: var(--bg-surface);
+    border-color: var(--border-default);
+    box-shadow: inset -1px 0 0 var(--border-default);
   }
 
   .sidebar-link {
     @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150;
-    color: var(--text-muted);
+    color: var(--text-secondary);
   }
   .sidebar-link:hover {
     background: var(--bg-surface-subtle);
     color: var(--text-primary);
   }
   .sidebar-link-active {
-    background: var(--bg-surface-muted);
+    background: var(--accent-blue-subtle);
     color: var(--text-primary);
   }
 
@@ -341,7 +336,7 @@ body {
     inset: 0;
     padding: 1px;
     border-radius: 0.75rem;
-    background: linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--accent-blue) 70%, #8b5cf6 30%) 30%, transparent 55%);
+    background: linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--accent-blue) 72%, var(--accent-blue-hover) 28%) 30%, transparent 55%);
     background-size: 220% 100%;
     animation: processing-border 1.6s linear infinite;
     pointer-events: none;
