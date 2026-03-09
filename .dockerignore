@@ -1,9 +1,17 @@
 .git
 node_modules
 .pnpm-store
-.env
-.env.local
 *.log
 dist
 coverage
 
+# Exclude ALL .env files from Docker builds (anywhere in the repo tree).
+# .env files are runtime config and must never be baked into images.
+# Exception: .env.example files are safe to include (no secrets, no VITE_ vars).
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+**/.env.test
+**/.env.*.local
+!**/.env.example

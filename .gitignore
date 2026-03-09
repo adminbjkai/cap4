@@ -16,10 +16,14 @@ out/
 # Source maps (generated during build)
 *.map
 
-# Environment files
-.env
-.env.local
-.env.*.local
+# Environment files — exclude all .env* everywhere except .env.example
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+**/.env.test
+**/.env.*.local
+!**/.env.example
 
 # Logs
 logs/
