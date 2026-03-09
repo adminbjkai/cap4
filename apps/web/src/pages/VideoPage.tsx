@@ -1,5 +1,13 @@
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ChangeEvent,
+} from "react";
 import {
   deleteVideo,
   getJobStatus,
@@ -7,18 +15,20 @@ import {
   saveWatchEdits,
   retryVideo,
   type JobStatusResponse,
-  type VideoStatusResponse
+  type VideoStatusResponse,
 } from "../lib/api";
 import { ConfirmationDialog } from "../components/ConfirmationDialog";
 import { upsertRecentSession } from "../lib/sessions";
 import { PlayerCard } from "../components/PlayerCard";
 import { TranscriptCard } from "../components/TranscriptCard";
+import { SummaryCard } from "../components/SummaryCard";
 import { ChapterList } from "../components/ChapterList";
 import { buildPublicObjectUrl } from "../lib/format";
 
-const TERMINAL_PROCESSING_PHASES = new Set(["complete", "failed", "cancelled"]);
+/* ── Terminal-state sets ─────────────────────────────────────────────────── */
+const TERMINAL_PROCESSING_PHASES  = new Set(["complete", "failed", "cancelled"]);
 const TERMINAL_TRANSCRIPTION_STATUSES = new Set(["complete", "no_audio", "skipped", "failed"]);
-const TERMINAL_AI_STATUSES = new Set(["complete", "skipped", "failed"]);
+const TERMINAL_AI_STATUSES        = new Set(["complete", "skipped", "failed"]);
 
 function hasReachedTerminalState(status: VideoStatusResponse | null): boolean {
   if (!status) return false;
@@ -29,11 +39,11 @@ function hasReachedTerminalState(status: VideoStatusResponse | null): boolean {
   );
 }
 
-type ChapterItem = {
-  title: string;
-  seconds: number;
-};
+/* ── Types ───────────────────────────────────────────────────────────────── */
+type ChapterItem = { title: string; seconds: number };
+type RailTab     = "notes" | "summary" | "transcript";
 
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 function normalizeWords(value: string): string[] {
   return value
     .toLowerCase()
@@ -44,44 +54,40 @@ function normalizeWords(value: string): string[] {
 
 function deriveChapters(
   aiOutput: VideoStatusResponse["aiOutput"] | null | undefined,
-  segments: NonNullable<VideoStatusResponse["transcript"]>["segments"]
+  segments: NonNullable<VideoStatusResponse["transcript"]>["segments"],
 ): ChapterItem[] {
   if (!aiOutput || aiOutput.keyPoints.length === 0) return [];
 
   const usableSegments = (Array.isArray(segments) ? segments : [])
     .map((segment) => {
       const start = Number(segment.startSeconds);
-      const text = String(segment.text ?? "").trim();
+      const text  = String(segment.text ?? "").trim();
       if (!Number.isFinite(start) || !text) return null;
       return { startSeconds: start, words: new Set(normalizeWords(text)) };
     })
-    .filter((segment): segment is { startSeconds: number; words: Set<string> } => Boolean(segment))
+    .filter((s): s is { startSeconds: number; words: Set<string> } => Boolean(s))
     .sort((a, b) => a.startSeconds - b.startSeconds);
 
   const chapters = aiOutput.keyPoints.map((point, index) => {
-    if (usableSegments.length === 0) {
-      return { title: point, seconds: index * 15 };
-    }
+    if (usableSegments.length === 0) return { title: point, seconds: index * 15 };
 
     const pointWords = normalizeWords(point);
     let bestMatchSeconds: number | null = null;
     let bestScore = 0;
 
     for (const segment of usableSegments) {
-      const score = pointWords.reduce((total, word) => total + (segment.words.has(word) ? 1 : 0), 0);
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatchSeconds = segment.startSeconds;
-      }
+      const score = pointWords.reduce(
+        (total, word) => total + (segment.words.has(word) ? 1 : 0),
+        0,
+      );
+      if (score > bestScore) { bestScore = score; bestMatchSeconds = segment.startSeconds; }
     }
 
-    if (bestMatchSeconds !== null && bestScore > 0) {
-      return { title: point, seconds: bestMatchSeconds };
-    }
+    if (bestMatchSeconds !== null && bestScore > 0) return { title: point, seconds: bestMatchSeconds };
 
     const fallbackIndex = Math.min(
       usableSegments.length - 1,
-      Math.floor((index / Math.max(aiOutput.keyPoints.length - 1, 1)) * (usableSegments.length - 1))
+      Math.floor((index / Math.max(aiOutput.keyPoints.length - 1, 1)) * (usableSegments.length - 1)),
     );
     return { title: point, seconds: usableSegments[fallbackIndex]?.startSeconds ?? 0 };
   });
@@ -91,22 +97,63 @@ function deriveChapters(
     const key = `${Math.round(chapter.seconds)}-${chapter.title.toLowerCase()}`;
     if (!deduped.has(key)) deduped.set(key, chapter);
   }
-
   return Array.from(deduped.values()).sort((a, b) => a.seconds - b.seconds);
 }
 
 function buildIdempotencyKey(): string {
-  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
-    return window.crypto.randomUUID();
-  }
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) return window.crypto.randomUUID();
   return `watch-edits-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
 
+/* ── Notes panel (localStorage-persisted, per video) ─────────────────────── */
+function NotesPanel({ videoId }: { videoId: string }) {
+  const storageKey = `cap4:notes:${videoId}`;
+  const [notes, setNotes]   = useState(() => {
+    try { return localStorage.getItem(storageKey) ?? ""; } catch { return ""; }
+  });
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const saveTimer = useRef<number | null>(null);
+
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setNotes(value);
+    // Debounced auto-save
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      try { localStorage.setItem(storageKey, value); } catch { /* quota */ }
+      setSavedAt(Date.now());
+    }, 600);
+  };
+
+  useEffect(() => () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); }, []);
+
+  return (
+    <div className="flex h-full flex-col px-3 py-3">
+      <textarea
+        value={notes}
+        onChange={handleChange}
+        placeholder="Your private notes about this video…"
+        className="notes-textarea flex-1 min-h-0"
+        style={{ minHeight: "200px" }}
+        spellCheck
+      />
+      {savedAt && (
+        <p className="mt-1.5 text-[11px] text-muted select-none">
+          Saved locally
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   VIDEO PAGE
+   ══════════════════════════════════════════════════════════════════════════ */
 export function VideoPage() {
-  const params = useParams<{ videoId: string }>();
+  const params        = useParams<{ videoId: string }>();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const videoId = params.videoId ?? "";
+  const navigate      = useNavigate();
+  const videoId       = params.videoId ?? "";
 
   const jobId = useMemo(() => {
     const raw = searchParams.get("jobId");
@@ -115,25 +162,44 @@ export function VideoPage() {
     return Number.isFinite(parsed) ? parsed : null;
   }, [searchParams]);
 
-  const [status, setStatus] = useState<VideoStatusResponse | null>(null);
-  const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [consecutivePollFailures, setConsecutivePollFailures] = useState(0);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
-  const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
-  const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
-  const [seekRequest, setSeekRequest] = useState<{ seconds: number; requestId: number } | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-  const [isTitleEditing, setIsTitleEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
-  const [isSavingTitle, setIsSavingTitle] = useState(false);
-  const [titleSaveMessage, setTitleSaveMessage] = useState<string | null>(null);
+  /* ── Core state ──────────────────────────────────────────────────────── */
+  const [status,                 setStatus]                = useState<VideoStatusResponse | null>(null);
+  const [jobStatus,              setJobStatus]             = useState<JobStatusResponse | null>(null);
+  const [loading,                setLoading]               = useState(false);
+  const [errorMessage,           setErrorMessage]          = useState<string | null>(null);
+  const [consecutivePollFailures,setConsecutivePollFailures] = useState(0);
+  const [lastUpdatedAt,          setLastUpdatedAt]         = useState<string | null>(null);
+  const [playbackTimeSeconds,    setPlaybackTimeSeconds]   = useState(0);
+  const [videoDurationSeconds,   setVideoDurationSeconds]  = useState(0);
+  const [seekRequest,            setSeekRequest]           = useState<{ seconds: number; requestId: number } | null>(null);
+  const [copyFeedback,           setCopyFeedback]          = useState<string | null>(null);
+
+  /* ── Title editing ───────────────────────────────────────────────────── */
+  const [isTitleEditing,  setIsTitleEditing]  = useState(false);
+  const [titleDraft,      setTitleDraft]      = useState("");
+  const [isSavingTitle,   setIsSavingTitle]   = useState(false);
+  const [titleSaveMessage,setTitleSaveMessage]= useState<string | null>(null);
+
+  /* ── Retry / delete ──────────────────────────────────────────────────── */
+  const [isRetrying,        setIsRetrying]        = useState(false);
+  const [retryMessage,      setRetryMessage]      = useState<string | null>(null);
+  const [isDeleteDialogOpen,setIsDeleteDialogOpen]= useState(false);
+  const [isDeleting,        setIsDeleting]        = useState(false);
+  const [isDeleted,         setIsDeleted]         = useState(false);
+  const [deleteError,       setDeleteError]       = useState<string | null>(null);
+
+  /* ── Right-rail tab ──────────────────────────────────────────────────── */
+  const [railTab, setRailTab] = useState<RailTab>("transcript");
+
+  /* ── Derived values ──────────────────────────────────────────────────── */
   const shareableResultUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
-  const videoUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
-  const isAutoRefreshActive = !hasReachedTerminalState(status);
+  const videoUrl           = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
+  const isProcessing       = !hasReachedTerminalState(status);
   const transcriptSegments = status?.transcript?.segments ?? [];
-  const chapters = useMemo(() => deriveChapters(status?.aiOutput, transcriptSegments), [status?.aiOutput, transcriptSegments]);
+  const chapters           = useMemo(
+    () => deriveChapters(status?.aiOutput, transcriptSegments),
+    [status?.aiOutput, transcriptSegments],
+  );
   const displayTitle = status?.aiOutput?.title?.trim() || "Untitled recording";
 
   const showRetryButton = useMemo(() => {
@@ -141,35 +207,25 @@ export function VideoPage() {
     return status.transcriptionStatus === "failed" || status.aiStatus === "failed";
   }, [status]);
 
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [retryMessage, setRetryMessage] = useState<string | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeleted, setIsDeleted] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
+  /* ── Title sync ──────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (!isTitleEditing) {
-      setTitleDraft(displayTitle);
-    }
+    if (!isTitleEditing) setTitleDraft(displayTitle);
   }, [displayTitle, isTitleEditing]);
 
+  /* ── Seek ────────────────────────────────────────────────────────────── */
   const requestSeek = useCallback((seconds: number) => {
     if (!Number.isFinite(seconds)) return;
     const clamped = Math.max(0, seconds);
     window.dispatchEvent(new CustomEvent("cap:seek", { detail: { seconds: clamped } }));
     setPlaybackTimeSeconds(clamped);
-    setSeekRequest((current) => ({
-      seconds: clamped,
-      requestId: (current?.requestId ?? 0) + 1
-    }));
+    setSeekRequest((cur) => ({ seconds: clamped, requestId: (cur?.requestId ?? 0) + 1 }));
   }, []);
 
+  /* ── Polling ─────────────────────────────────────────────────────────── */
   const refresh = useCallback(async () => {
     if (!videoId) return;
     setLoading(true);
     setErrorMessage(null);
-
     try {
       const nextStatus = await getVideoStatus(videoId);
       setStatus(nextStatus);
@@ -178,12 +234,7 @@ export function VideoPage() {
       setErrorMessage(null);
 
       if (jobId !== null) {
-        try {
-          const nextJobStatus = await getJobStatus(jobId);
-          setJobStatus(nextJobStatus);
-        } catch {
-          setJobStatus(null);
-        }
+        try { setJobStatus(await getJobStatus(jobId)); } catch { setJobStatus(null); }
       }
 
       upsertRecentSession({
@@ -194,10 +245,10 @@ export function VideoPage() {
         processingProgress: nextStatus.processingProgress,
         resultKey: nextStatus.resultKey,
         thumbnailKey: nextStatus.thumbnailKey,
-        errorMessage: nextStatus.errorMessage
+        errorMessage: nextStatus.errorMessage,
       });
     } catch (error) {
-      setConsecutivePollFailures((current) => current + 1);
+      setConsecutivePollFailures((c) => c + 1);
       const message = error instanceof Error ? error.message : "Status temporarily unavailable.";
       setErrorMessage(`Status temporarily unavailable. We'll keep retrying automatically. (${message})`);
     } finally {
@@ -205,35 +256,25 @@ export function VideoPage() {
     }
   }, [videoId, jobId]);
 
-  useEffect(() => {
-    if (!videoId) return;
-    void refresh();
-  }, [videoId, refresh]);
+  useEffect(() => { if (videoId) void refresh(); }, [videoId, refresh]);
 
   useEffect(() => {
-    if (!videoId || isDeleted) return;
-    if (hasReachedTerminalState(status)) return;
-    const delayMs = consecutivePollFailures === 0 ? 2000 : Math.min(15000, 2000 * 2 ** consecutivePollFailures);
-    const timeout = window.setTimeout(() => {
-      void refresh();
-    }, delayMs);
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [videoId, status, refresh, consecutivePollFailures]);
+    if (!videoId || isDeleted || hasReachedTerminalState(status)) return;
+    const delayMs = consecutivePollFailures === 0
+      ? 2000
+      : Math.min(15000, 2000 * 2 ** consecutivePollFailures);
+    const timeout = window.setTimeout(() => void refresh(), delayMs);
+    return () => window.clearTimeout(timeout);
+  }, [videoId, status, refresh, consecutivePollFailures, isDeleted]);
 
+  /* ── Retry ───────────────────────────────────────────────────────────── */
   const handleRetry = useCallback(async () => {
     if (!videoId || isRetrying) return;
-    setIsRetrying(true);
-    setRetryMessage(null);
+    setIsRetrying(true); setRetryMessage(null);
     try {
       const result = await retryVideo(videoId);
-      if (result.ok) {
-        setRetryMessage("Job queued for retry.");
-        await refresh();
-      } else {
-        setRetryMessage("Failed to queue retry.");
-      }
+      setRetryMessage(result.ok ? "Job queued for retry." : "Failed to queue retry.");
+      if (result.ok) await refresh();
     } catch (err) {
       setRetryMessage(err instanceof Error ? err.message : "Retry request failed.");
     } finally {
@@ -242,14 +283,11 @@ export function VideoPage() {
     }
   }, [videoId, isRetrying, refresh]);
 
+  /* ── Title save ──────────────────────────────────────────────────────── */
   const saveTitle = useCallback(async (): Promise<void> => {
     const normalizedTitle = titleDraft.trim();
-    if (!normalizedTitle) {
-      setTitleSaveMessage("Title cannot be empty.");
-      return;
-    }
-    setIsSavingTitle(true);
-    setTitleSaveMessage(null);
+    if (!normalizedTitle) { setTitleSaveMessage("Title cannot be empty."); return; }
+    setIsSavingTitle(true); setTitleSaveMessage(null);
     try {
       await saveWatchEdits(videoId, { title: normalizedTitle }, buildIdempotencyKey());
       setIsTitleEditing(false);
@@ -264,34 +302,24 @@ export function VideoPage() {
   }, [titleDraft, videoId, refresh]);
 
   const handleTitleDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      if (!isSavingTitle) void saveTitle();
-      return;
-    }
+    if (event.key === "Enter") { event.preventDefault(); if (!isSavingTitle) void saveTitle(); return; }
     if (event.key === "Escape") {
       event.preventDefault();
       if (isSavingTitle) return;
-      setTitleDraft(displayTitle);
-      setIsTitleEditing(false);
-      setTitleSaveMessage(null);
+      setTitleDraft(displayTitle); setIsTitleEditing(false); setTitleSaveMessage(null);
     }
   };
 
+  /* ── Transcript save ─────────────────────────────────────────────────── */
   const saveTranscript = useCallback(async (text: string): Promise<boolean> => {
-    try {
-      await saveWatchEdits(videoId, { transcriptText: text }, buildIdempotencyKey());
-      await refresh();
-      return true;
-    } catch {
-      return false;
-    }
+    try { await saveWatchEdits(videoId, { transcriptText: text }, buildIdempotencyKey()); await refresh(); return true; }
+    catch { return false; }
   }, [videoId, refresh]);
 
+  /* ── Delete ──────────────────────────────────────────────────────────── */
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!videoId || isDeleting) return;
-    setIsDeleting(true);
-    setDeleteError(null);
+    setIsDeleting(true); setDeleteError(null);
     try {
       await deleteVideo(videoId);
       setIsDeleted(true);
@@ -303,19 +331,14 @@ export function VideoPage() {
     }
   }, [videoId, isDeleting, navigate]);
 
+  /* ── Copy ────────────────────────────────────────────────────────────── */
   const copyToClipboard = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopyFeedback(`${label} copied`);
-    } catch {
-      setCopyFeedback(`Unable to copy ${label.toLowerCase()}.`);
-    }
+    try { await navigator.clipboard.writeText(value); setCopyFeedback(`${label} copied`); }
+    catch { setCopyFeedback(`Unable to copy ${label.toLowerCase()}.`); }
     window.setTimeout(() => setCopyFeedback(null), 1600);
   };
 
-  // Suppress unused-variable warning for isAutoRefreshActive (kept for future use)
-  void isAutoRefreshActive;
-
+  /* ── Guard ───────────────────────────────────────────────────────────── */
   if (!videoId) {
     return (
       <div className="workspace-card">
@@ -324,10 +347,11 @@ export function VideoPage() {
     );
   }
 
-  const isProcessing = !hasReachedTerminalState(status);
-
+  /* ══════════════════════════════════════════════════════════════════════
+     RENDER
+     ══════════════════════════════════════════════════════════════════════ */
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-300">
       <ConfirmationDialog
         open={isDeleteDialogOpen}
         title="Delete video?"
@@ -335,30 +359,29 @@ export function VideoPage() {
         confirmLabel="Delete video"
         busy={isDeleting}
         errorMessage={deleteError}
-        onCancel={() => {
-          if (isDeleting) return;
-          setIsDeleteDialogOpen(false);
-          setDeleteError(null);
-        }}
+        onCancel={() => { if (isDeleting) return; setIsDeleteDialogOpen(false); setDeleteError(null); }}
         onConfirm={() => void handleDelete()}
       />
 
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="mb-3">
-        {/* Title row */}
+      {/* ── Page Header ────────────────────────────────────────────────── */}
+      <div className="mb-4">
+        {/* Title + actions row */}
         <div className="flex flex-wrap items-start justify-between gap-2">
+
+          {/* Title */}
           <div className="min-w-0 flex-1">
             {!isTitleEditing ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight truncate">{displayTitle}</h1>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <h1 className="text-xl font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
+                  {displayTitle}
+                </h1>
                 <button
                   type="button"
-                  onClick={() => {
-                    setTitleDraft(displayTitle);
-                    setIsTitleEditing(true);
-                    setTitleSaveMessage(null);
-                  }}
-                  className="text-xs text-muted hover:text-foreground transition-colors underline underline-offset-2"
+                  onClick={() => { setTitleDraft(displayTitle); setIsTitleEditing(true); setTitleSaveMessage(null); }}
+                  className="text-[11px] transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
                 >
                   Edit
                 </button>
@@ -367,7 +390,7 @@ export function VideoPage() {
               <div className="flex flex-wrap items-center gap-1.5">
                 <input
                   value={titleDraft}
-                  onChange={(event) => setTitleDraft(event.target.value)}
+                  onChange={(e) => setTitleDraft(e.target.value)}
                   onKeyDown={handleTitleDraftKeyDown}
                   autoFocus
                   aria-label="Edit title"
@@ -391,10 +414,11 @@ export function VideoPage() {
                 {titleSaveMessage}
               </p>
             )}
+
             {/* Status meta line */}
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
               {isProcessing && (
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                   Processing
                 </span>
@@ -407,24 +431,24 @@ export function VideoPage() {
                   Complete
                 </span>
               )}
-              {status?.processingPhase === "failed" && (
-                <span className="text-red-600">Failed</span>
-              )}
-              {lastUpdatedAt && (
-                <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span>
-              )}
+              {status?.processingPhase === "failed" && <span className="text-red-600">Failed</span>}
+              {lastUpdatedAt && <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span>}
             </div>
           </div>
 
           {/* Right header actions */}
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             {shareableResultUrl && (
-              <div className="flex items-center gap-1 rounded-md border bg-surface-muted px-2 py-1 max-w-[200px] overflow-hidden">
-                <span className="truncate text-muted font-mono text-[11px]">{shareableResultUrl.replace(/^https?:\/\//, "")}</span>
+              <div className="flex items-center gap-1 rounded-md border px-2 py-1 max-w-[200px] overflow-hidden"
+                   style={{ borderColor: "var(--border-default)", background: "var(--bg-surface-subtle)" }}>
+                <span className="truncate font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  {shareableResultUrl.replace(/^https?:\/\//, "")}
+                </span>
                 <button
                   type="button"
                   onClick={() => void copyToClipboard(shareableResultUrl, "URL")}
-                  className="shrink-0 text-muted hover:text-foreground transition-colors"
+                  className="shrink-0 transition-colors"
+                  style={{ color: "var(--text-muted)" }}
                   title="Copy URL"
                 >
                   <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -435,13 +459,8 @@ export function VideoPage() {
               </div>
             )}
             {videoUrl && (
-              <a
-                href={videoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-secondary px-2.5 py-1 text-xs flex items-center gap-1"
-                title="Download video"
-              >
+              <a href={videoUrl} target="_blank" rel="noreferrer"
+                 className="btn-secondary px-2.5 py-1 text-xs flex items-center gap-1" title="Download video">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                 </svg>
@@ -462,33 +481,35 @@ export function VideoPage() {
             <button
               type="button"
               onClick={() => { setDeleteError(null); setIsDeleteDialogOpen(true); }}
-              className="btn-secondary px-2.5 py-1 text-xs text-red-600 hover:text-red-700"
+              className="btn-secondary px-2.5 py-1 text-xs"
+              style={{ color: "var(--danger-text)" }}
             >
               Delete
             </button>
           </div>
         </div>
 
-        {/* Processing progress bar — slim, only while active */}
+        {/* Processing progress bar */}
         {isProcessing && status && (
-          <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 dark:border-amber-900/50 dark:bg-amber-900/20">
-            <div className="h-1 flex-1 rounded-full bg-amber-200 dark:bg-amber-900/50">
+          <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-1.5"
+               style={{ borderColor: "rgba(245,158,11,0.3)", background: "rgba(245,158,11,0.07)" }}>
+            <div className="h-1 flex-1 rounded-full" style={{ background: "rgba(245,158,11,0.2)" }}>
               <div
                 className="h-full rounded-full bg-amber-500 transition-all duration-500"
                 style={{ width: `${Math.max(5, status.processingProgress ?? 0)}%` }}
               />
             </div>
-            <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium shrink-0">
+            <span className="text-[11px] font-medium shrink-0" style={{ color: "rgba(180,110,0,1)" }}>
               {status.processingProgress != null ? `${status.processingProgress}%` : status.processingPhase}
             </span>
           </div>
         )}
 
         {errorMessage && <p className="panel-warning mt-2 text-xs">{errorMessage}</p>}
-        {copyFeedback && <p className="mt-1 text-[11px] text-muted">{copyFeedback}</p>}
+        {copyFeedback  && <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>{copyFeedback}</p>}
 
         {showRetryButton && (
-          <div className="mt-1.5 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
               onClick={() => void handleRetry()}
@@ -510,11 +531,11 @@ export function VideoPage() {
         {jobStatus ? <p className="sr-only">Queue status: {jobStatus.status}</p> : null}
       </div>
 
-      {/* ── Main two-column layout ─────────────────────────────────── */}
-      {/* Video left (~62%), Transcript rail right (~38%) */}
+      {/* ── Two-column layout ──────────────────────────────────────────── */}
+      {/* Video left (~62%), right rail (~38%) */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)]">
 
-        {/* Left col — Video */}
+        {/* ── Left: Player ──────────────────────────────────────────────── */}
         <div className="min-w-0">
           <PlayerCard
             resultKey={status?.resultKey ?? null}
@@ -527,60 +548,68 @@ export function VideoPage() {
           />
         </div>
 
-        {/* Right col — Transcript only */}
+        {/* ── Right: 3-tab rail ─────────────────────────────────────────── */}
         <div className="min-w-0">
-          <div className="rounded-lg border bg-surface flex flex-col" style={{ maxHeight: "520px" }}>
-            {/* Slim header */}
-            <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
-              <span className="text-[13px] font-semibold">Transcript</span>
-              {status?.transcriptionStatus && status.transcriptionStatus !== "not_started" && (
-                <span className="text-[11px] text-muted">{status.transcriptionStatus}</span>
-              )}
+          <div className="flex flex-col rounded-xl border shadow-card overflow-hidden"
+               style={{ maxHeight: "520px", background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
+
+            {/* Tab bar */}
+            <div className="rail-tab-bar">
+              {(["notes", "summary", "transcript"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setRailTab(tab)}
+                  className={`rail-tab ${railTab === tab ? "rail-tab-active" : ""}`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <TranscriptCard
-                transcriptionStatus={status?.transcriptionStatus}
-                transcript={status?.transcript}
-                errorMessage={status?.transcriptErrorMessage}
-                playbackTimeSeconds={playbackTimeSeconds}
-                onSeekToSeconds={requestSeek}
-                onSaveTranscript={saveTranscript}
-                compact
-              />
+
+            {/* Tab content — scrolls within the bounded container */}
+            <div className="flex-1 overflow-y-auto min-h-0 scroll-panel">
+              {railTab === "notes" && <NotesPanel videoId={videoId} />}
+
+              {railTab === "summary" && (
+                <SummaryCard
+                  aiStatus={status?.aiStatus}
+                  aiOutput={status?.aiOutput}
+                  errorMessage={status?.aiErrorMessage}
+                  shareableResultUrl={shareableResultUrl}
+                  chapters={chapters}
+                  onJumpToSeconds={requestSeek}
+                  compact
+                />
+              )}
+
+              {railTab === "transcript" && (
+                <TranscriptCard
+                  transcriptionStatus={status?.transcriptionStatus}
+                  transcript={status?.transcript}
+                  errorMessage={status?.transcriptErrorMessage}
+                  playbackTimeSeconds={playbackTimeSeconds}
+                  onSeekToSeconds={requestSeek}
+                  onSaveTranscript={saveTranscript}
+                  compact
+                />
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Below-the-fold: Summary + Chapters ────────────────────── */}
-      {status?.aiOutput && (
-        <div className="mt-5 space-y-5">
-
-          {/* Summary — compact inline */}
-          {status.aiOutput.summary && (
-            <section>
-              <div className="flex items-baseline gap-3 mb-1">
-                <h2 className="text-sm font-semibold">Summary</h2>
-                <span className="text-[11px] text-muted italic">Generated by Cap AI</span>
-              </div>
-              <p className="text-[13px] leading-[1.5] text-secondary">{status.aiOutput.summary}</p>
-            </section>
-          )}
-
-          {/* Chapters — flat compact list */}
-          {chapters.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold mb-2">Chapters</h2>
-              <ChapterList
-                chapters={chapters}
-                currentSeconds={playbackTimeSeconds}
-                durationSeconds={videoDurationSeconds}
-                onSeek={requestSeek}
-                inline
-              />
-            </section>
-          )}
+      {/* ── Below-the-fold: Chapters ───────────────────────────────────── */}
+      {chapters.length > 0 && (
+        <div className="mt-5">
+          <h2 className="text-sm font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Chapters</h2>
+          <ChapterList
+            chapters={chapters}
+            currentSeconds={playbackTimeSeconds}
+            durationSeconds={videoDurationSeconds}
+            onSeek={requestSeek}
+            inline
+          />
         </div>
       )}
     </div>

@@ -2,178 +2,155 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CAP4 DESIGN TOKENS
+   All colors, spacing, and motion values live here as CSS custom properties.
+   Components consume these via Tailwind utility classes (mapped in
+   tailwind.config.cjs) or directly via var(--…).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* Neural/Zinc Palette - Light Mode */
-  --bg-app: #fafafa;
-  --bg-surface: #ffffff;
-  --bg-surface-subtle: #f4f4f5;
-  --bg-surface-muted: #e4e4e7;
-  --bg-elevated: #ffffff;
-  --text-primary: #09090b;
-  --text-secondary: #3f3f46;
-  --text-muted: #71717a;
-  --border-default: #e4e4e7;
-  --border-strong: #d4d4d8;
-  --chip-bg: #f4f4f5;
-  --chip-text: #3f3f46;
-  --chip-border: #e4e4e7;
-  --hover-surface: #f4f4f5;
-  --focus-ring: rgb(24 24 27 / 0.1);
-  --warning-bg: #fffbe6;
-  --warning-text: #854d0e;
-  --danger-bg: #fef2f2;
-  --danger-text: #991b1b;
-  --accent: #18181b;
-  --accent-strong: #09090b;
-  --success-bg: #f0fdf4;
-  --success-text: #166534;
+  /* ── Backgrounds ──────────────────────────────────────────────────────── */
+  --bg-app:           #f9f9fb;
+  --bg-surface:       #ffffff;
+  --bg-surface-subtle:#f4f4f6;
+  --bg-surface-muted: #ebebed;
+  --bg-elevated:      #ffffff;
+
+  /* ── Typography ───────────────────────────────────────────────────────── */
+  --text-primary:   #111113;
+  --text-secondary: #3d3d44;
+  --text-muted:     #717179;
+
+  /* ── Borders ──────────────────────────────────────────────────────────── */
+  --border-default: #e2e2e6;
+  --border-strong:  #c8c8ce;
+
+  /* ── Surface states ───────────────────────────────────────────────────── */
+  --hover-surface:  #f0f0f3;
+  --focus-ring:     rgba(37, 99, 235, 0.18);
+
+  /* ── Accent (primary action / ink) ───────────────────────────────────── */
+  --accent:         #111113;
+  --accent-strong:  #000000;
+
+  /* ── Blue accent (interactive: tabs, focus, active markers, links) ────── */
+  --accent-blue:        #2563eb;
+  --accent-blue-hover:  #1d4ed8;
+  --accent-blue-subtle: #eff6ff;
+  --accent-blue-border: #bfdbfe;
+  --accent-blue-muted:  #dbeafe;
+
+  /* ── Status colors ────────────────────────────────────────────────────── */
+  --warning-bg:     #fffbe6;
+  --warning-text:   #854d0e;
+  --danger-bg:      #fef2f2;
+  --danger-text:    #991b1b;
+  --success-bg:     #f0fdf4;
+  --success-text:   #166534;
   --success-border: #bbf7d0;
-  --info-bg: #f0f9ff;
-  --info-text: #075985;
-  --info-border: #bae6fd;
+  --info-bg:        #f0f9ff;
+  --info-text:      #075985;
+  --info-border:    #bae6fd;
+
+  /* ── Misc ─────────────────────────────────────────────────────────────── */
+  --chip-bg:     #f4f4f6;
+  --chip-text:   #3d3d44;
+  --chip-border: #e2e2e6;
+
   color-scheme: light;
 }
 
 :root.theme-dark {
-  /* Neural/Zinc Palette - Clean Dark Mode */
-  --bg-app: #09090b;
-  --bg-surface: #121215;
-  --bg-surface-subtle: #18181b;
+  /* ── Backgrounds ──────────────────────────────────────────────────────── */
+  --bg-app:           #09090b;
+  --bg-surface:       #111113;
+  --bg-surface-subtle:#18181b;
   --bg-surface-muted: #27272a;
-  --bg-elevated: #1c1c21;
-  --text-primary: #fafafa;
+  --bg-elevated:      #1a1a1f;
+
+  /* ── Typography ───────────────────────────────────────────────────────── */
+  --text-primary:   #fafafa;
   --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
+  --text-muted:     #71717a;
+
+  /* ── Borders ──────────────────────────────────────────────────────────── */
   --border-default: #27272a;
-  --border-strong: #3f3f46;
-  --chip-bg: #27272a;
-  --chip-text: #e4e4e7;
-  --chip-border: #3f3f46;
-  --hover-surface: #1c1c21;
-  --focus-ring: rgb(250 250 250 / 0.12);
-  --warning-bg: #422006;
-  --warning-text: #fbbf24;
-  --danger-bg: #450a0a;
-  --danger-text: #f87171;
-  --accent: #fafafa;
-  --accent-strong: #ffffff;
-  --success-bg: #064e3b;
-  --success-text: #34d399;
+  --border-strong:  #3f3f46;
+
+  /* ── Surface states ───────────────────────────────────────────────────── */
+  --hover-surface:  #1c1c21;
+  --focus-ring:     rgba(96, 165, 250, 0.22);
+
+  /* ── Accent ───────────────────────────────────────────────────────────── */
+  --accent:         #fafafa;
+  --accent-strong:  #ffffff;
+
+  /* ── Blue accent ──────────────────────────────────────────────────────── */
+  --accent-blue:        #3b82f6;
+  --accent-blue-hover:  #60a5fa;
+  --accent-blue-subtle: rgba(59, 130, 246, 0.10);
+  --accent-blue-border: rgba(59, 130, 246, 0.28);
+  --accent-blue-muted:  rgba(59, 130, 246, 0.16);
+
+  /* ── Status ───────────────────────────────────────────────────────────── */
+  --warning-bg:     #422006;
+  --warning-text:   #fbbf24;
+  --danger-bg:      #450a0a;
+  --danger-text:    #f87171;
+  --success-bg:     #064e3b;
+  --success-text:   #34d399;
   --success-border: #065f46;
-  --info-bg: #082f49;
-  --info-text: #38bdf8;
-  --info-border: #0c4a6e;
+  --info-bg:        #082f49;
+  --info-text:      #38bdf8;
+  --info-border:    #0c4a6e;
+
+  --chip-bg:     #27272a;
+  --chip-text:   #e4e4e7;
+  --chip-border: #3f3f46;
+
   color-scheme: dark;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 body {
   margin: 0;
   color: var(--text-primary);
   background: var(--bg-app);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-:root.theme-dark body {
-  background: var(--bg-app);
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
+/* Fine scrollbars globally */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENT LAYER
+   All reusable component classes live here.
+   Organized by: Layout → Cards → Buttons → Inputs → Status → Transcript
+                 → Player → Rail → Utility
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @layer components {
-  .workspace-card {
-    @apply rounded-xl p-6 transition-all duration-200;
-    border: 1px solid var(--border-default);
-    background: var(--bg-surface);
-    color: var(--text-primary);
-  }
 
-  .workspace-card:hover {
-    border-color: var(--border-strong);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  .workspace-label {
-    @apply text-[10px] font-bold uppercase tracking-[0.2em];
-    color: var(--text-muted);
-  }
-
-  .workspace-title {
-    @apply mt-2 text-2xl font-bold tracking-tight;
-    color: var(--text-primary);
-  }
-
-  .workspace-copy {
-    @apply mt-2 text-sm leading-relaxed;
-    color: var(--text-secondary);
-  }
-
-  .watch-title {
-    @apply text-3xl font-bold tracking-tight;
-    color: var(--text-primary);
-  }
-
-  .status-chip {
-    @apply inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider;
-    border: 1px solid var(--chip-border);
-    background: var(--chip-bg);
-    color: var(--chip-text);
-  }
-
-  .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all duration-200 active:scale-[0.98];
-    background: var(--accent);
-    color: var(--bg-app);
-  }
-
-  .btn-primary:hover {
-    filter: brightness(1.2);
-  }
-
-  :root.theme-dark .btn-primary:hover {
-    filter: brightness(0.9);
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 active:scale-[0.98];
-    border: 1px solid var(--border-default);
-    background: var(--bg-surface-subtle);
-    color: var(--text-primary);
-  }
-
-  .btn-secondary:hover {
-    background: var(--bg-surface-muted);
-    border-color: var(--border-strong);
-  }
-
-  .btn-tertiary {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 active:scale-[0.98];
-    border: 1px solid var(--border-default);
-    background: transparent;
-    color: var(--text-secondary);
-  }
-
-  .btn-tertiary:hover {
-    background: var(--bg-surface-subtle);
-    color: var(--text-primary);
-  }
-
-  .input-control {
-    @apply w-full rounded-lg px-4 py-2 text-sm outline-none transition-all duration-200;
-    border: 1px solid var(--border-default);
-    background: var(--bg-surface-subtle);
-    color: var(--text-primary);
-  }
-
-  .input-control:focus {
-    border-color: var(--border-strong);
-    box-shadow: 0 0 0 2px var(--focus-ring);
-  }
-
-  .video-frame {
-    @apply aspect-video w-full overflow-hidden rounded-xl shadow-2xl;
-    border: 1px solid var(--border-default);
-    background: #000;
-  }
+  /* ── Layout ─────────────────────────────────────────────────────────── */
 
   .sidebar {
     @apply fixed left-0 top-0 hidden h-full w-64 flex-col border-r lg:flex;
@@ -182,45 +159,32 @@ body {
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200;
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150;
     color: var(--text-muted);
   }
-
   .sidebar-link:hover {
     background: var(--bg-surface-subtle);
     color: var(--text-primary);
   }
-
   .sidebar-link-active {
     background: var(--bg-surface-muted);
     color: var(--text-primary);
   }
 
-  .app-content {
-    @apply flex-1 lg:ml-64;
-  }
+  .app-content { @apply flex-1 lg:ml-64; }
 
-  /* Hover Actions for Lists */
-  .hover-action-container .hover-action {
-    @apply pointer-events-none opacity-0 transition-all duration-200;
-  }
+  /* ── Cards ──────────────────────────────────────────────────────────── */
 
-  .hover-action-container:hover .hover-action {
-    @apply pointer-events-auto opacity-100;
+  .workspace-card {
+    @apply rounded-xl p-6 transition-shadow duration-200;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
-
-  /* Better Stepper Styles */
-  .step-pill {
-    @apply flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider;
-    border-color: var(--border-default);
-    background: var(--bg-surface-subtle);
-    color: var(--text-muted);
-  }
-
-  .step-pill-active {
-    border-color: var(--success-border);
-    background: var(--success-bg);
-    color: var(--success-text);
+  .workspace-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
 
   .panel-subtle {
@@ -231,47 +195,131 @@ body {
 
   .panel-warning {
     @apply rounded-xl px-4 py-3 text-sm;
-    border: 1px solid color-mix(in srgb, var(--warning-text) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning-text) 20%, transparent);
     background: var(--warning-bg);
     color: var(--warning-text);
   }
 
   .panel-danger {
     @apply rounded-xl px-4 py-3 text-sm;
-    border: 1px solid color-mix(in srgb, var(--danger-text) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger-text) 20%, transparent);
     background: var(--danger-bg);
     color: var(--danger-text);
   }
 
-  .progress-track {
-    background: var(--bg-surface-muted);
-  }
+  /* ── Typography helpers ─────────────────────────────────────────────── */
 
+  .workspace-label {
+    @apply text-[10px] font-bold uppercase tracking-[0.2em];
+    color: var(--text-muted);
+  }
+  .workspace-title {
+    @apply mt-2 text-2xl font-bold tracking-tight;
+    color: var(--text-primary);
+  }
+  .workspace-copy {
+    @apply mt-2 text-sm leading-relaxed;
+    color: var(--text-secondary);
+  }
+  .watch-title {
+    @apply text-3xl font-bold tracking-tight;
+    color: var(--text-primary);
+  }
   .field-label {
     @apply mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em];
     color: var(--text-muted);
   }
+  .legacy-muted { color: var(--text-secondary); }
 
-  .legacy-muted {
+  /* ── Buttons ────────────────────────────────────────────────────────── */
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all duration-150 active:scale-[0.98] select-none;
+    background: var(--accent);
+    color: var(--bg-app);
+  }
+  .btn-primary:hover   { filter: brightness(1.15); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  :root.theme-dark .btn-primary:hover { filter: brightness(0.88); }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+    color: var(--text-primary);
+  }
+  .btn-secondary:hover   { background: var(--bg-surface-muted); border-color: var(--border-strong); }
+  .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-tertiary {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98] select-none;
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--text-secondary);
   }
+  .btn-tertiary:hover { background: var(--bg-surface-subtle); color: var(--text-primary); }
 
-  .action-group {
-    @apply flex flex-wrap items-center gap-2;
+  /* ── Inputs ─────────────────────────────────────────────────────────── */
+
+  .input-control {
+    @apply w-full rounded-lg px-4 py-2 text-sm outline-none transition-all duration-150;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+    color: var(--text-primary);
+  }
+  .input-control::placeholder { color: var(--text-muted); }
+  .input-control:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  /* ── Status chips ───────────────────────────────────────────────────── */
+
+  .status-chip {
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider;
+    border: 1px solid var(--chip-border);
+    background: var(--chip-bg);
+    color: var(--chip-text);
+  }
+  .status-chip-compact { @apply px-2.5 py-1; }
+
+  .step-pill {
+    @apply flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider;
+    border-color: var(--border-default);
+    background: var(--bg-surface-subtle);
+    color: var(--text-muted);
+  }
+  .step-pill-active {
+    border-color: var(--success-border);
+    background: var(--success-bg);
+    color: var(--success-text);
+  }
+
+  /* ── Toggle / segment buttons ───────────────────────────────────────── */
+
+  .pill-toggle {
+    @apply inline-flex items-center gap-0.5 rounded-lg p-0.5;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+  }
+  .pill-toggle-btn {
+    @apply rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-150;
+    color: var(--text-muted);
+  }
+  .pill-toggle-btn:hover { color: var(--text-secondary); }
+  .pill-toggle-btn-active {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
   }
 
   .segment-btn {
-    @apply inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200;
+    @apply inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150;
     border: 1px solid var(--border-default);
     background: var(--bg-surface-subtle);
     color: var(--text-secondary);
   }
-
-  .segment-btn:hover {
-    border-color: var(--border-strong);
-    color: var(--text-primary);
-  }
-
+  .segment-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
   .segment-btn-active {
     background: var(--bg-surface);
     color: var(--text-primary);
@@ -279,59 +327,171 @@ body {
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
   }
 
-  .pill-toggle {
-    @apply inline-flex items-center gap-1 rounded-lg p-1;
-    border: 1px solid var(--border-default);
-    background: var(--bg-surface-subtle);
+  /* ── Action group ───────────────────────────────────────────────────── */
+  .action-group { @apply flex flex-wrap items-center gap-2; }
+
+  /* ── Hover-reveal pattern ───────────────────────────────────────────── */
+  .hover-action-container .hover-action { @apply pointer-events-none opacity-0 transition-all duration-200; }
+  .hover-action-container:hover .hover-action { @apply pointer-events-auto opacity-100; }
+
+  /* ── Video frame ────────────────────────────────────────────────────── */
+  .video-frame {
+    @apply aspect-video w-full overflow-hidden;
+    background: #000;
   }
 
-  .pill-toggle-btn {
-    @apply rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150;
-    color: var(--text-muted);
-  }
+  /* ── Progress track ─────────────────────────────────────────────────── */
+  .progress-track { background: var(--bg-surface-muted); }
 
-  .pill-toggle-btn-active {
-    background: var(--bg-surface);
-    color: var(--text-primary);
-  }
-
+  /* ── Misc surface styles ────────────────────────────────────────────── */
   .tone-elevated {
     border: 1px solid var(--border-default);
     background: var(--bg-surface-subtle);
   }
 
-  .chapter-list-card {
-    border: 1px solid var(--border-default);
-    background: var(--bg-surface-subtle);
-  }
-
-  .chapter-row {
-    border: 1px solid transparent;
-    background: var(--bg-surface);
-  }
-
-  .chapter-row:hover {
-    border-color: var(--border-strong);
-    background: var(--hover-surface);
-  }
-
-  .status-chip-compact {
-    @apply px-2.5 py-1;
-  }
-
+  /* ── Studio / stepper ───────────────────────────────────────────────── */
   .studio-step {
     @apply rounded-xl border px-3 py-3;
     border-color: var(--border-default);
     background: var(--bg-surface);
   }
-
-  .studio-step-active {
+  .studio-step-active, .studio-step-complete {
     border-color: var(--border-strong);
     background: var(--bg-surface-subtle);
   }
 
-  .studio-step-complete {
+  /* ══════════════════════════════════════════════════════════════════════
+     TRANSCRIPT COMPONENT
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Clickable transcript line */
+  .line-item {
+    @apply block w-full text-left transition-colors duration-100 cursor-pointer;
+    color: var(--text-primary);
+  }
+  .line-item:hover { background: var(--hover-surface); }
+
+  /* Active (currently playing) line */
+  .line-item-active {
+    background: var(--accent-blue-subtle) !important;
+    border-left: 2px solid var(--accent-blue);
+  }
+  .line-item-active:hover { background: var(--accent-blue-muted) !important; }
+
+  /* Transcript scroll container */
+  .scroll-panel {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .scroll-panel::-webkit-scrollbar { width: 4px; }
+  .scroll-panel::-webkit-scrollbar-track { background: transparent; }
+  .scroll-panel::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     PLAYER COMPONENT — chapter handles + tooltip
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Chapter marker dot on the timeline */
+  .chapter-handle {
+    @apply relative flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 transition-all duration-150 cursor-pointer;
     border-color: var(--border-strong);
+    background: var(--bg-surface);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  .chapter-handle:hover,
+  .chapter-handle:focus-visible {
+    @apply scale-125;
+    border-color: var(--accent-blue);
+    background: var(--accent-blue);
+    box-shadow: 0 0 0 3px var(--accent-blue-muted);
+    outline: none;
+  }
+  .chapter-handle-active {
+    border-color: var(--accent-blue) !important;
+    background: var(--accent-blue) !important;
+    box-shadow: 0 0 0 3px var(--accent-blue-muted) !important;
+  }
+
+  /* Chapter / seeker tooltip bubble */
+  .popover-panel {
+    @apply rounded-lg text-sm;
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  /* Seeker timeline hover overlay cursor */
+  .seeker-track {
+    @apply relative h-8 cursor-pointer select-none;
+  }
+  .seeker-fill {
+    @apply absolute left-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full transition-all duration-100;
+    background: var(--accent-blue);
+  }
+  .seeker-thumb {
+    @apply absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-sm transition-all duration-100;
+    border-color: var(--accent-blue);
+    background: var(--bg-surface);
+  }
+  .seeker-hover-indicator {
+    @apply absolute top-1/2 h-5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity duration-100;
+    background: var(--accent-blue);
+  }
+  .seeker-track:hover .seeker-hover-indicator { @apply opacity-60; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     RIGHT RAIL TABS (Notes / Summary / Transcript)
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Tab bar container */
+  .rail-tab-bar {
+    @apply flex shrink-0;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  /* Individual tab button */
+  .rail-tab {
+    @apply relative px-4 py-2.5 text-[13px] font-medium transition-colors duration-150 select-none;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px; /* overlap the border-bottom of .rail-tab-bar */
+  }
+  .rail-tab:hover { color: var(--text-secondary); }
+
+  /* Active tab */
+  .rail-tab-active {
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--accent-blue) !important;
+  }
+
+  /* Notes tab textarea */
+  .notes-textarea {
+    @apply w-full resize-none bg-transparent text-[13px] leading-relaxed outline-none;
+    color: var(--text-primary);
+    caret-color: var(--accent-blue);
+  }
+  .notes-textarea::placeholder { color: var(--text-muted); }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     CHAPTER LIST
+     ══════════════════════════════════════════════════════════════════════ */
+
+  .chapter-list-card {
+    border: 1px solid var(--border-default);
     background: var(--bg-surface-subtle);
+  }
+  .chapter-row {
+    border: 1px solid transparent;
+    background: var(--bg-surface);
+  }
+  .chapter-row:hover {
+    border-color: var(--border-strong);
+    background: var(--hover-surface);
+  }
+  /* Active chapter highlight (replaces bg-primary/10 which needs opacity) */
+  .chapter-row-active {
+    background: var(--accent-blue-subtle);
+    border-color: var(--accent-blue-border);
   }
 }

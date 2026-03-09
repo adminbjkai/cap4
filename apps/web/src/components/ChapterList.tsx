@@ -87,7 +87,7 @@ export function ChapterList({
                 {chapter.title}
               </span>
               {isActive && (
-                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "var(--accent-blue)" }} />
               )}
             </button>
           );
@@ -115,15 +115,17 @@ export function ChapterList({
               onClick={() => onSeek(chapter.seconds)}
               className={`w-full text-left p-2.5 rounded-lg transition-all duration-200 group ${
                 isActive
-                  ? "bg-primary/10 border border-primary/20"
+                  ? "chapter-row-active border"
                   : "hover:bg-surface-muted border border-transparent"
               }`}
             >
               <div className="flex items-start gap-3">
-                <span className={`font-mono text-xs font-medium whitespace-nowrap mt-0.5 ${isActive ? "text-primary" : "text-muted"}`}>
+                <span className="font-mono text-xs font-medium whitespace-nowrap mt-0.5"
+                      style={{ color: isActive ? "var(--accent-blue)" : "var(--text-muted)" }}>
                   {formatTimestamp(chapter.seconds)}
                 </span>
-                <span className={`text-sm leading-snug ${isActive ? "font-medium text-foreground" : "text-secondary group-hover:text-foreground"}`}>
+                <span className="text-sm leading-snug"
+                      style={{ color: "var(--text-secondary)", fontWeight: isActive ? 500 : 400 }}>
                   {chapter.title}
                 </span>
               </div>

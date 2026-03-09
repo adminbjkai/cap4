@@ -1,22 +1,56 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  // Dark mode via .theme-dark class on <html>
+  darkMode: ["class", "[class~='theme-dark']"],
   theme: {
     extend: {
       colors: {
+        // ── Semantic surface tokens (CSS-var backed) ──────────────────
+        // These make bg-surface, text-foreground, etc. actual Tailwind utilities.
+        foreground:       "var(--text-primary)",
+        secondary:        "var(--text-secondary)",
+        muted:            "var(--text-muted)",
+        primary:          "var(--accent)",
+        surface:          "var(--bg-surface)",
+        "surface-subtle": "var(--bg-surface-subtle)",
+        "surface-muted":  "var(--bg-surface-muted)",
+        elevated:         "var(--bg-elevated)",
+        app:              "var(--bg-app)",
+        // ── Border tokens ─────────────────────────────────────────────
+        "border-default": "var(--border-default)",
+        "border-strong":  "var(--border-strong)",
+        // ── Interactive states ─────────────────────────────────────────
+        hover:            "var(--hover-surface)",
+        // ── Blue accent (tabs, focus rings, active markers) ────────────
+        blue: {
+          DEFAULT: "var(--accent-blue)",
+          hover:   "var(--accent-blue-hover)",
+          subtle:  "var(--accent-blue-subtle)",
+          border:  "var(--accent-blue-border)",
+          muted:   "var(--accent-blue-muted)",
+        },
+        // ── Legacy green accent (kept for build compat) ────────────────
         accent: {
-          50: "#f6f7f5",
+          50:  "#f6f7f5",
           100: "#ecefe9",
           200: "#d9e0d6",
           500: "#5f7a5f",
           600: "#4f694f",
-          700: "#3d523d"
-        }
+          700: "#3d523d",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["JetBrains Mono", "Menlo", "Consolas", "monospace"],
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1)"
-      }
-    }
+        soft:     "0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1)",
+        card:     "0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)",
+        elevated: "0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06)",
+        tooltip:  "0 4px 16px rgba(0, 0, 0, 0.14), 0 1px 4px rgba(0, 0, 0, 0.08)",
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };
