@@ -1,27 +1,35 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-09 (Phase 1–3 complete ✓, Phase 4 integration tests ready ✓)
+**Last updated:** 2026-03-09 (Phase 1–4 complete ✓ — 18/18 integration tests passing)
 
 ---
 
 ## Active
 
-### Phase 4 — Integration Tests (READY TO RUN)
+### Phase 5 — Auth (NEXT UP)
 
-- [x] **Vitest integration config** — 180s timeout, singleFork execution (tests/integration/** pattern)
-- [x] **Test fixtures** — ffmpeg-based MP4 generation with audio, fragmented format support
-- [x] **Full-flow tests (7)** — Create video → sign URL → PUT file → complete upload → poll until complete → verify transcript + AI fields
-- [x] **API contract tests (11)** — 404 handling, missing headers, idempotency, soft-delete, health/ready endpoints
-- [x] **Fastify v5 compatibility fix** — Moved `@fastify/rate-limit` from devDependencies → dependencies (v10.3.0)
-- [x] **cap3 → cap4 naming** — 14 files updated (docker-compose.yml, configs, routes, components, docs)
+- [ ] Single-user authentication (JWT or session-based)
+- [ ] Protected routes on frontend
+- [ ] Auth middleware on API endpoints
 
-**Next:** `docker compose up -d` → `pnpm test:integration` (on your Mac)
+---
+
+## Recently Completed
+
+### Phase 4 — Integration Tests (✓ Complete — 18/18 passing)
+- [x] **Vitest integration config** — 180s timeout, singleFork execution
+- [x] **Test fixtures** — vid0.mp4 (30s, 2.6 MB) for fast real-pipeline tests
+- [x] **Full-flow tests (7)** — upload → transcribe → AI → complete pipeline verified
+- [x] **API contract tests (11)** — 404, missing headers, idempotency, soft-delete, health/ready
+- [x] **Polling** — waits for all 3 pipelines: processingPhase + transcriptionStatus + aiStatus
+- [x] **transcript.language** — defaults to 'en' at 3 layers (deepgram.ts, worker SQL COALESCE, API COALESCE)
+- [x] **Migration 0004** — backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
+- [x] **Phase 4.5 audit** — branding, docs, docker-compose container names, TASKS.md, CAP4_MASTER_PLAN.md
 
 ---
 
 ## Someday / Backlog
 
-- [ ] Authentication layer (single-user JWT or session)
 - [ ] Batch video operations
 - [ ] PgBouncer connection pooling
 - [ ] CDN integration for video delivery

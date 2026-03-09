@@ -106,7 +106,7 @@ No changes from what's working in v4. The stack is proven.
 
 ## Database Schema — Authoritative State
 
-The schema across 3 migrations is stable. Here's the full picture:
+The schema across 4 migrations is stable. Here's the full picture:
 
 ### Core Tables
 
@@ -538,7 +538,7 @@ Lessons from the 4-version evolution:
 | Source code | ~3,500 lines (TypeScript) |
 | Documentation | 11 markdown files |
 | Services | 7 Docker containers |
-| DB migrations | 3 SQL files |
+| DB migrations | 4 SQL files |
 | API endpoints | ~15 routes |
 | Dependencies | ~30 packages |
 | Repo size | ~5MB (no audit artifacts) |

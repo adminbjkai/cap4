@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-03-09 (Phase 4 complete — 18/18 tests passing)
+**Last updated:** 2026-03-09 (Phase 4.5 complete — branding + docs audit done)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -13,13 +13,17 @@ Phases 1–4 complete. Repository clean.
 **Phase 4 — Integration Tests: ✅ 18/18 passing** (7 pipeline + 11 API contract)
 
 ### Latest Changes
+- ✅ Phase 4.5 audit: branding, docker-compose, TASKS.md, CAP4_MASTER_PLAN.md, ROADMAP.md
+- ✅ apps/web/index.html: title cap3 → cap4
+- ✅ system.ts dev UI: "Cap3 Upload UI" / "Cap3 Milestone 3 UI" → "Cap4 Upload UI" / "Cap4 Dev UI"
+- ✅ docker-compose.yml: commented container names cap3-* → cap4-*
+- ✅ TASKS.md: Phase 4 marked complete, Phase 5 Auth listed as next
+- ✅ CAP4_MASTER_PLAN.md: DB migrations count 3 → 4
+- ✅ ROADMAP.md: added ARCHIVED header, no longer claims to be source of truth
 - ✅ Integration test suite: 18/18 passing — full upload → transcribe → AI → complete pipeline
-- ✅ Polling waits for all 3 pipelines: processingPhase + transcriptionStatus + aiStatus
 - ✅ transcript.language defaulted to 'en' at 3 layers (deepgram.ts, worker SQL COALESCE, API COALESCE)
 - ✅ Migration 0004: backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
 - ✅ Video player thumbnail: added `poster` attribute to `<video>` element
-- ✅ AppShell branding: Cap3 → Cap4
-- ✅ Cap_for_reference_only added to .gitignore
 
 **Next Phase:** Phase 5 — Auth
 
@@ -66,6 +70,7 @@ Phases 1–4 complete. Repository clean.
 | Phase 2 | Player UI (ChapterList, TranscriptParagraph, lg breakpoint) ✓ |
 | Phase 3 | Hardening (rate limiting, nginx, fastify v5, key log audit) ✓ |
 | Phase 4 | Integration tests — 18/18 passing, full upload → AI pipeline verified ✓ |
+| Phase 4.5 | Branding audit, docs alignment, docker-compose cleanup ✓ |
 | progress_bucket | Webhook dedup column — prevents duplicate 10%-bucket updates |
 | delivery_id | Webhook idempotency key stored in webhook_deliveries table |
 | phase_rank | Integer enforcing monotonic state transitions |

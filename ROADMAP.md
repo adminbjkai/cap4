@@ -1,6 +1,8 @@
-# Cap3 Unified Roadmap (P0 Stabilization)
+> **ARCHIVED** — This document is from the cap3 era and is superseded by [CAP4_MASTER_PLAN.md](./CAP4_MASTER_PLAN.md). Preserved for historical reference only.
 
-This is the **single source of truth** for the current stabilization phase. All other plan files (`PLAN-v1.md`, `PLAN-v2.md`) are for historical context and are superseded by this document.
+# Cap3 Historical Roadmap (P0 Stabilization)
+
+This was the stabilization roadmap for cap3. It is **no longer the source of truth** — see [CAP4_MASTER_PLAN.md](./CAP4_MASTER_PLAN.md) for the authoritative plan.
 
 ## Goal: Truth + Correctness
 The immediate objective is to ensure the repository documentation, infrastructure (Docker), and code (API/Worker) are in perfect alignment and operationally robust before adding any new features.
