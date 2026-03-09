@@ -145,43 +145,49 @@ async function pollUntilTerminal(videoId: string): Promise<VideoStatusResponse> 
       lastPhase = processingPhase;
     }
 
-    // Wait for both processing phase AND transcription to actually complete
-    // Don't return if transcription is still queued or processing
+    // Wait for ALL three pipelines to reach terminal state before returning:
+    // 1. processingPhase  — video encode/thumbnail
+    // 2. transcriptionStatus — Deepgram
+    // 3. aiStatus — Groq title/summary/chapters
     const isProcessingDone =
       processingPhase === "complete" ||
       processingPhase === "failed" ||
       processingPhase === "cancelled";
 
-    // Explicitly wait for transcription to reach completion
-    // Return ONLY when BOTH conditions are met:
-    // 1. Processing phase is terminal
-    // 2. Transcription is COMPLETE or NOT_STARTED (not "processing" or "queued")
     const isTranscriptionDone =
       transcriptionStatus === "complete" ||
       transcriptionStatus === "not_started" ||
+      transcriptionStatus === "no_audio" ||
+      transcriptionStatus === "skipped" ||
       transcriptionStatus === "failed";
 
-    // Reject "processing" and "queued" explicitly
-    if (
-      isProcessingDone &&
-      isTranscriptionDone &&
-      transcriptionStatus !== "processing" &&
-      transcriptionStatus !== "queued"
-    ) {
+    // AI is terminal only when it has actually run to completion/failure.
+    // "not_started" is NOT terminal — it transitions to "queued" as soon as transcription completes.
+    // Only allow "not_started" as terminal if transcription also never ran (no audio / failed).
+    const transcriptionNeverRan =
+      transcriptionStatus === "not_started" ||
+      transcriptionStatus === "no_audio" ||
+      transcriptionStatus === "skipped" ||
+      transcriptionStatus === "failed";
+    const isAiDone =
+      aiStatus === "complete" ||
+      aiStatus === "skipped" ||
+      aiStatus === "failed" ||
+      (aiStatus === "not_started" && transcriptionNeverRan);
+
+    if (isProcessingDone && isTranscriptionDone && isAiDone) {
       console.log(
-        `  [poll returning] transcription=${transcriptionStatus}, phase=${processingPhase}`
+        `  [poll returning] phase=${processingPhase} transcription=${transcriptionStatus} ai=${aiStatus}`
       );
       return body;
     }
 
-    // If we're still waiting, show why
-    if (
-      processingPhase === "complete" &&
-      (transcriptionStatus === "processing" || transcriptionStatus === "queued")
-    ) {
-      console.log(
-        `  [poll waiting] processing=complete but transcription still ${transcriptionStatus}`
-      );
+    // Log what we're still waiting for
+    const waiting: string[] = [];
+    if (!isTranscriptionDone) waiting.push(`transcription=${transcriptionStatus}`);
+    if (!isAiDone) waiting.push(`ai=${aiStatus}`);
+    if (waiting.length > 0) {
+      console.log(`  [poll waiting] ${waiting.join(", ")}`);
     }
 
     await sleep(POLL_INTERVAL_MS);

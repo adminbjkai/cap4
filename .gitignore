@@ -90,6 +90,7 @@ AGENTS.md
 # Reference copies / legacy
 cap4_new/
 cap4/
+Cap_for_reference_only/
 
 # npm lockfile (project uses pnpm)
 package-lock.json
