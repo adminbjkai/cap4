@@ -18,6 +18,7 @@ type TranscriptLine = {
   endSeconds: number | null;
   text: string;
   originalText: string | null;
+  confidence: number | null;
 };
 
 function formatTimestamp(secondsInput: number): string {
@@ -49,7 +50,29 @@ export function TranscriptCard({
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [textViewMode, setTextViewMode] = useState<"current" | "original">("current");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
+  const searchDebounceRef = useRef<number | null>(null);
+
+  // Confidence review mode
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [hoveredLineIndex, setHoveredLineIndex] = useState<number | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Track verified segments in localStorage
+  const videoId = transcript?.vttKey?.split("/")[0] ?? "unknown";
+  const verifiedSegmentsKey = `cap4:verified-segments:${videoId}`;
+  const [verifiedSegments, setVerifiedSegments] = useState<Set<number>>(() => {
+    try {
+      const stored = localStorage.getItem(verifiedSegmentsKey);
+      return stored ? new Set(JSON.parse(stored) as number[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -107,6 +130,34 @@ export function TranscriptCard({
     return transcript?.text?.trim() ?? "";
   }, [transcript?.text, transcriptLines]);
 
+  // Find all matches for the search query
+  const searchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase();
+    const matches: Array<{ lineIndex: number; matchText: string; startPos: number; endPos: number }> = [];
+
+    for (let i = 0; i < transcriptLines.length; i++) {
+      const line = transcriptLines[i]!;
+      const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
+      const lowerText = lineText.toLowerCase();
+      let searchPos = 0;
+
+      while (true) {
+        const matchPos = lowerText.indexOf(query, searchPos);
+        if (matchPos === -1) break;
+        matches.push({
+          lineIndex: i,
+          matchText: lineText.substring(matchPos, matchPos + query.length),
+          startPos: matchPos,
+          endPos: matchPos + query.length,
+        });
+        searchPos = matchPos + 1;
+      }
+    }
+
+    return matches;
+  }, [searchQuery, transcriptLines, textViewMode]);
+
   const originalTranscriptText = useMemo(() => {
     const withOriginal = transcriptLines.filter((line) => line.originalText && line.originalText.trim().length > 0);
     if (withOriginal.length > 0) {
@@ -127,6 +178,14 @@ export function TranscriptCard({
     const timeout = window.setTimeout(() => setSaveFeedback(null), 1800);
     return () => window.clearTimeout(timeout);
   }, [saveFeedback]);
+
+  // Reset active match when search query changes (debounced)
+  useEffect(() => {
+    setActiveMatchIndex(searchQuery.trim() ? 0 : -1);
+    if (searchDebounceRef.current) {
+      window.clearTimeout(searchDebounceRef.current);
+    }
+  }, [searchQuery]);
 
   const activeLineIndex = useMemo(() => {
     if (transcriptLines.length === 0) return -1;
@@ -163,6 +222,69 @@ export function TranscriptCard({
     }
   }, [activeLineIndex, isEditing]);
 
+  // Auto-scroll to active match
+  useEffect(() => {
+    if (activeMatchIndex < 0 || !searchQuery.trim() || isEditing) return;
+    const match = searchMatches[activeMatchIndex];
+    if (!match) return;
+
+    const container = transcriptScrollRef.current;
+    if (!container) return;
+
+    const matchNode = container.querySelector<HTMLElement>(
+      `[data-transcript-line-index="${match.lineIndex}"]`
+    );
+    if (!matchNode) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const nodeRect = matchNode.getBoundingClientRect();
+    const notFullyVisible = nodeRect.top < containerRect.top + 8 || nodeRect.bottom > containerRect.bottom - 8;
+    if (notFullyVisible) {
+      matchNode.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [activeMatchIndex, searchMatches, searchQuery, isEditing]);
+
+  // Handle search keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: Event) => {
+      const kbd = event as unknown as globalThis.KeyboardEvent;
+      // Cmd/Ctrl+F to focus search
+      if ((kbd.metaKey || kbd.ctrlKey) && kbd.key === "f") {
+        kbd.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // Only handle navigation keys if search is active
+      if (!searchQuery.trim() || !searchInputRef.current || document.activeElement !== searchInputRef.current) {
+        return;
+      }
+
+      if (kbd.key === "ArrowDown" || (kbd.shiftKey === false && kbd.key === "Enter")) {
+        kbd.preventDefault();
+        setActiveMatchIndex((current) => {
+          const nextIndex = (current + 1) % Math.max(1, searchMatches.length);
+          if (searchMatches[nextIndex]) {
+            onSeekToSeconds(transcriptLines[searchMatches[nextIndex]!.lineIndex]!.startSeconds);
+          }
+          return nextIndex;
+        });
+      } else if (kbd.key === "ArrowUp" || (kbd.shiftKey && kbd.key === "Enter")) {
+        kbd.preventDefault();
+        setActiveMatchIndex((current) => {
+          const nextIndex = (current - 1 + searchMatches.length) % Math.max(1, searchMatches.length);
+          if (searchMatches[nextIndex]) {
+            onSeekToSeconds(transcriptLines[searchMatches[nextIndex]!.lineIndex]!.startSeconds);
+          }
+          return nextIndex;
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchQuery, searchMatches, transcriptLines, onSeekToSeconds]);
+
   const copyTranscript = async () => {
     if (!transcriptText) return;
     try {
@@ -190,6 +312,40 @@ export function TranscriptCard({
       return;
     }
     setSaveError("Unable to save transcript edits.");
+  };
+
+  const highlightText = (text: string, lineIndex: number): React.ReactNode => {
+    if (!searchQuery.trim()) return text;
+
+    const matches = searchMatches.filter((m) => m.lineIndex === lineIndex).sort((a, b) => a.startPos - b.startPos);
+    if (matches.length === 0) return text;
+
+    const parts: React.ReactNode[] = [];
+    let lastPos = 0;
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i]!;
+      if (match.startPos > lastPos) {
+        parts.push(text.substring(lastPos, match.startPos));
+      }
+
+      const isActive = searchMatches.indexOf(match) === activeMatchIndex;
+      parts.push(
+        <span
+          key={`match-${i}`}
+          className={`transition-colors ${isActive ? "bg-yellow-400 dark:bg-yellow-600" : "bg-yellow-200 dark:bg-yellow-800"}`}
+        >
+          {text.substring(match.startPos, match.endPos)}
+        </span>
+      );
+      lastPos = match.endPos;
+    }
+
+    if (lastPos < text.length) {
+      parts.push(text.substring(lastPos));
+    }
+
+    return parts;
   };
 
   const onEditKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -251,6 +407,47 @@ export function TranscriptCard({
 
       {transcriptionStatus === "complete" && transcriptText.length > 0 && (
         <div className={compact ? "" : "space-y-3"}>
+          {/* Search bar */}
+          {!isEditing && (
+            <div className={`flex items-center gap-1.5 ${compact ? "px-2.5 py-2" : "px-3 py-2"}`}>
+              <div className="flex-1 flex items-center gap-1.5 bg-surface-subtle rounded-md border px-2 py-1.5"
+                   style={{ borderColor: "var(--border-default)" }}>
+                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--text-muted)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search transcript…"
+                  className="flex-1 bg-transparent text-[13px] outline-none"
+                  style={{ color: "var(--text-primary)" }}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(""); setActiveMatchIndex(-1); }}
+                    className="text-[13px] font-medium"
+                    style={{ color: "var(--text-muted)" }}
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <span className="text-[11px] font-medium whitespace-nowrap"
+                      style={{ color: "var(--text-secondary)" }}>
+                  {searchMatches.length === 0
+                    ? "No matches"
+                    : `${activeMatchIndex + 1}/${searchMatches.length}`}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Action bar */}
           <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "px-2.5 py-2 border-b" : "mb-3"}`}>
             <div className="pill-toggle">
@@ -316,6 +513,7 @@ export function TranscriptCard({
               {transcriptLines.map((line, index) => {
                 const isActive = index === activeLineIndex && textViewMode === "current";
                 const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
+                const highlightedContent = highlightText(lineText, index);
                 return (
                   <button
                     key={`${line.index}-${line.startSeconds}`}
@@ -329,7 +527,7 @@ export function TranscriptCard({
                     <span className="mr-2 inline-block min-w-[44px] font-mono text-[11px] text-muted leading-[1.4]">
                       {formatTimestamp(line.startSeconds)}
                     </span>
-                    <span className="text-[13px] leading-[1.4]">{lineText}</span>
+                    <span className="text-[13px] leading-[1.4]">{highlightedContent}</span>
                   </button>
                 );
               })}
