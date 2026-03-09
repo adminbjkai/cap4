@@ -8,6 +8,8 @@ type SummaryCardProps = {
   shareableResultUrl: string | null;
   chapters: Array<{ title: string; seconds: number }>;
   onJumpToSeconds: (seconds: number) => void;
+  /** When true, omits the outer card wrapper — for embedding in the right rail */
+  compact?: boolean;
 };
 
 type TimedKeyPoint = {
@@ -26,7 +28,7 @@ function formatTimestamp(secondsInput: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-export function SummaryCard({ aiStatus, aiOutput, errorMessage, shareableResultUrl, chapters, onJumpToSeconds }: SummaryCardProps) {
+export function SummaryCard({ aiStatus, aiOutput, errorMessage, shareableResultUrl, chapters, onJumpToSeconds, compact = false }: SummaryCardProps) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const summaryForCopy = useMemo(() => {
@@ -56,104 +58,98 @@ export function SummaryCard({ aiStatus, aiOutput, errorMessage, shareableResultU
     return aiOutput.keyPoints.map((point) => ({ title: point, jumpSeconds: null }));
   }, [aiOutput, chapters]);
 
-  return (
-    <section className="workspace-card">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <p className="workspace-label">Summary</p>
-          <h2 className="workspace-title">Summary and Chapters</h2>
-          <p className="workspace-copy">Use this editorial view for quick understanding and chapter navigation.</p>
+  const Inner = (
+    <div className={compact ? "flex flex-col h-full overflow-auto" : ""}>
+      {/* Header — hidden in compact/rail mode */}
+      {!compact && (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <p className="workspace-label">Summary</p>
+            <h2 className="workspace-title">Summary and Chapters</h2>
+          </div>
+          <span className="status-chip">{aiStatus ?? "not_started"}</span>
         </div>
-        <span className="status-chip">
-          {aiStatus ?? "not_started"}
-        </span>
-      </div>
+      )}
 
+      {/* Status messages */}
       {(aiStatus === "queued" || aiStatus === "processing") && (
-        <p className="text-sm legacy-muted">Summary generation is in progress.</p>
+        <p className={`text-sm legacy-muted ${compact ? "px-4 pt-4" : ""}`}>Summary generation is in progress.</p>
       )}
-
       {aiStatus === "not_started" && (
-        <p className="text-sm legacy-muted">Summary generation starts after transcript completion.</p>
+        <p className={`text-sm legacy-muted ${compact ? "px-4 pt-4" : ""}`}>Summary generation starts after transcript completion.</p>
       )}
-
       {aiStatus === "skipped" && (
-        <p className="panel-subtle">
-          Summary was skipped because transcript input was not available.
-        </p>
+        <p className={`panel-subtle ${compact ? "m-4" : ""}`}>Summary was skipped because transcript input was not available.</p>
       )}
-
       {aiStatus === "failed" && (
-        <p className="panel-danger">
+        <p className={`panel-danger ${compact ? "m-4" : ""}`}>
           {errorMessage ? `Summary failed: ${errorMessage}` : "Summary failed after retries."}
         </p>
       )}
-
       {aiStatus === "complete" && !aiOutput?.summary && !aiOutput?.title && (
-        <p className="panel-subtle">Summary completed, but no content was returned.</p>
+        <p className={`panel-subtle ${compact ? "m-4" : ""}`}>Summary completed, but no content was returned.</p>
       )}
 
       {aiStatus === "complete" && aiOutput && (
-        <div className="space-y-4">
-          <div className="action-group">
-            {summaryForCopy ? (
+        <div className={`space-y-4 ${compact ? "px-4 py-3" : ""}`}>
+          {/* Copy actions */}
+          <div className="flex flex-wrap gap-2">
+            {summaryForCopy && (
               <button
                 type="button"
                 onClick={() => void copyValue(summaryForCopy, "Summary copied", "Unable to copy summary.")}
-                className="btn-secondary"
+                className="btn-secondary text-xs px-2.5 py-1"
               >
                 Copy summary
               </button>
-            ) : null}
-            {shareableResultUrl ? (
-              <button
-                type="button"
-                onClick={() => void copyValue(shareableResultUrl, "Shareable result URL copied", "Unable to copy result URL.")}
-                className="btn-tertiary"
-              >
-                Copy shareable result URL
-              </button>
-            ) : null}
+            )}
           </div>
 
-          {aiOutput.title ? <h3 className="text-xl font-semibold">{aiOutput.title}</h3> : null}
-          {aiOutput.summary ? <p className="panel-subtle rounded-lg px-4 py-3 text-sm leading-relaxed">{aiOutput.summary}</p> : null}
-          {chapterItems.length > 0 ? (
-            <div className="chapter-list-card space-y-3 rounded-lg p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Chapters</p>
-                <span className="tone-elevated rounded-full px-2 py-0.5 text-[11px] font-medium text-muted">{chapterItems.length} items</span>
-              </div>
-              <ol className="space-y-2">
+          {/* AI title (only in compact mode — full title shown in VideoPage header) */}
+          {compact && aiOutput.title && (
+            <h3 className="text-base font-semibold">{aiOutput.title}</h3>
+          )}
+          {!compact && aiOutput.title && (
+            <h3 className="text-xl font-semibold">{aiOutput.title}</h3>
+          )}
+
+          {/* Summary text */}
+          {aiOutput.summary && (
+            <p className={`text-sm leading-relaxed ${compact ? "text-secondary" : "panel-subtle rounded-lg px-4 py-3"}`}>
+              {aiOutput.summary}
+            </p>
+          )}
+
+          {/* Chapter list in summary tab */}
+          {chapterItems.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">Chapters</p>
+              <ol className="space-y-1">
                 {chapterItems.map((chapter, index) => (
                   <li key={`${chapter.title}-${index}-${chapter.jumpSeconds ?? "na"}`}>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (chapter.jumpSeconds !== null) onJumpToSeconds(chapter.jumpSeconds);
-                      }}
+                      onClick={() => { if (chapter.jumpSeconds !== null) onJumpToSeconds(chapter.jumpSeconds); }}
                       disabled={chapter.jumpSeconds === null}
-                      className="chapter-row group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-80"
+                      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-surface-muted disabled:opacity-60"
                     >
-                      {chapter.jumpSeconds !== null ? (
-                        <span className="chapter-time-chip rounded px-2 py-1 font-mono text-xs">{formatTimestamp(chapter.jumpSeconds)}</span>
-                      ) : (
-                        <span className="chapter-time-chip rounded px-2 py-1 text-xs">No timestamp</span>
-                      )}
-                      <span className="flex-1 text-sm font-medium leading-snug">{chapter.title}</span>
-                      <span className="text-secondary text-xs font-medium">
-                        {chapter.jumpSeconds !== null ? "Jump" : "Unavailable"}
+                      <span className="font-mono text-xs text-muted w-12 shrink-0">
+                        {chapter.jumpSeconds !== null ? formatTimestamp(chapter.jumpSeconds) : "--:--"}
                       </span>
+                      <span className="flex-1 text-sm leading-snug">{chapter.title}</span>
                     </button>
                   </li>
                 ))}
               </ol>
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
-      {copyFeedback ? <p className="mt-3 text-xs font-medium text-muted">{copyFeedback}</p> : null}
-    </section>
+      {copyFeedback && <p className={`text-xs font-medium text-muted ${compact ? "px-4 pb-2" : "mt-3"}`}>{copyFeedback}</p>}
+    </div>
   );
+
+  if (compact) return Inner;
+  return <section className="workspace-card">{Inner}</section>;
 }

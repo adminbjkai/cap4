@@ -21,13 +21,16 @@ export function ChapterList({
   currentSeconds,
   durationSeconds,
   onSeek,
-  title = "Chapters"
+  title = "Chapters",
+  inline = false
 }: {
   chapters: ChapterItem[];
   currentSeconds: number;
   durationSeconds: number;
   onSeek: (seconds: number) => void;
   title?: string;
+  /** When true, renders as a plain flat list without the card wrapper (for use in VideoPage below-the-fold) */
+  inline?: boolean;
 }) {
   const validChapters = useMemo(() => {
     if (durationSeconds <= 0) return chapters;
@@ -48,6 +51,7 @@ export function ChapterList({
   }, [validChapters, currentSeconds]);
 
   if (validChapters.length === 0) {
+    if (inline) return null;
     return (
       <div className="workspace-card h-full">
         <div className="mb-3">
@@ -61,6 +65,38 @@ export function ChapterList({
     );
   }
 
+  /* ── Inline mode: Cap-style clean table ───────────────────────── */
+  if (inline) {
+    return (
+      <div className="divide-y divide-default rounded-xl border">
+        {validChapters.map((chapter, index) => {
+          const isActive = index === activeIndex;
+          return (
+            <button
+              key={`${chapter.title}-${index}-${chapter.seconds}`}
+              type="button"
+              onClick={() => onSeek(chapter.seconds)}
+              className={`w-full flex items-center gap-5 px-4 py-3 text-left transition-colors hover:bg-surface-muted ${
+                isActive ? "bg-surface-muted" : ""
+              }`}
+            >
+              <span className={`font-mono text-sm w-12 shrink-0 ${isActive ? "font-semibold text-foreground" : "text-muted"}`}>
+                {formatTimestamp(chapter.seconds)}
+              </span>
+              <span className={`text-sm flex-1 ${isActive ? "font-medium text-foreground" : "text-secondary"}`}>
+                {chapter.title}
+              </span>
+              {isActive && (
+                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /* ── Sidebar mode: original card style ────────────────────────── */
   return (
     <div className="workspace-card h-full flex flex-col">
       <div className="mb-3">
@@ -84,20 +120,10 @@ export function ChapterList({
               }`}
             >
               <div className="flex items-start gap-3">
-                <span
-                  className={`font-mono text-xs font-medium whitespace-nowrap mt-0.5 ${
-                    isActive ? "text-primary" : "text-muted"
-                  }`}
-                >
+                <span className={`font-mono text-xs font-medium whitespace-nowrap mt-0.5 ${isActive ? "text-primary" : "text-muted"}`}>
                   {formatTimestamp(chapter.seconds)}
                 </span>
-                <span
-                  className={`text-sm leading-snug ${
-                    isActive
-                      ? "font-medium text-foreground"
-                      : "text-secondary group-hover:text-foreground"
-                  }`}
-                >
+                <span className={`text-sm leading-snug ${isActive ? "font-medium text-foreground" : "text-secondary group-hover:text-foreground"}`}>
                   {chapter.title}
                 </span>
               </div>
@@ -109,10 +135,7 @@ export function ChapterList({
       <div className="mt-3 pt-3 border-t border-default">
         <p className="text-xs text-muted text-center">
           {activeIndex >= 0 ? (
-            <>
-              Chapter <span className="font-medium">{activeIndex + 1}</span> of{" "}
-              <span className="font-medium">{validChapters.length}</span>
-            </>
+            <>Chapter <span className="font-medium">{activeIndex + 1}</span> of <span className="font-medium">{validChapters.length}</span></>
           ) : (
             <>Select a chapter to navigate</>
           )}

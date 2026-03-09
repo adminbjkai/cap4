@@ -8,6 +8,8 @@ type TranscriptCardProps = {
   playbackTimeSeconds: number;
   onSeekToSeconds: (seconds: number) => void;
   onSaveTranscript: (text: string) => Promise<boolean>;
+  /** When true, omits the outer card wrapper — for embedding in the right rail */
+  compact?: boolean;
 };
 
 type TranscriptLine = {
@@ -35,7 +37,8 @@ export function TranscriptCard({
   errorMessage,
   playbackTimeSeconds,
   onSeekToSeconds,
-  onSaveTranscript
+  onSaveTranscript,
+  compact = false
 }: TranscriptCardProps) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [observedPlaybackTime, setObservedPlaybackTime] = useState<number | null>(null);
@@ -206,43 +209,42 @@ export function TranscriptCard({
     }
   };
 
-  return (
-    <section className="workspace-card">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <p className="workspace-label">Workspace panel</p>
-          <h2 className="workspace-title">Transcript</h2>
+  const Inner = (
+    <div className={compact ? "flex flex-col h-full" : ""}>
+      {/* Header — hidden in compact mode (tab bar in VideoPage handles it) */}
+      {!compact && (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <p className="workspace-label">Workspace panel</p>
+            <h2 className="workspace-title">Transcript</h2>
+          </div>
+          <span className="status-chip">{transcriptionStatus ?? "not_started"}</span>
         </div>
-        <span className="status-chip">
-          {transcriptionStatus ?? "not_started"}
-        </span>
-      </div>
+      )}
 
+      {/* Status messages */}
       {(transcriptionStatus === "queued" || transcriptionStatus === "processing") && (
-        <p className="text-sm legacy-muted">Transcription is running. This section updates automatically.</p>
+        <p className={`text-sm legacy-muted ${compact ? "px-4 pt-4" : ""}`}>Transcription is running. This section updates automatically.</p>
       )}
-
       {transcriptionStatus === "not_started" && (
-        <p className="text-sm legacy-muted">Transcription will start after processing completes.</p>
+        <p className={`text-sm legacy-muted ${compact ? "px-4 pt-4" : ""}`}>Transcription will start after processing completes.</p>
       )}
-
       {transcriptionStatus === "no_audio" && (
-        <p className="panel-subtle">No audio track was detected for this recording.</p>
+        <p className={`panel-subtle ${compact ? "m-4" : ""}`}>No audio track was detected for this recording.</p>
       )}
-
       {transcriptionStatus === "failed" && (
-        <p className="panel-danger">
+        <p className={`panel-danger ${compact ? "m-4" : ""}`}>
           {errorMessage ? `Transcription failed: ${errorMessage}` : "Transcription failed after retries."}
         </p>
       )}
-
       {transcriptionStatus === "complete" && transcriptText.length === 0 && (
-        <p className="panel-subtle">Transcript completed, but no text was returned.</p>
+        <p className={`panel-subtle ${compact ? "m-4" : ""}`}>Transcript completed, but no text was returned.</p>
       )}
 
       {transcriptionStatus === "complete" && transcriptText.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className={`space-y-3 ${compact ? "flex flex-col flex-1 min-h-0 px-3 pt-3 pb-2" : ""}`}>
+          {/* Action bar */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="pill-toggle">
               <button
                 type="button"
@@ -261,24 +263,17 @@ export function TranscriptCard({
                 Original
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => void copyTranscript()}
-              className="btn-secondary"
-            >
-              Copy transcript
+            <button type="button" onClick={() => void copyTranscript()} className="btn-secondary text-xs px-2.5 py-1">
+              Copy
             </button>
-            {!isEditing ? (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="btn-secondary"
-              >
-                Edit transcript
+            {!isEditing && (
+              <button type="button" onClick={() => setIsEditing(true)} className="btn-secondary text-xs px-2.5 py-1">
+                Edit
               </button>
-            ) : null}
+            )}
           </div>
 
+          {/* Edit mode */}
           {isEditing ? (
             <div className="panel-subtle space-y-2 rounded-lg p-3">
               <textarea
@@ -288,32 +283,28 @@ export function TranscriptCard({
                 className="input-control min-h-56 rounded-lg p-3 text-sm leading-relaxed"
               />
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void submitEdit()}
-                  disabled={isSaving}
-                  className="btn-primary"
-                >
+                <button type="button" onClick={() => void submitEdit()} disabled={isSaving} className="btn-primary">
                   {isSaving ? "Saving..." : "Save transcript"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setDraftText(transcriptText);
-                    setIsEditing(false);
-                    setSaveError(null);
-                  }}
+                  onClick={() => { setDraftText(transcriptText); setIsEditing(false); setSaveError(null); }}
                   disabled={isSaving}
                   className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <span className="text-xs text-muted">Cmd/Ctrl+Enter to save • Esc to cancel</span>
-                {saveError ? <span className="text-xs text-red-700">{saveError}</span> : null}
+                {saveError && <span className="text-xs text-red-700">{saveError}</span>}
               </div>
             </div>
           ) : transcriptLines.length > 0 ? (
-            <div ref={transcriptScrollRef} className="scroll-panel max-h-[32rem] space-y-2 overflow-auto rounded-lg p-2.5">
+            <div
+              ref={transcriptScrollRef}
+              className={`scroll-panel space-y-1 overflow-auto rounded-lg p-1 ${
+                compact ? "flex-1 min-h-0" : "max-h-[32rem]"
+              }`}
+            >
               {transcriptLines.map((line, index) => {
                 const isActive = index === activeLineIndex && textViewMode === "current";
                 const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
@@ -323,30 +314,33 @@ export function TranscriptCard({
                     type="button"
                     data-transcript-line-index={index}
                     onClick={() => onSeekToSeconds(line.startSeconds)}
-                    className={`line-item w-full rounded-md px-3 py-2.5 text-left transition focus-visible:outline-none ${
+                    className={`line-item w-full rounded-md px-3 py-2 text-left transition focus-visible:outline-none ${
                       isActive ? "line-item-active" : ""
                     }`}
                   >
-                    <span className="mr-2 inline-block min-w-16 font-mono text-xs text-muted">{formatTimestamp(line.startSeconds)}</span>
+                    <span className="mr-2 inline-block min-w-[52px] font-mono text-xs text-muted">{formatTimestamp(line.startSeconds)}</span>
                     <span className="text-sm leading-relaxed">{lineText}</span>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <pre className="scroll-panel max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-lg p-4 text-sm leading-relaxed">
+            <pre className={`scroll-panel overflow-auto whitespace-pre-wrap rounded-lg p-4 text-sm leading-relaxed ${compact ? "flex-1 min-h-0" : "max-h-[28rem]"}`}>
               {textViewMode === "original" ? originalTranscriptText : transcriptText}
             </pre>
           )}
 
-          {transcript?.vttKey ? (
+          {transcript?.vttKey && (
             <span className="text-xs text-muted">VTT key: <span className="font-mono">{transcript.vttKey}</span></span>
-          ) : null}
+          )}
         </div>
       )}
 
-      {copyFeedback ? <p className="mt-3 text-xs font-medium text-muted">{copyFeedback}</p> : null}
-      {saveFeedback ? <p className="mt-2 text-xs font-medium text-accent-700">{saveFeedback}</p> : null}
-    </section>
+      {copyFeedback && <p className={`text-xs font-medium text-muted ${compact ? "px-4 pb-2" : "mt-3"}`}>{copyFeedback}</p>}
+      {saveFeedback && <p className={`text-xs font-medium text-accent-700 ${compact ? "px-4 pb-2" : "mt-2"}`}>{saveFeedback}</p>}
+    </div>
   );
+
+  if (compact) return Inner;
+  return <section className="workspace-card">{Inner}</section>;
 }

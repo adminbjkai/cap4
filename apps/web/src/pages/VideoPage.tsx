@@ -1,24 +1,20 @@
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   deleteVideo,
   getJobStatus,
-  getSystemProviderStatus,
   getVideoStatus,
   saveWatchEdits,
   retryVideo,
   type JobStatusResponse,
-  type ProviderStatusResponse,
   type VideoStatusResponse
 } from "../lib/api";
 import { ConfirmationDialog } from "../components/ConfirmationDialog";
 import { upsertRecentSession } from "../lib/sessions";
 import { PlayerCard } from "../components/PlayerCard";
 import { SummaryCard } from "../components/SummaryCard";
-import { StatusPanel } from "../components/StatusPanel";
 import { TranscriptCard } from "../components/TranscriptCard";
 import { ChapterList } from "../components/ChapterList";
-import { TranscriptParagraph } from "../components/TranscriptParagraph";
 import { buildPublicObjectUrl } from "../lib/format";
 
 const TERMINAL_PROCESSING_PHASES = new Set(["complete", "failed", "cancelled"]);
@@ -122,21 +118,21 @@ export function VideoPage() {
 
   const [status, setStatus] = useState<VideoStatusResponse | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
-  const [providerStatus, setProviderStatus] = useState<ProviderStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [providerStatusError, setProviderStatusError] = useState<string | null>(null);
   const [consecutivePollFailures, setConsecutivePollFailures] = useState(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [playbackTimeSeconds, setPlaybackTimeSeconds] = useState(0);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
   const [seekRequest, setSeekRequest] = useState<{ seconds: number; requestId: number } | null>(null);
-  const [railTab, setRailTab] = useState<"transcript" | "comments">("transcript");
+  const [railTab, setRailTab] = useState<"summary" | "transcript">("transcript");
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [titleSaveMessage, setTitleSaveMessage] = useState<string | null>(null);
   const shareableResultUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
+  const videoUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
   const isAutoRefreshActive = !hasReachedTerminalState(status);
   const transcriptSegments = status?.transcript?.segments ?? [];
   const chapters = useMemo(() => deriveChapters(status?.aiOutput, transcriptSegments), [status?.aiOutput, transcriptSegments]);
@@ -182,18 +178,6 @@ export function VideoPage() {
       setLastUpdatedAt(new Date().toISOString());
       setConsecutivePollFailures(0);
       setErrorMessage(null);
-      void getSystemProviderStatus()
-        .then((nextProviderStatus) => {
-          setProviderStatus(nextProviderStatus);
-          setProviderStatusError(null);
-        })
-        .catch((providerError) => {
-          setProviderStatusError(
-            providerError instanceof Error
-              ? `Provider status temporarily unavailable. (${providerError.message})`
-              : "Provider status temporarily unavailable."
-          );
-        });
 
       if (jobId !== null) {
         try {
@@ -284,9 +268,7 @@ export function VideoPage() {
   const handleTitleDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (!isSavingTitle) {
-        void saveTitle();
-      }
+      if (!isSavingTitle) void saveTitle();
       return;
     }
     if (event.key === "Escape") {
@@ -323,6 +305,16 @@ export function VideoPage() {
     }
   }, [videoId, isDeleting, navigate]);
 
+  const copyToClipboard = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFeedback(`${label} copied`);
+    } catch {
+      setCopyFeedback(`Unable to copy ${label.toLowerCase()}.`);
+    }
+    window.setTimeout(() => setCopyFeedback(null), 1600);
+  };
+
   if (!videoId) {
     return (
       <div className="workspace-card">
@@ -331,8 +323,10 @@ export function VideoPage() {
     );
   }
 
+  const isProcessing = !hasReachedTerminalState(status);
+
   return (
-    <div className="space-y-5 animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500">
       <ConfirmationDialog
         open={isDeleteDialogOpen}
         title="Delete video?"
@@ -347,13 +341,15 @@ export function VideoPage() {
         }}
         onConfirm={() => void handleDelete()}
       />
-      <section className="workspace-card p-4 sm:p-5">
+
+      {/* ── Page Header ─────────────────────────────────────────────── */}
+      <div className="mb-5">
+        {/* Title row */}
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-3xl space-y-1.5">
-            <p className="workspace-label">Studio</p>
+          <div className="min-w-0 flex-1">
             {!isTitleEditing ? (
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="watch-title">{displayTitle}</h1>
+                <h1 className="text-2xl font-bold tracking-tight truncate">{displayTitle}</h1>
                 <button
                   type="button"
                   onClick={() => {
@@ -361,119 +357,165 @@ export function VideoPage() {
                     setIsTitleEditing(true);
                     setTitleSaveMessage(null);
                   }}
-                  className="btn-secondary px-2.5 py-1 text-xs"
+                  className="text-xs text-muted hover:text-foreground transition-colors underline underline-offset-2"
                 >
-                  Edit title
+                  Edit
                 </button>
               </div>
             ) : (
-              <div className="panel-subtle space-y-2 p-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
                   value={titleDraft}
                   onChange={(event) => setTitleDraft(event.target.value)}
                   onKeyDown={handleTitleDraftKeyDown}
                   autoFocus
                   aria-label="Edit title"
-                  className="input-control w-full max-w-xl text-lg font-semibold"
+                  className="input-control text-xl font-bold w-full max-w-lg"
                 />
-                <div className="action-group items-center gap-1.5">
-                  <button type="button" onClick={() => void saveTitle()} disabled={isSavingTitle} className="btn-primary px-3 py-1.5 text-xs">
-                    {isSavingTitle ? "Saving..." : "Save"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTitleDraft(displayTitle);
-                      setIsTitleEditing(false);
-                    }}
-                    disabled={isSavingTitle}
-                    className="btn-secondary px-3 py-1.5 text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <span className="text-xs text-muted">Enter to save • Esc to cancel</span>
-                </div>
+                <button type="button" onClick={() => void saveTitle()} disabled={isSavingTitle} className="btn-primary px-3 py-1.5 text-xs">
+                  {isSavingTitle ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTitleDraft(displayTitle); setIsTitleEditing(false); }}
+                  disabled={isSavingTitle}
+                  className="btn-secondary px-3 py-1.5 text-xs"
+                >
+                  Cancel
+                </button>
               </div>
             )}
-            {titleSaveMessage ? (
-              <p className={`text-xs font-medium ${titleSaveMessage.includes("Unable") || titleSaveMessage.includes("cannot") ? "text-red-700" : "text-green-700"}`}>
+            {titleSaveMessage && (
+              <p className={`mt-1 text-xs font-medium ${titleSaveMessage.includes("Unable") || titleSaveMessage.includes("cannot") ? "text-red-600" : "text-green-600"}`}>
                 {titleSaveMessage}
               </p>
-            ) : null}
+            )}
+            {/* Subtitle meta line */}
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+              {isProcessing && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Processing
+                </span>
+              )}
+              {!isProcessing && status?.processingPhase === "complete" && (
+                <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Complete
+                </span>
+              )}
+              {status?.processingPhase === "failed" && (
+                <span className="text-red-600">Failed</span>
+              )}
+              {lastUpdatedAt && (
+                <span>Updated {new Date(lastUpdatedAt).toLocaleTimeString()}</span>
+              )}
+            </div>
           </div>
-          <div className="action-group gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setDeleteError(null);
-                setIsDeleteDialogOpen(true);
-              }}
-              className="btn-secondary px-3 py-1.5 text-sm text-red-700"
-            >
-              Delete
-            </button>
+
+          {/* Right header actions */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {shareableResultUrl && (
+              <div className="flex items-center gap-1.5 rounded-lg border bg-surface-muted px-3 py-1.5 text-sm max-w-[240px] overflow-hidden">
+                <span className="truncate text-muted font-mono text-xs">{shareableResultUrl.replace(/^https?:\/\//, "")}</span>
+                <button
+                  type="button"
+                  onClick={() => void copyToClipboard(shareableResultUrl, "URL")}
+                  className="shrink-0 text-muted hover:text-foreground transition-colors"
+                  title="Copy URL"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            {videoUrl && (
+              <a
+                href={videoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary px-3 py-1.5 text-sm"
+                title="Download video"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                Download
+              </a>
+            )}
             <button
               type="button"
               onClick={() => void refresh()}
+              disabled={loading}
               className="btn-secondary px-3 py-1.5 text-sm"
+              title="Refresh status"
             >
-              Refresh
+              <svg className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </button>
-            <Link
-              to="/record"
-              className="btn-primary px-3 py-1.5 text-sm"
+            <button
+              type="button"
+              onClick={() => { setDeleteError(null); setIsDeleteDialogOpen(true); }}
+              className="btn-secondary px-3 py-1.5 text-sm text-red-600 hover:text-red-700"
+              title="Delete recording"
             >
-              New recording
-            </Link>
+              Delete
+            </button>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="status-chip status-chip-compact">Process: {status?.processingPhase ?? "pending"}</span>
-          <span className="status-chip status-chip-compact">Transcript: {status?.transcriptionStatus ?? "not_started"}</span>
-          <span className="status-chip status-chip-compact">AI: {status?.aiStatus ?? "not_started"}</span>
-          <span className="status-chip status-chip-compact">Updated: {lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleTimeString() : "Waiting..."}</span>
-          <span className={`status-chip status-chip-compact ${isAutoRefreshActive ? "" : "opacity-90"}`}>
-            Live updates: {isAutoRefreshActive ? "Active" : "Stopped"}
-          </span>
-          {showRetryButton && (
+        {/* Processing banner — only shown while active */}
+        {isProcessing && status && (
+          <div className="mt-3 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-900/50 dark:bg-amber-900/20">
+            <div className="h-1.5 flex-1 rounded-full bg-amber-200 dark:bg-amber-900/50">
+              <div
+                className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                style={{ width: `${Math.max(5, status.processingProgress ?? 0)}%` }}
+              />
+            </div>
+            <span className="text-amber-800 dark:text-amber-300 font-medium shrink-0">
+              {status.processingProgress != null ? `${status.processingProgress}%` : status.processingPhase}
+            </span>
+          </div>
+        )}
+
+        {errorMessage && <p className="panel-warning mt-3">{errorMessage}</p>}
+        {copyFeedback && <p className="mt-2 text-xs text-muted">{copyFeedback}</p>}
+
+        {/* Retry button */}
+        {showRetryButton && (
+          <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
               onClick={() => void handleRetry()}
               disabled={isRetrying}
-              className="btn-primary px-3 py-1 flex items-center gap-1.5 text-xs animate-in fade-in slide-in-from-left-2 duration-300"
+              className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1.5"
             >
               <svg className={`h-3 w-3 ${isRetrying ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              {isRetrying ? "Retrying..." : "Retry Processing"}
+              {isRetrying ? "Retrying..." : "Retry processing"}
             </button>
-          )}
-          {retryMessage && (
-            <span className={`text-xs font-medium animate-in fade-in duration-300 ${retryMessage.includes("Failed") || retryMessage.includes("failed") ? "text-red-600" : "text-green-600"}`}>
-              {retryMessage}
-            </span>
-          )}
-        </div>
+            {retryMessage && (
+              <span className={`text-xs font-medium ${retryMessage.includes("Failed") || retryMessage.includes("failed") ? "text-red-600" : "text-green-600"}`}>
+                {retryMessage}
+              </span>
+            )}
+          </div>
+        )}
         {jobStatus ? <p className="sr-only">Queue status: {jobStatus.status}</p> : null}
+      </div>
 
-        {errorMessage ? <p className="panel-warning mt-4">{errorMessage}</p> : null}
-      </section>
+      {/* ── Main two-column layout ───────────────────────────────────── */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
 
-      {/* Main content area with chapters on left, video on right */}
-      <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]">
-        {/* Left sidebar - Chapters */}
-        <aside className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-500">
-          <ChapterList
-            chapters={chapters}
-            currentSeconds={playbackTimeSeconds}
-            durationSeconds={videoDurationSeconds}
-            onSeek={requestSeek}
-          />
-        </aside>
-
-        {/* Main content - Video and panels */}
-        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {/* Left col — Video player */}
+        <div className="min-w-0">
           <PlayerCard
             resultKey={status?.resultKey ?? null}
             thumbnailKey={status?.thumbnailKey ?? null}
@@ -483,83 +525,92 @@ export function VideoPage() {
             chapters={chapters}
             onSeekToSeconds={requestSeek}
           />
-          <StatusPanel
-            status={status}
-            loading={loading}
-            lastUpdatedAt={lastUpdatedAt}
-            isAutoRefreshActive={isAutoRefreshActive}
-            providerStatus={providerStatus}
-            providerStatusError={providerStatusError}
-          />
+        </div>
 
-          {/* Right rail content moved below video */}
-          <div className="grid gap-5 lg:grid-cols-2">
-            <section className="workspace-card p-2.5">
-              <div className="mb-3 flex items-center justify-between gap-3 px-1">
-                <div>
-                  <p className="workspace-label">Right rail</p>
-                  <h2 className="text-lg font-semibold tracking-tight">Transcript and AI</h2>
-                </div>
-                <span className="status-chip">Focused</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRailTab("transcript")}
-                  className={`segment-btn ${railTab === "transcript" ? "segment-btn-active" : ""}`}
-                >
-                  Transcript
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRailTab("comments")}
-                  className={`segment-btn ${railTab === "comments" ? "segment-btn-active" : ""}`}
-                >
-                  Notes
-                </button>
-              </div>
-            </section>
+        {/* Right col — Summary / Transcript tabs */}
+        <div className="min-w-0">
+          <div className="rounded-xl border bg-surface shadow-sm h-full flex flex-col" style={{ minHeight: "420px" }}>
+            {/* Tab bar */}
+            <div className="flex border-b px-4">
+              <button
+                type="button"
+                onClick={() => setRailTab("transcript")}
+                className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                  railTab === "transcript"
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted hover:text-foreground"
+                }`}
+              >
+                Transcript
+              </button>
+              <button
+                type="button"
+                onClick={() => setRailTab("summary")}
+                className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                  railTab === "summary"
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted hover:text-foreground"
+                }`}
+              >
+                Summary
+              </button>
+            </div>
 
-            <SummaryCard
-              aiStatus={status?.aiStatus}
-              aiOutput={status?.aiOutput}
-              errorMessage={status?.aiErrorMessage}
-              shareableResultUrl={shareableResultUrl}
-              chapters={chapters}
-              onJumpToSeconds={requestSeek}
-            />
+            {/* Tab content */}
+            <div className="flex-1 overflow-hidden">
+              {railTab === "transcript" ? (
+                <TranscriptCard
+                  transcriptionStatus={status?.transcriptionStatus}
+                  transcript={status?.transcript}
+                  errorMessage={status?.transcriptErrorMessage}
+                  playbackTimeSeconds={playbackTimeSeconds}
+                  onSeekToSeconds={requestSeek}
+                  onSaveTranscript={saveTranscript}
+                  compact
+                />
+              ) : (
+                <SummaryCard
+                  aiStatus={status?.aiStatus}
+                  aiOutput={status?.aiOutput}
+                  errorMessage={status?.aiErrorMessage}
+                  shareableResultUrl={shareableResultUrl}
+                  chapters={chapters}
+                  onJumpToSeconds={requestSeek}
+                  compact
+                />
+              )}
+            </div>
           </div>
+        </div>
+      </div>
 
-          {railTab === "transcript" ? (
-            <TranscriptCard
-              transcriptionStatus={status?.transcriptionStatus}
-              transcript={status?.transcript}
-              errorMessage={status?.transcriptErrorMessage}
-              playbackTimeSeconds={playbackTimeSeconds}
-              onSeekToSeconds={requestSeek}
-              onSaveTranscript={saveTranscript}
-            />
-          ) : (
-            <section className="workspace-card">
-              <div className="mb-3">
-                <p className="workspace-label">Workspace panel</p>
-                <h2 className="workspace-title">Notes</h2>
-                <p className="workspace-copy">Comments are intentionally deferred in this phase.</p>
-              </div>
-              <p className="panel-subtle rounded-md border-dashed px-3 py-3 text-sm">
-                Keep transcript and AI analysis in the rail for now. Team comments can layer on this space later.
-              </p>
+      {/* ── Below the fold: Summary text + Chapters list ─────────────── */}
+      {status?.aiOutput && (
+        <div className="mt-8 space-y-8">
+          {/* Summary text */}
+          {status.aiOutput.summary && (
+            <section>
+              <h2 className="text-lg font-semibold mb-1">Summary</h2>
+              <p className="text-xs text-muted mb-3">Generated by Cap AI</p>
+              <p className="text-sm leading-relaxed text-secondary">{status.aiOutput.summary}</p>
             </section>
           )}
 
-          {/* Full transcript paragraph view at bottom */}
-          <TranscriptParagraph
-            segments={transcriptSegments}
-            transcriptionStatus={status?.transcriptionStatus}
-            onSeekToSeconds={requestSeek}
-          />
+          {/* Chapters list — Cap-style clean table */}
+          {chapters.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-3">Chapters</h2>
+              <ChapterList
+                chapters={chapters}
+                currentSeconds={playbackTimeSeconds}
+                durationSeconds={videoDurationSeconds}
+                onSeek={requestSeek}
+                inline
+              />
+            </section>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
