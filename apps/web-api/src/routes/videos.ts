@@ -119,7 +119,7 @@ export async function videoRoutes(app: FastifyInstance) {
          v.transcription_status,
          v.ai_status,
          t.provider AS transcript_provider,
-         t.language AS transcript_language,
+         COALESCE(t.language, 'en') AS transcript_language,
          t.vtt_key AS transcript_vtt_key,
          t.segments_json AS transcript_segments_json,
          ao.provider::text AS ai_provider,

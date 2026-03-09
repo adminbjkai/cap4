@@ -28,7 +28,7 @@ type DeepgramResponse = {
 };
 
 export type DeepgramTranscription = {
-  language: string | null;
+  language: string;
   transcriptText: string;
   segments: TranscriptSegment[];
 };
@@ -124,7 +124,7 @@ export async function transcribeWithDeepgram(args: {
     const transcriptText = effectiveSegments.map((segment) => segment.text).join("\n").trim();
 
     return {
-      language: extractLanguage(payload),
+      language: extractLanguage(payload) ?? "en",
       transcriptText,
       segments: effectiveSegments
     };

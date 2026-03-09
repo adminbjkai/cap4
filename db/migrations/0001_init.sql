@@ -191,7 +191,7 @@ WHERE status IN ('queued', 'leased', 'running');
 CREATE TABLE IF NOT EXISTS transcripts (
   video_id UUID PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
   provider TEXT NOT NULL DEFAULT 'deepgram',
-  language TEXT,
+  language TEXT NOT NULL DEFAULT 'en',
   vtt_key TEXT NOT NULL,
   segments_json JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -56,7 +56,7 @@ export function AppShell({ children }: PropsWithChildren) {
       <aside className="sidebar p-4">
         <div className="mb-8 flex items-center gap-2 px-2">
           <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center text-white dark:bg-white dark:text-black font-bold text-xl">C</div>
-          <span className="text-xl font-bold tracking-tight">Cap3</span>
+          <span className="text-xl font-bold tracking-tight">Cap4</span>
         </div>
 
         <nav className="flex flex-1 flex-col gap-1">
@@ -95,7 +95,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 w-full z-50 bg-surface border-b px-4 py-3 flex items-center justify-between backdrop-blur-md bg-opacity-80">
-        <Link to="/" className="text-lg font-bold">Cap3</Link>
+        <Link to="/" className="text-lg font-bold">Cap4</Link>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2"
@@ -116,7 +116,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
       {/* Mobile Menu Content */}
       <aside className={`lg:hidden fixed left-0 top-0 z-50 h-full w-64 bg-surface transform transition-transform duration-300 ease-in-out p-6 ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="mb-8 font-bold text-xl">Cap3</div>
+        <div className="mb-8 font-bold text-xl">Cap4</div>
         <nav className="flex flex-col gap-2">
           {navItems.map((item) => (
             <NavLink

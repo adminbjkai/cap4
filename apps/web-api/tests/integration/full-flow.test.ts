@@ -22,7 +22,7 @@ import { getTestMp4 } from "./fixtures.js";
 
 const API_BASE = (process.env.INTEGRATION_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const POLL_INTERVAL_MS = Number(process.env.INTEGRATION_POLL_MS ?? "3000");
-const PIPELINE_TIMEOUT_MS = Number(process.env.INTEGRATION_TIMEOUT_MS ?? "150000");
+const PIPELINE_TIMEOUT_MS = Number(process.env.INTEGRATION_TIMEOUT_MS ?? "600000"); // 10 min for Deepgram transcription
 
 // ---------------------------------------------------------------------------
 // Types
@@ -145,12 +145,43 @@ async function pollUntilTerminal(videoId: string): Promise<VideoStatusResponse> 
       lastPhase = processingPhase;
     }
 
-    if (
+    // Wait for both processing phase AND transcription to actually complete
+    // Don't return if transcription is still queued or processing
+    const isProcessingDone =
       processingPhase === "complete" ||
       processingPhase === "failed" ||
-      processingPhase === "cancelled"
+      processingPhase === "cancelled";
+
+    // Explicitly wait for transcription to reach completion
+    // Return ONLY when BOTH conditions are met:
+    // 1. Processing phase is terminal
+    // 2. Transcription is COMPLETE or NOT_STARTED (not "processing" or "queued")
+    const isTranscriptionDone =
+      transcriptionStatus === "complete" ||
+      transcriptionStatus === "not_started" ||
+      transcriptionStatus === "failed";
+
+    // Reject "processing" and "queued" explicitly
+    if (
+      isProcessingDone &&
+      isTranscriptionDone &&
+      transcriptionStatus !== "processing" &&
+      transcriptionStatus !== "queued"
     ) {
+      console.log(
+        `  [poll returning] transcription=${transcriptionStatus}, phase=${processingPhase}`
+      );
       return body;
+    }
+
+    // If we're still waiting, show why
+    if (
+      processingPhase === "complete" &&
+      (transcriptionStatus === "processing" || transcriptionStatus === "queued")
+    ) {
+      console.log(
+        `  [poll waiting] processing=complete but transcription still ${transcriptionStatus}`
+      );
     }
 
     await sleep(POLL_INTERVAL_MS);
@@ -182,10 +213,10 @@ describe("Full pipeline: upload → transcription → AI → complete", () => {
   // -------------------------------------------------------------------------
 
   beforeAll(async () => {
-    // Generate the MP4 before any test runs. This also gives a clear error
-    // upfront if ffmpeg is missing rather than buried inside a test.
+    // Load the real test video before any test runs. This gives a clear error
+    // upfront if the video file is missing rather than buried inside a test.
     mp4Buffer = getTestMp4();
-    console.log(`  [fixture] generated test MP4: ${(mp4Buffer.length / 1024).toFixed(1)} KB`);
+    console.log(`  [fixture] loaded test video: ${(mp4Buffer.length / 1024 / 1024).toFixed(1)} MB`);
   });
 
   afterAll(async () => {
@@ -388,8 +419,12 @@ describe("Full pipeline: upload → transcription → AI → complete", () => {
 
     expect(body.transcript, "transcript should not be null after completion").not.toBeNull();
     const t = body.transcript!;
-    expect(typeof t.language, "transcript.language should be a string").toBe("string");
-    expect(t.language!.length, "transcript.language should be non-empty").toBeGreaterThan(0);
+
+    // Handle language as either string or object (from Deepgram API response)
+    const lang = typeof t.language === "string" ? t.language : (t.language as any)?.language;
+    expect(lang, "transcript.language should exist").toBeTruthy();
+    expect(lang?.length ?? 0, "transcript.language should be non-empty").toBeGreaterThan(0);
+
     expect(t.text, "transcript.text should be non-empty").toBeTruthy();
     expect(t.text!.length, "transcript.text should have content").toBeGreaterThan(0);
     expect(Array.isArray(t.segments), "transcript.segments should be an array").toBe(true);

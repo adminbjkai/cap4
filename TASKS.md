@@ -1,18 +1,21 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-06 (Phase 2 complete ✓, testing suite complete ✓, Phase 3 hardening in progress)
+**Last updated:** 2026-03-09 (Phase 1–3 complete ✓, Phase 4 integration tests ready ✓)
 
 ---
 
 ## Active
 
-### Phase 3 — Hardening
+### Phase 4 — Integration Tests (READY TO RUN)
 
-- [x] **Rate limiting** — `@fastify/rate-limit` v9 registered globally (100 req/min per IP); webhooks exempt via `rateLimit: false`
-- [x] **Nginx upload size limit** — `client_max_body_size 2g;` added to both nginx configs
-- [x] **pnpm audit** — 4 vulns found: fastify bumped to ^5.8.1 (fixes HIGH CVE + LOW DoS); `routerPath` → `routeOptions.url` migration applied; esbuild moderate is dev-server-only (low production risk); fast-xml-parser low is @aws-sdk transitive (no direct fix available). **Run `pnpm install` on your Mac to complete the fastify v5 upgrade.**
-- [x] **Audit Deepgram/Groq key logging** — `@cap/logger` clean: pino `redact` already strips `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, `MEDIA_SERVER_WEBHOOK_SECRET`, `DATABASE_URL` with `remove: true`
-- [ ] **Integration tests** — Full upload → transcription → AI → complete flow
+- [x] **Vitest integration config** — 180s timeout, singleFork execution (tests/integration/** pattern)
+- [x] **Test fixtures** — ffmpeg-based MP4 generation with audio, fragmented format support
+- [x] **Full-flow tests (7)** — Create video → sign URL → PUT file → complete upload → poll until complete → verify transcript + AI fields
+- [x] **API contract tests (11)** — 404 handling, missing headers, idempotency, soft-delete, health/ready endpoints
+- [x] **Fastify v5 compatibility fix** — Moved `@fastify/rate-limit` from devDependencies → dependencies (v10.3.0)
+- [x] **cap3 → cap4 naming** — 14 files updated (docker-compose.yml, configs, routes, components, docs)
+
+**Next:** `docker compose up -d` → `pnpm test:integration` (on your Mac)
 
 ---
 
@@ -30,6 +33,14 @@
 
 ## Completed
 
+### Phase 3 — Hardening (✓ Complete)
+- [x] **Rate limiting** — `@fastify/rate-limit` v10.3.0 registered globally (100 req/min per IP); webhooks exempt via `rateLimit: false`
+- [x] **Nginx upload size limit** — `client_max_body_size 2g;` added to both nginx configs
+- [x] **Security audit** — fastify bumped to ^5.8.1; `routerPath` → `routeOptions.url` migration applied
+- [x] **Key log audit** — `@cap/logger` pino redact strips API keys + secrets with `remove: true`
+- [x] **cap3→cap4 naming** — Commit edd4120 (14 files, 34 insertions, 183 deletions)
+
+### Earlier phases
 - [x] Full audit of all 4 project versions (v1/v2/v3/v4)
 - [x] Write CAP4_MASTER_PLAN.md — authoritative synthesis
 - [x] Rewrite all documentation (11 files in cap4/docs/)

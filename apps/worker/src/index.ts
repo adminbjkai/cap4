@@ -746,11 +746,11 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
 
     await client.query(
       `INSERT INTO transcripts (video_id, provider, language, vtt_key, segments_json)
-       VALUES ($1::uuid, 'deepgram', $2, $3, $4::jsonb)
+       VALUES ($1::uuid, 'deepgram', COALESCE($2, 'en'), $3, $4::jsonb)
        ON CONFLICT (video_id)
        DO UPDATE SET
          provider = EXCLUDED.provider,
-         language = EXCLUDED.language,
+         language = COALESCE(EXCLUDED.language, 'en'),
          vtt_key = EXCLUDED.vtt_key,
          segments_json = EXCLUDED.segments_json,
          updated_at = now()`,

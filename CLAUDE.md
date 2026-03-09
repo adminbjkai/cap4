@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-03-09
+**Last updated:** 2026-03-09 (Phase 4 integration tests ready)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -9,11 +9,20 @@
 
 ## Current State
 
-Phases 1–3 complete. Tagged v1.1.0. Repository is clean and production-ready.
+Phases 1–3 complete. Tagged v1.1.0. Repository clean.
+**Phase 4 — Integration Tests:** Ready to run. Vitest suite created with 18 tests (7 pipeline + 11 API contract).
 
-**Next:** Phase 4 — integration tests (full upload → transcription → AI → complete flow, requires live Docker stack). After that, Phase 5 (multi-tenant auth) if desired.
+### Latest Changes
+- ✅ cap3 → cap4 naming transition: 14 files, 34 insertions, 183 deletions (commit edd4120)
+- ✅ Integration test suite: fixtures.ts + full-flow.test.ts + separate vitest configs
+- ✅ Fixed fastify v5 compatibility: moved @fastify/rate-limit from devDependencies → dependencies (v10.3.0)
+- ✅ TypeScript compilation: all 7 workspace projects pass typecheck
 
-**Pending action (on your Mac):** Run `pnpm install` after the v1.1.0 push to pull fastify v5 into the store.
+**Next Actions (on your Mac):**
+1. `pnpm install` — pull latest dependencies
+2. `docker compose up -d` — start 7-service stack
+3. Wait ~60 seconds for all services healthy
+4. `pnpm test:integration` — run full pipeline tests
 
 ---
 
@@ -57,7 +66,7 @@ Phases 1–3 complete. Tagged v1.1.0. Repository is clean and production-ready.
 | Phase 1 | API split + GitHub repo creation ✓ |
 | Phase 2 | Player UI (ChapterList, TranscriptParagraph, lg breakpoint) ✓ |
 | Phase 3 | Hardening (rate limiting, nginx, fastify v5, key log audit) ✓ |
-| Phase 4 | Integration tests — full upload → AI pipeline (next) |
+| Phase 4 | Integration tests — full upload → AI pipeline (READY: 18 tests created + fastify v5 fixed) ✓ |
 | progress_bucket | Webhook dedup column — prevents duplicate 10%-bucket updates |
 | delivery_id | Webhook idempotency key stored in webhook_deliveries table |
 | phase_rank | Integer enforcing monotonic state transitions |

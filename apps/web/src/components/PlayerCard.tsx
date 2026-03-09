@@ -136,8 +136,9 @@ export function PlayerCard({
               ref={videoRef}
               controls
               playsInline
-              className="aspect-video w-full"
+              className="aspect-video w-full bg-black"
               src={videoUrl ?? undefined}
+              poster={thumbnailUrl ?? undefined}
               onLoadedMetadata={(event) => {
                 const time = event.currentTarget.currentTime || 0;
                 const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0;
