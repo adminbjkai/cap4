@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
-import type { VideoStatusResponse } from "../lib/api";
+import { useMemo, useState } from 'react';
+import type { VideoStatusResponse } from '../lib/api';
 
 type SummaryCardProps = {
-  aiStatus: VideoStatusResponse["aiStatus"] | undefined;
-  aiOutput: VideoStatusResponse["aiOutput"] | null | undefined;
+  aiStatus: VideoStatusResponse['aiStatus'] | undefined;
+  aiOutput: VideoStatusResponse['aiOutput'] | null | undefined;
   errorMessage: string | null | undefined;
   shareableResultUrl: string | null;
   chapters: Array<{ title: string; seconds: number }>;
@@ -16,13 +16,13 @@ type TimedKeyPoint = { title: string; jumpSeconds: number | null };
 
 function formatTimestamp(secondsInput: number): string {
   const totalSeconds = Math.max(0, Math.floor(secondsInput));
-  const hours   = Math.floor(totalSeconds / 3600);
+  const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   if (hours > 0) {
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 export function SummaryCard({
@@ -38,25 +38,30 @@ export function SummaryCard({
 
   const summaryForCopy = useMemo(() => {
     if (!aiOutput) return null;
-    const title   = aiOutput.title?.trim()   ? `Title: ${aiOutput.title.trim()}`   : null;
+    const title = aiOutput.title?.trim() ? `Title: ${aiOutput.title.trim()}` : null;
     const summary = aiOutput.summary?.trim() ? `Summary: ${aiOutput.summary.trim()}` : null;
-    const points  = aiOutput.keyPoints.length > 0
-      ? `Key points:\n${aiOutput.keyPoints.map((p) => `- ${p}`).join("\n")}`
-      : null;
-    return [title, summary, points].filter(Boolean).join("\n\n");
+    const points =
+      aiOutput.keyPoints.length > 0
+        ? `Key points:\n${aiOutput.keyPoints.map(p => `- ${p}`).join('\n')}`
+        : null;
+    return [title, summary, points].filter(Boolean).join('\n\n');
   }, [aiOutput]);
 
   const copyValue = async (value: string, successLabel: string, failureLabel: string) => {
-    try { await navigator.clipboard.writeText(value); setCopyFeedback(successLabel); }
-    catch { setCopyFeedback(failureLabel); }
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFeedback(successLabel);
+    } catch {
+      setCopyFeedback(failureLabel);
+    }
     window.setTimeout(() => setCopyFeedback(null), 1800);
   };
 
   const chapterItems = useMemo<TimedKeyPoint[]>(() => {
-    const usable = chapters.filter((c) => Number.isFinite(c.seconds) && c.seconds >= 0);
-    if (usable.length > 0) return usable.map((c) => ({ title: c.title, jumpSeconds: c.seconds }));
+    const usable = chapters.filter(c => Number.isFinite(c.seconds) && c.seconds >= 0);
+    if (usable.length > 0) return usable.map(c => ({ title: c.title, jumpSeconds: c.seconds }));
     if (!aiOutput) return [];
-    return aiOutput.keyPoints.map((p) => ({ title: p, jumpSeconds: null }));
+    return aiOutput.keyPoints.map(p => ({ title: p, jumpSeconds: null }));
   }, [aiOutput, chapters]);
 
   /* ── Compact (rail-embedded) render ────────────────────────────────────── */
@@ -64,38 +69,42 @@ export function SummaryCard({
     return (
       <div className="flex flex-col h-full">
         {/* Status messages */}
-        {(aiStatus === "queued" || aiStatus === "processing") && (
-          <p className="px-4 pt-4 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+        {(aiStatus === 'queued' || aiStatus === 'processing') && (
+          <p className="px-4 pt-4 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
             Summary generation is in progress.
           </p>
         )}
-        {aiStatus === "not_started" && (
-          <p className="px-4 pt-4 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+        {aiStatus === 'not_started' && (
+          <p className="px-4 pt-4 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
             Summary generates after transcript completes.
           </p>
         )}
-        {aiStatus === "skipped" && (
+        {aiStatus === 'skipped' && (
           <p className="panel-subtle m-4 text-[13px]">
             Summary was skipped — no transcript available.
           </p>
         )}
-        {aiStatus === "failed" && (
+        {aiStatus === 'failed' && (
           <p className="panel-danger m-4 text-[13px]">
-            {errorMessage ? `Summary failed: ${errorMessage}` : "Summary failed after retries."}
+            {errorMessage ? `Summary failed: ${errorMessage}` : 'Summary failed after retries.'}
           </p>
         )}
-        {aiStatus === "complete" && !aiOutput?.summary && !aiOutput?.title && (
-          <p className="panel-subtle m-4 text-[13px]">Summary completed but no content was returned.</p>
+        {aiStatus === 'complete' && !aiOutput?.summary && !aiOutput?.title && (
+          <p className="panel-subtle m-4 text-[13px]">
+            Summary completed but no content was returned.
+          </p>
         )}
 
-        {aiStatus === "complete" && aiOutput && (
+        {aiStatus === 'complete' && aiOutput && (
           <div className="px-4 py-3 space-y-4">
             {/* Generated by label */}
-            <p className="text-[11px] italic" style={{ color: "var(--text-muted)" }}>Generated by Cap AI</p>
+            <p className="text-[11px] italic" style={{ color: 'var(--text-muted)' }}>
+              Generated by Cap AI
+            </p>
 
             {/* Summary text */}
             {aiOutput.summary && (
-              <p className="text-[13px] leading-[1.55]" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[13px] leading-[1.55]" style={{ color: 'var(--text-secondary)' }}>
                 {aiOutput.summary}
               </p>
             )}
@@ -104,7 +113,9 @@ export function SummaryCard({
             {summaryForCopy && (
               <button
                 type="button"
-                onClick={() => void copyValue(summaryForCopy, "Summary copied", "Unable to copy summary.")}
+                onClick={() =>
+                  void copyValue(summaryForCopy, 'Summary copied', 'Unable to copy summary.')
+                }
                 className="btn-secondary text-[11px] px-2 py-0.5"
               >
                 Copy summary
@@ -114,22 +125,30 @@ export function SummaryCard({
             {/* Chapters in summary tab */}
             {chapterItems.length > 0 && (
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide mb-2"
-                   style={{ color: "var(--text-muted)" }}>Chapters</p>
-                <ol className="space-y-0 divide-y" style={{ borderColor: "var(--border-default)" }}>
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-wide mb-2"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Chapters
+                </p>
+                <ol className="space-y-0 divide-y" style={{ borderColor: 'var(--border-default)' }}>
                   {chapterItems.map((chapter, index) => (
-                    <li key={`${chapter.title}-${index}-${chapter.jumpSeconds ?? "na"}`}>
+                    <li key={`${chapter.title}-${index}-${chapter.jumpSeconds ?? 'na'}`}>
                       <button
                         type="button"
-                        onClick={() => { if (chapter.jumpSeconds !== null) onJumpToSeconds(chapter.jumpSeconds); }}
+                        onClick={() => {
+                          if (chapter.jumpSeconds !== null) onJumpToSeconds(chapter.jumpSeconds);
+                        }}
                         disabled={chapter.jumpSeconds === null}
-                        className="flex w-full items-center gap-3 px-1 py-2 text-left transition-colors disabled:opacity-60"
-                        style={{ color: "var(--text-primary)" }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover-surface)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+                        className="summary-chapter-link flex w-full items-center gap-3 px-1 py-2 text-left transition-colors disabled:opacity-60"
                       >
-                        <span className="font-mono text-[11px] w-10 shrink-0" style={{ color: "var(--text-muted)" }}>
-                          {chapter.jumpSeconds !== null ? formatTimestamp(chapter.jumpSeconds) : "--:--"}
+                        <span
+                          className="font-mono text-[11px] w-10 shrink-0"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {chapter.jumpSeconds !== null
+                            ? formatTimestamp(chapter.jumpSeconds)
+                            : '--:--'}
                         </span>
                         <span className="flex-1 text-[13px] leading-snug">{chapter.title}</span>
                       </button>
@@ -142,7 +161,7 @@ export function SummaryCard({
         )}
 
         {copyFeedback && (
-          <p className="px-4 pb-2 text-[11px] font-medium" style={{ color: "var(--text-muted)" }}>
+          <p className="px-4 pb-2 text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
             {copyFeedback}
           </p>
         )}
@@ -158,34 +177,38 @@ export function SummaryCard({
           <p className="workspace-label">Summary</p>
           <h2 className="workspace-title">Summary and Chapters</h2>
         </div>
-        <span className="status-chip">{aiStatus ?? "not_started"}</span>
+        <span className="status-chip">{aiStatus ?? 'not_started'}</span>
       </div>
 
-      {(aiStatus === "queued" || aiStatus === "processing") && (
-        <p className="text-sm legacy-muted">Summary generation is in progress.</p>
+      {(aiStatus === 'queued' || aiStatus === 'processing') && (
+        <p className="text-sm text-hint">Summary generation is in progress.</p>
       )}
-      {aiStatus === "not_started" && (
-        <p className="text-sm legacy-muted">Summary generation starts after transcript completion.</p>
+      {aiStatus === 'not_started' && (
+        <p className="text-sm text-hint">Summary generation starts after transcript completion.</p>
       )}
-      {aiStatus === "skipped" && (
-        <p className="panel-subtle">Summary was skipped because transcript input was not available.</p>
-      )}
-      {aiStatus === "failed" && (
-        <p className="panel-danger">
-          {errorMessage ? `Summary failed: ${errorMessage}` : "Summary failed after retries."}
+      {aiStatus === 'skipped' && (
+        <p className="panel-subtle">
+          Summary was skipped because transcript input was not available.
         </p>
       )}
-      {aiStatus === "complete" && !aiOutput?.summary && !aiOutput?.title && (
+      {aiStatus === 'failed' && (
+        <p className="panel-danger">
+          {errorMessage ? `Summary failed: ${errorMessage}` : 'Summary failed after retries.'}
+        </p>
+      )}
+      {aiStatus === 'complete' && !aiOutput?.summary && !aiOutput?.title && (
         <p className="panel-subtle">Summary completed, but no content was returned.</p>
       )}
 
-      {aiStatus === "complete" && aiOutput && (
+      {aiStatus === 'complete' && aiOutput && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {summaryForCopy && (
               <button
                 type="button"
-                onClick={() => void copyValue(summaryForCopy, "Summary copied", "Unable to copy summary.")}
+                onClick={() =>
+                  void copyValue(summaryForCopy, 'Summary copied', 'Unable to copy summary.')
+                }
                 className="btn-secondary text-xs px-2.5 py-1"
               >
                 Copy summary
@@ -194,24 +217,36 @@ export function SummaryCard({
           </div>
           {aiOutput.title && <h3 className="text-xl font-semibold">{aiOutput.title}</h3>}
           {aiOutput.summary && (
-            <p className="panel-subtle rounded-lg px-4 py-3 text-sm leading-relaxed">{aiOutput.summary}</p>
+            <p className="panel-subtle rounded-lg px-4 py-3 text-sm leading-relaxed">
+              {aiOutput.summary}
+            </p>
           )}
           {chapterItems.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
+              <p
+                className="text-xs font-semibold uppercase tracking-wide mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
                 Chapters
               </p>
               <ol className="space-y-1">
                 {chapterItems.map((chapter, index) => (
-                  <li key={`${chapter.title}-${index}-${chapter.jumpSeconds ?? "na"}`}>
+                  <li key={`${chapter.title}-${index}-${chapter.jumpSeconds ?? 'na'}`}>
                     <button
                       type="button"
-                      onClick={() => { if (chapter.jumpSeconds !== null) onJumpToSeconds(chapter.jumpSeconds); }}
+                      onClick={() => {
+                        if (chapter.jumpSeconds !== null) onJumpToSeconds(chapter.jumpSeconds);
+                      }}
                       disabled={chapter.jumpSeconds === null}
                       className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-surface-muted disabled:opacity-60"
                     >
-                      <span className="font-mono text-xs w-12 shrink-0" style={{ color: "var(--text-muted)" }}>
-                        {chapter.jumpSeconds !== null ? formatTimestamp(chapter.jumpSeconds) : "--:--"}
+                      <span
+                        className="font-mono text-xs w-12 shrink-0"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {chapter.jumpSeconds !== null
+                          ? formatTimestamp(chapter.jumpSeconds)
+                          : '--:--'}
                       </span>
                       <span className="flex-1 text-sm leading-snug">{chapter.title}</span>
                     </button>
@@ -223,7 +258,9 @@ export function SummaryCard({
         </div>
       )}
       {copyFeedback && (
-        <p className="mt-3 text-xs font-medium" style={{ color: "var(--text-muted)" }}>{copyFeedback}</p>
+        <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+          {copyFeedback}
+        </p>
       )}
     </div>
   );

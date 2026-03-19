@@ -2,7 +2,7 @@
 
 Component library, token reference, and UI patterns.
 
-> **Last updated:** 2026-03-09 (Phase 4.6 — design system overhaul, 3-tab rail, seeker preview)
+> **Last updated:** 2026-03-09 (Phase 4.7 — sage accent tokenization + agent sprint components)
 
 ---
 
@@ -23,26 +23,27 @@ The design system has two layers:
 
 | CSS Variable | Tailwind | Value | Usage |
 |---|---|---|---|
-| `--bg-app` | `bg-app` | `#f9f9fb` | Page background |
+| `--bg-app` | `bg-app` | `#f9fafb` | Page background |
 | `--bg-surface` | `bg-surface` | `#ffffff` | Cards, panels |
-| `--bg-surface-subtle` | `bg-surface-subtle` | `#f4f4f6` | Inputs, inset areas |
-| `--bg-surface-muted` | `bg-surface-muted` | `#ebebed` | Hover backgrounds |
+| `--bg-surface-subtle` | `bg-surface-subtle` | `#f3f4f6` | Inputs, inset areas |
+| `--bg-surface-muted` | `bg-surface-muted` | `#e5e7eb` | Hover backgrounds |
 | `--bg-elevated` | `bg-elevated` | `#ffffff` | Tooltips, popovers |
-| `--text-primary` | `text-foreground` | `#111113` | Headings, primary text |
-| `--text-secondary` | `text-secondary` | `#3d3d44` | Body text |
-| `--text-muted` | `text-muted` | `#717179` | Labels, timestamps, hints |
-| `--border-default` | — | `#e2e2e6` | Default borders |
-| `--border-strong` | — | `#c8c8ce` | Focused/active borders |
-| `--accent` | `text-primary` / `bg-primary` | `#111113` | Primary buttons, ink |
-| `--accent-blue` | `text-blue` / `bg-blue` | `#2563eb` | Tabs, active states, focus |
-| `--accent-blue-subtle` | `bg-blue-subtle` | `#eff6ff` | Active transcript line bg |
-| `--accent-blue-border` | — | `#bfdbfe` | Active item border |
-| `--accent-blue-muted` | — | `#dbeafe` | Focus rings, glow |
-| `--hover-surface` | `bg-hover` | `#f0f0f3` | Row hover |
+| `--text-primary` | `text-foreground` | `#1f2937` | Headings, primary text |
+| `--text-secondary` | `text-secondary` | `#6b7280` | Body text |
+| `--text-muted` | `text-muted` | `#9ca3af` | Labels, timestamps, hints |
+| `--border-default` | — | `#e5e7eb` | Default borders |
+| `--border-strong` | — | `#d1d5db` | Focused/active borders |
+| `--accent` | `text-primary` / `bg-primary` | `#1f2937` | Primary ink |
+| `--accent-blue` | `text-blue` / `bg-blue` | `#6b8f71` | Tabs, active states, focus |
+| `--accent-blue-hover` | — | `#5a7d60` | Accent hover |
+| `--accent-blue-subtle` | `bg-blue-subtle` | `#f0f5f1` | Active transcript line bg |
+| `--accent-blue-border` | — | `#b8d4bc` | Active item border |
+| `--accent-blue-muted` | — | `#dce8dd` | Focus rings, glow |
+| `--hover-surface` | `bg-hover` | `#f3f4f6` | Row hover |
 
 ### Dark Mode (`.theme-dark`)
 
-Key differences from light: `--bg-app: #09090b`, `--bg-surface: #111113`, `--accent-blue: #3b82f6` (brighter for contrast), `--accent-blue-subtle: rgba(59,130,246,0.10)`, `--focus-ring: rgba(96,165,250,0.22)`. See `index.css` for full set.
+Key differences from light: `--bg-app: #0a0a0a`, `--bg-surface: #141414`, `--bg-surface-subtle: #1e1e1e`, `--bg-surface-muted: #2a2a2a`, `--text-primary: #e8e8e8`, `--text-secondary: #a0a0a0`, `--text-muted: #6b6b6b`, `--border-default: #2a2a2a`, `--border-strong: #3a3a3a`, `--accent-blue: #7da882`, `--accent-blue-hover: #93bea0`.
 
 ---
 
@@ -64,6 +65,16 @@ Font stack: `Inter, system-ui, -apple-system, sans-serif` / `JetBrains Mono, Men
 
 All defined in `apps/web/src/index.css` under `@layer components`.
 
+### Component Inventory Additions (BJK-9 through BJK-18)
+
+| Component | Purpose |
+|---|---|
+| `CommandPalette` | Keyboard-first command launcher for navigation/actions |
+| `CustomVideoControls` | Custom playback control bar replacing native video controls |
+| `ShortcutsOverlay` | Modal reference for supported keyboard shortcuts |
+| Speaker badges | Per-speaker identity and editing affordances in transcript rows |
+| Summary strip | Compact AI summary band between player and chapter list |
+
 ### Cards & Panels
 ```
 .workspace-card    standard card — border + bg-surface + hover shadow
@@ -82,6 +93,13 @@ All defined in `apps/web/src/index.css` under `@layer components`.
 ### Inputs
 ```
 .input-control     rounded-lg, focus ring in --accent-blue
+```
+
+### Command Surfaces
+```
+.command-palette-shell  searchable modal shell for quick actions
+.command-palette-item   keyboard-focusable result row
+.shortcuts-overlay      keyboard shortcut reference modal
 ```
 
 ### Toggles
@@ -108,12 +126,32 @@ All defined in `apps/web/src/index.css` under `@layer components`.
 .seeker-hover-indicator cursor hairline on hover
 ```
 
+### Custom Video Controls
+```
+.custom-video-controls       unified playback control container
+.custom-video-control-button icon button with visible focus ring
+.custom-video-timecode       mono current/duration display
+```
+
 ### Right Rail (3-tab)
 ```
 .rail-tab-bar      tab strip — border-bottom
 .rail-tab          individual tab button
 .rail-tab-active   selected — blue underline + primary text
 .notes-textarea    transparent textarea for Notes tab
+```
+
+### Speaker Diarization
+```
+.speaker-badge           per-speaker color badge
+.speaker-badge-editing   editable label input state
+.speaker-filter-chip     show/hide speaker filter chip
+```
+
+### Summary Strip
+```
+.summary-strip      compact AI summary band between player and chapters
+.summary-strip-copy truncated summary body text
 ```
 
 ### Chapters
@@ -137,7 +175,7 @@ Container: `max-height: 520px`, scrollable with thin scrollbar.
 
 ## Video Player Features
 
-- Native `<video>` controls
+- Custom player controls (native controls disabled)
 - **Custom chapter timeline overlay** — dot markers at chapter positions
 - **Seeker hover preview** — hover anywhere on the track → timestamp tooltip + nearest chapter title
 - **Clickable track** — click any position to seek

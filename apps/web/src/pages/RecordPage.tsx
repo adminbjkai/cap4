@@ -512,7 +512,7 @@ export function RecordPage() {
           <div>
             <p className="workspace-label">Capture studio</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">Record or upload</h1>
-            <p className="mt-2 max-w-2xl text-sm legacy-muted">
+            <p className="mt-2 max-w-2xl text-sm text-hint">
               Capture a screen, tab, or window with microphone audio, then preview and hand it off to the processing pipeline.
             </p>
           </div>
@@ -698,7 +698,7 @@ export function RecordPage() {
           {!previewUrl ? (
             <div className="panel-subtle mt-4 border-dashed">
               <p className="text-sm font-medium">No preview yet</p>
-              <p className="mt-1 text-sm legacy-muted">Stop a recording or select a local video file to continue.</p>
+              <p className="mt-1 text-sm text-hint">Stop a recording or select a local video file to continue.</p>
             </div>
           ) : (
             <>

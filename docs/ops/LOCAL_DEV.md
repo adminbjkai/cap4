@@ -39,14 +39,14 @@ service applies any pending SQL files from `db/migrations/` using
 
 ### Services & Ports
 
-| Service | Host URL | Purpose |
-|---------|----------|---------|
-| **web (nginx)** | http://localhost:8022 | React frontend + MinIO proxy |
-| **web-api** | http://localhost:3000 | Fastify HTTP API |
-| **media-server** | http://localhost:3100 | FFmpeg processing |
-| **postgres** | localhost:5432 | Database |
-| **minio API** | http://localhost:8922 | S3-compatible object storage |
-| **minio console** | http://localhost:8923 | MinIO admin UI |
+| Service           | Host URL              | Purpose                      |
+| ----------------- | --------------------- | ---------------------------- |
+| **web (nginx)**   | http://localhost:8022 | React frontend + MinIO proxy |
+| **web-api**       | http://localhost:3000 | Fastify HTTP API             |
+| **media-server**  | http://localhost:3100 | FFmpeg processing            |
+| **postgres**      | localhost:5432        | Database                     |
+| **minio API**     | http://localhost:8922 | S3-compatible object storage |
+| **minio console** | http://localhost:8923 | MinIO admin UI               |
 
 MinIO default credentials (from `.env.example`): `minio` / `minio123`
 
@@ -153,11 +153,19 @@ apt-get install ffmpeg   # Ubuntu/Debian
 ### Apply Migrations (One-Time, and After Each New Migration File)
 
 ```bash
-psql -U app -d cap4 -f db/migrations/0001_init.sql
-psql -U app -d cap4 -f db/migrations/0002_video_soft_delete.sql
-psql -U app -d cap4 -f db/migrations/0003_add_webhook_reporting.sql
-psql -U app -d cap4 -f db/migrations/0004_fix_transcript_language.sql
+for f in db/migrations/*.sql; do
+  psql -U app -d cap4 -f "$f"
+done
 ```
+
+Current migration set:
+
+- `0001_init.sql`
+- `0002_video_soft_delete.sql`
+- `0003_add_webhook_reporting.sql`
+- `0004_fix_transcript_language.sql`
+- `0005_add_ai_enrichment_fields.sql`
+- `0006_add_transcript_speaker_labels.sql`
 
 ### Environment File for Local Dev
 
@@ -207,11 +215,11 @@ Open the app at `http://localhost:5173`.
 
 Understanding where video files are loaded from:
 
-| Runtime | URL pattern | Resolved by |
-|---------|------------|-------------|
-| **Docker via nginx** | `/cap4/videos/.../result.mp4` (relative) | nginx proxies `/cap4/` → MinIO (internal :9000) |
-| **Docker Vite dev** + `VITE_S3_PUBLIC_ENDPOINT=http://localhost:8922` | `http://localhost:8922/cap4/...` | Browser → MinIO directly at host port 8922 |
-| **Local (no Docker) Vite dev** | `/cap4/videos/.../result.mp4` (relative) | Vite dev server proxies `/cap4/` → `http://localhost:9000` |
+| Runtime                                                               | URL pattern                              | Resolved by                                                |
+| --------------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| **Docker via nginx**                                                  | `/cap4/videos/.../result.mp4` (relative) | nginx proxies `/cap4/` → MinIO (internal :9000)            |
+| **Docker Vite dev** + `VITE_S3_PUBLIC_ENDPOINT=http://localhost:8922` | `http://localhost:8922/cap4/...`         | Browser → MinIO directly at host port 8922                 |
+| **Local (no Docker) Vite dev**                                        | `/cap4/videos/.../result.mp4` (relative) | Vite dev server proxies `/cap4/` → `http://localhost:9000` |
 
 `buildPublicObjectUrl(key)` in `apps/web/src/lib/format.ts` reads
 `VITE_S3_PUBLIC_ENDPOINT` at build time. If unset, it falls back to a relative
@@ -268,6 +276,7 @@ SELECT version, applied_at FROM schema_migrations ORDER BY version;
 ## Troubleshooting
 
 ### Port already in use
+
 ```bash
 lsof -i :3000   # web-api
 lsof -i :8022   # nginx
@@ -275,19 +284,24 @@ lsof -i :8922   # MinIO
 ```
 
 ### `relation "..." does not exist` (empty database)
+
 - **Docker:** `make reset-db` — migrations auto-apply on startup
 - **Local:** Run the migration SQL files manually (see above)
 
 ### Presigned upload fails
+
 `S3_PUBLIC_ENDPOINT` must be browser-accessible (not a Docker service name):
+
 - Docker: `http://localhost:8922`
 - Local: `http://localhost:9000`
 
 ### Worker not processing jobs
+
 ```bash
 docker compose logs worker      # Docker
 # or check the terminal running pnpm dev:worker
 ```
+
 Confirm `DATABASE_URL` and MinIO credentials are correct in `.env`.
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more common fixes.

@@ -25,6 +25,25 @@ The source code is production-ready now. The work remaining is: split the monoli
 
 ---
 
+## Phase 4.7 — Agent Sprint (BJK-9 through BJK-18) (Completed)
+
+The focused agent sprint shipped ten product and platform improvements end-to-end:
+
+- **BJK-9:** Micro-animations and transitions system (page/card/modal motion polish)
+- **BJK-10:** Color system redesign with refined dark mode token hierarchy
+- **BJK-11:** Custom video player controls replacing native browser chrome
+- **BJK-12:** Rich library card redesign (thumbnail overlays, hover states, processing affordances)
+- **BJK-13:** Command palette plus keyboard shortcuts and shortcuts overlay
+- **BJK-14:** Speaker diarization UI with editable labels and speaker filtering
+- **BJK-15:** Confidence-aware transcript review mode and highlighting for uncertain segments
+- **BJK-16:** Enhanced Groq prompt pipeline with entities, action items, quotes, sentiment, and schema validation
+- **BJK-17:** Transcript full-text search with highlighting and keyboard match navigation
+- **BJK-18:** Sage-green visual refresh, true-dark surfaces, delete-button interaction fix, summary strip between player and chapters
+
+Result: Phases 1-4.6 + BJK-9 through BJK-18 are complete. Next strategic milestone remains **Phase 5 (Auth)**, deferred by owner decision.
+
+---
+
 ## What We Learned from Each Version
 
 ### From v1 (Cap open-source)

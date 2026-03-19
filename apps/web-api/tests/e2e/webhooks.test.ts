@@ -82,7 +82,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': signature,
         'x-cap-delivery-id': deliveryId,
@@ -112,7 +112,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': 'v1=invalid-signature-hash',
         'x-cap-delivery-id': deliveryId,
@@ -138,7 +138,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-signature': 'v1=some-signature',
         'x-cap-delivery-id': deliveryId,
       },
@@ -164,7 +164,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-delivery-id': deliveryId,
       },
@@ -192,7 +192,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': signature,
       },
@@ -222,7 +222,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': signature,
         'x-cap-delivery-id': deliveryId,
@@ -246,7 +246,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': signature,
         'x-cap-delivery-id': deliveryId,
@@ -277,7 +277,7 @@ test.describe('Webhooks API', () => {
 
     const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': signature,
         'x-cap-delivery-id': deliveryId,
@@ -306,7 +306,7 @@ test.describe('Webhooks API', () => {
     const signature = generateWebhookSignature(payloadString, timestamp);
 
     const headers = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/cap4-webhook+json',
       'x-cap-timestamp': timestamp,
       'x-cap-signature': signature,
       'x-cap-delivery-id': deliveryId,
@@ -339,7 +339,7 @@ test.describe('Webhooks API', () => {
     const payload = {
       jobId,
       videoId,
-      phase: 'encoding',
+      phase: 'processing',
       progress: 80,
       metadata: {
         duration: 150.3,
@@ -354,7 +354,7 @@ test.describe('Webhooks API', () => {
 
     const webhookResponse = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/cap4-webhook+json',
         'x-cap-timestamp': timestamp,
         'x-cap-signature': signature,
         'x-cap-delivery-id': deliveryId,
@@ -369,7 +369,7 @@ test.describe('Webhooks API', () => {
     expect(statusResponse.status()).toBe(200);
 
     const statusBody = await statusResponse.json();
-    expect(statusBody.processingPhase).toBe('encoding');
+    expect(statusBody.processingPhase).toBe('processing');
     expect(statusBody.processingProgress).toBe(80);
   });
 });

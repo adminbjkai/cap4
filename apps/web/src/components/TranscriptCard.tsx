@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { VideoStatusResponse } from "../lib/api";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import type { VideoStatusResponse } from '../lib/api';
 
 type TranscriptCardProps = {
-  transcriptionStatus: VideoStatusResponse["transcriptionStatus"] | undefined;
-  transcript: VideoStatusResponse["transcript"] | null | undefined;
+  transcriptionStatus: VideoStatusResponse['transcriptionStatus'] | undefined;
+  transcript: VideoStatusResponse['transcript'] | null | undefined;
   errorMessage: string | null | undefined;
   playbackTimeSeconds: number;
   onSeekToSeconds: (seconds: number) => void;
@@ -24,14 +24,14 @@ type TranscriptLine = {
 };
 
 const SPEAKER_PALETTE = [
-  "#0ea5e9",
-  "#f97316",
-  "#22c55e",
-  "#a855f7",
-  "#e11d48",
-  "#14b8a6",
-  "#f59e0b",
-  "#6366f1",
+  '#7dd3fc',
+  '#fdba74',
+  '#86efac',
+  '#d8b4fe',
+  '#fda4af',
+  '#99f6e4',
+  '#fcd34d',
+  '#a5b4fc',
 ];
 
 function defaultSpeakerLabel(speaker: number): string {
@@ -43,12 +43,12 @@ function speakerColor(speaker: number): string {
 }
 
 function normalizeSpeakerLabels(input: unknown): Record<string, string> {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const out: Record<string, string> = {};
   for (const [rawKey, rawValue] of Object.entries(input as Record<string, unknown>)) {
     const keyNum = Number(rawKey);
     if (!Number.isInteger(keyNum) || keyNum < 0) continue;
-    const value = String(rawValue ?? "").trim();
+    const value = String(rawValue ?? '').trim();
     if (!value) continue;
     out[String(keyNum)] = value.slice(0, 80);
   }
@@ -61,9 +61,9 @@ function formatTimestamp(secondsInput: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   if (hours > 0) {
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 export function TranscriptCard({
@@ -74,18 +74,18 @@ export function TranscriptCard({
   onSeekToSeconds,
   onSaveTranscript,
   onSaveSpeakerLabels,
-  compact = false
+  compact = false,
 }: TranscriptCardProps) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [observedPlaybackTime, setObservedPlaybackTime] = useState<number | null>(null);
   const [seekFocusSeconds, setSeekFocusSeconds] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [draftText, setDraftText] = useState("");
+  const [draftText, setDraftText] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [textViewMode, setTextViewMode] = useState<"current" | "original">("current");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [textViewMode, setTextViewMode] = useState<'current' | 'original'>('current');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
@@ -96,18 +96,18 @@ export function TranscriptCard({
   const [reviewIndex, setReviewIndex] = useState(0);
   const [hoveredLineIndex, setHoveredLineIndex] = useState<number | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
-  const [speakerLabels, setSpeakerLabels] = useState<Record<string, string>>(
-    () => normalizeSpeakerLabels(transcript?.speakerLabels ?? {})
+  const [speakerLabels, setSpeakerLabels] = useState<Record<string, string>>(() =>
+    normalizeSpeakerLabels(transcript?.speakerLabels ?? {})
   );
   const [hiddenSpeakers, setHiddenSpeakers] = useState<Set<number>>(new Set());
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
   const [editingSpeakerLineIndex, setEditingSpeakerLineIndex] = useState<number | null>(null);
-  const [speakerDraft, setSpeakerDraft] = useState("");
+  const [speakerDraft, setSpeakerDraft] = useState('');
   const [speakerSaveError, setSpeakerSaveError] = useState<string | null>(null);
   const [isSavingSpeaker, setIsSavingSpeaker] = useState(false);
 
   // Track verified segments in localStorage
-  const videoId = transcript?.vttKey?.split("/")[0] ?? "unknown";
+  const videoId = transcript?.vttKey?.split('/')[0] ?? 'unknown';
   const verifiedSegmentsKey = `cap4:verified-segments:${videoId}`;
   const [verifiedSegments, setVerifiedSegments] = useState<Set<number>>(() => {
     try {
@@ -120,7 +120,7 @@ export function TranscriptCard({
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      const player = document.querySelector("video");
+      const player = document.querySelector('video');
       if (!(player instanceof HTMLVideoElement)) return;
       const next = player.currentTime;
       if (Number.isFinite(next)) {
@@ -140,9 +140,9 @@ export function TranscriptCard({
       if (resetTimer) window.clearTimeout(resetTimer);
       resetTimer = window.setTimeout(() => setSeekFocusSeconds(null), 900);
     };
-    window.addEventListener("cap:seek", onSeek as EventListener);
+    window.addEventListener('cap:seek', onSeek as EventListener);
     return () => {
-      window.removeEventListener("cap:seek", onSeek as EventListener);
+      window.removeEventListener('cap:seek', onSeek as EventListener);
       if (resetTimer) window.clearTimeout(resetTimer);
     };
   }, []);
@@ -151,21 +151,25 @@ export function TranscriptCard({
     const segments = Array.isArray(transcript?.segments) ? transcript.segments : [];
     return segments
       .map((segment, index) => {
-        const text = String(segment.text ?? "").trim();
+        const text = String(segment.text ?? '').trim();
         const start = Number(segment.startSeconds);
         const end = Number(segment.endSeconds);
-        const confidence = typeof segment.confidence === "number" ? segment.confidence : null;
+        const confidence = typeof segment.confidence === 'number' ? segment.confidence : null;
         if (!text || !Number.isFinite(start)) return null;
         return {
           index,
           startSeconds: start,
           endSeconds: Number.isFinite(end) ? Math.max(start, end) : null,
           text,
-          originalText: typeof segment.originalText === "string" && segment.originalText.trim().length > 0 ? segment.originalText : null,
+          originalText:
+            typeof segment.originalText === 'string' && segment.originalText.trim().length > 0
+              ? segment.originalText
+              : null,
           confidence,
-          speaker: Number.isInteger(Number(segment.speaker)) && Number(segment.speaker) >= 0
-            ? Number(segment.speaker)
-            : null
+          speaker:
+            Number.isInteger(Number(segment.speaker)) && Number(segment.speaker) >= 0
+              ? Number(segment.speaker)
+              : null,
         };
       })
       .filter((line): line is TranscriptLine => Boolean(line))
@@ -178,9 +182,12 @@ export function TranscriptCard({
 
   const transcriptText = useMemo(() => {
     if (transcriptLines.length > 0) {
-      return transcriptLines.map((line) => line.text).join("\n").trim();
+      return transcriptLines
+        .map(line => line.text)
+        .join('\n')
+        .trim();
     }
-    return transcript?.text?.trim() ?? "";
+    return transcript?.text?.trim() ?? '';
   }, [transcript?.text, transcriptLines]);
 
   const speakerIds = useMemo(() => {
@@ -192,7 +199,7 @@ export function TranscriptCard({
   }, [transcriptLines]);
 
   useEffect(() => {
-    setHiddenSpeakers((prev) => {
+    setHiddenSpeakers(prev => {
       if (speakerIds.length === 0) return new Set();
       const allowed = new Set(speakerIds);
       const next = new Set<number>();
@@ -207,11 +214,17 @@ export function TranscriptCard({
   const searchMatches = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const query = searchQuery.toLowerCase();
-    const matches: Array<{ lineIndex: number; matchText: string; startPos: number; endPos: number }> = [];
+    const matches: Array<{
+      lineIndex: number;
+      matchText: string;
+      startPos: number;
+      endPos: number;
+    }> = [];
 
     for (let i = 0; i < transcriptLines.length; i++) {
       const line = transcriptLines[i]!;
-      const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
+      const lineText =
+        textViewMode === 'original' && line.originalText ? line.originalText : line.text;
       const lowerText = lineText.toLowerCase();
       let searchPos = 0;
 
@@ -233,9 +246,9 @@ export function TranscriptCard({
 
   // Confidence stats
   const confidenceStats = useMemo(() => {
-    const withConfidence = transcriptLines.filter((line) => line.confidence !== null);
+    const withConfidence = transcriptLines.filter(line => line.confidence !== null);
     if (withConfidence.length === 0) return null;
-    const highConfidenceCount = withConfidence.filter((line) => line.confidence! >= 0.8).length;
+    const highConfidenceCount = withConfidence.filter(line => line.confidence! >= 0.8).length;
     const percentage = Math.round((highConfidenceCount / withConfidence.length) * 100);
     return { percentage, total: withConfidence.length, highCount: highConfidenceCount };
   }, [transcriptLines]);
@@ -248,9 +261,14 @@ export function TranscriptCard({
   }, [transcriptLines]);
 
   const originalTranscriptText = useMemo(() => {
-    const withOriginal = transcriptLines.filter((line) => line.originalText && line.originalText.trim().length > 0);
+    const withOriginal = transcriptLines.filter(
+      line => line.originalText && line.originalText.trim().length > 0
+    );
     if (withOriginal.length > 0) {
-      return withOriginal.map((line) => line.originalText as string).join("\n").trim();
+      return withOriginal
+        .map(line => line.originalText as string)
+        .join('\n')
+        .trim();
     }
     return transcriptText;
   }, [transcriptLines, transcriptText]);
@@ -258,11 +276,17 @@ export function TranscriptCard({
   // Save verified segments to localStorage whenever it changes
   useEffect(() => {
     if (verifiedSegments.size === 0) {
-      try { localStorage.removeItem(verifiedSegmentsKey); } catch { /* ignore */ }
+      try {
+        localStorage.removeItem(verifiedSegmentsKey);
+      } catch {
+        /* ignore */
+      }
     } else {
       try {
         localStorage.setItem(verifiedSegmentsKey, JSON.stringify(Array.from(verifiedSegments)));
-      } catch { /* quota exceeded */ }
+      } catch {
+        /* quota exceeded */
+      }
     }
   }, [verifiedSegments, verifiedSegmentsKey]);
 
@@ -312,13 +336,16 @@ export function TranscriptCard({
     if (activeLineIndex < 0 || isEditing) return;
     const container = transcriptScrollRef.current;
     if (!container) return;
-    const activeNode = container.querySelector<HTMLElement>(`[data-transcript-line-index="${activeLineIndex}"]`);
+    const activeNode = container.querySelector<HTMLElement>(
+      `[data-transcript-line-index="${activeLineIndex}"]`
+    );
     if (!activeNode) return;
     const containerRect = container.getBoundingClientRect();
     const nodeRect = activeNode.getBoundingClientRect();
-    const notFullyVisible = nodeRect.top < containerRect.top + 8 || nodeRect.bottom > containerRect.bottom - 8;
+    const notFullyVisible =
+      nodeRect.top < containerRect.top + 8 || nodeRect.bottom > containerRect.bottom - 8;
     if (notFullyVisible) {
-      activeNode.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      activeNode.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [activeLineIndex, isEditing]);
 
@@ -338,9 +365,10 @@ export function TranscriptCard({
 
     const containerRect = container.getBoundingClientRect();
     const nodeRect = matchNode.getBoundingClientRect();
-    const notFullyVisible = nodeRect.top < containerRect.top + 8 || nodeRect.bottom > containerRect.bottom - 8;
+    const notFullyVisible =
+      nodeRect.top < containerRect.top + 8 || nodeRect.bottom > containerRect.bottom - 8;
     if (notFullyVisible) {
-      matchNode.scrollIntoView({ block: "center", behavior: "smooth" });
+      matchNode.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [activeMatchIndex, searchMatches, searchQuery, isEditing]);
 
@@ -349,30 +377,35 @@ export function TranscriptCard({
     const handleKeyDown = (event: Event) => {
       const kbd = event as unknown as globalThis.KeyboardEvent;
       // Cmd/Ctrl+F to focus search
-      if ((kbd.metaKey || kbd.ctrlKey) && kbd.key === "f") {
+      if ((kbd.metaKey || kbd.ctrlKey) && kbd.key === 'f') {
         kbd.preventDefault();
         searchInputRef.current?.focus();
         return;
       }
 
       // Only handle navigation keys if search is active
-      if (!searchQuery.trim() || !searchInputRef.current || document.activeElement !== searchInputRef.current) {
+      if (
+        !searchQuery.trim() ||
+        !searchInputRef.current ||
+        document.activeElement !== searchInputRef.current
+      ) {
         return;
       }
 
-      if (kbd.key === "ArrowDown" || (kbd.shiftKey === false && kbd.key === "Enter")) {
+      if (kbd.key === 'ArrowDown' || (kbd.shiftKey === false && kbd.key === 'Enter')) {
         kbd.preventDefault();
-        setActiveMatchIndex((current) => {
+        setActiveMatchIndex(current => {
           const nextIndex = (current + 1) % Math.max(1, searchMatches.length);
           if (searchMatches[nextIndex]) {
             onSeekToSeconds(transcriptLines[searchMatches[nextIndex]!.lineIndex]!.startSeconds);
           }
           return nextIndex;
         });
-      } else if (kbd.key === "ArrowUp" || (kbd.shiftKey && kbd.key === "Enter")) {
+      } else if (kbd.key === 'ArrowUp' || (kbd.shiftKey && kbd.key === 'Enter')) {
         kbd.preventDefault();
-        setActiveMatchIndex((current) => {
-          const nextIndex = (current - 1 + searchMatches.length) % Math.max(1, searchMatches.length);
+        setActiveMatchIndex(current => {
+          const nextIndex =
+            (current - 1 + searchMatches.length) % Math.max(1, searchMatches.length);
           if (searchMatches[nextIndex]) {
             onSeekToSeconds(transcriptLines[searchMatches[nextIndex]!.lineIndex]!.startSeconds);
           }
@@ -381,30 +414,31 @@ export function TranscriptCard({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [searchQuery, searchMatches, transcriptLines, onSeekToSeconds]);
 
   // Review mode helpers
   const toggleReviewMode = () => {
-    setIsReviewMode((prev) => !prev);
+    setIsReviewMode(prev => !prev);
     setReviewIndex(0);
     if (!isReviewMode && uncertainSegments.length > 0) {
       onSeekToSeconds(uncertainSegments[0]!.line.startSeconds);
     }
   };
 
-  const navigateReview = (direction: "prev" | "next") => {
+  const navigateReview = (direction: 'prev' | 'next') => {
     if (uncertainSegments.length === 0) return;
-    const newIndex = direction === "next"
-      ? (reviewIndex + 1) % uncertainSegments.length
-      : (reviewIndex - 1 + uncertainSegments.length) % uncertainSegments.length;
+    const newIndex =
+      direction === 'next'
+        ? (reviewIndex + 1) % uncertainSegments.length
+        : (reviewIndex - 1 + uncertainSegments.length) % uncertainSegments.length;
     setReviewIndex(newIndex);
     onSeekToSeconds(uncertainSegments[newIndex]!.line.startSeconds);
   };
 
   const toggleVerified = (segmentIndex: number) => {
-    setVerifiedSegments((prev) => {
+    setVerifiedSegments(prev => {
       const next = new Set(prev);
       if (next.has(segmentIndex)) {
         next.delete(segmentIndex);
@@ -422,7 +456,7 @@ export function TranscriptCard({
   };
 
   const toggleSpeakerVisibility = (speaker: number) => {
-    setHiddenSpeakers((prev) => {
+    setHiddenSpeakers(prev => {
       const next = new Set(prev);
       if (next.has(speaker)) next.delete(speaker);
       else next.add(speaker);
@@ -440,7 +474,7 @@ export function TranscriptCard({
   const cancelSpeakerEdit = () => {
     setEditingSpeaker(null);
     setEditingSpeakerLineIndex(null);
-    setSpeakerDraft("");
+    setSpeakerDraft('');
     setSpeakerSaveError(null);
     setIsSavingSpeaker(false);
   };
@@ -448,7 +482,7 @@ export function TranscriptCard({
   const saveSpeakerLabel = async (speaker: number) => {
     const normalized = speakerDraft.trim();
     if (!normalized) {
-      setSpeakerSaveError("Label cannot be empty.");
+      setSpeakerSaveError('Label cannot be empty.');
       return;
     }
     const nextLabels = { ...speakerLabels, [String(speaker)]: normalized };
@@ -457,11 +491,11 @@ export function TranscriptCard({
     const ok = await onSaveSpeakerLabels(nextLabels);
     setIsSavingSpeaker(false);
     if (!ok) {
-      setSpeakerSaveError("Unable to save speaker label.");
+      setSpeakerSaveError('Unable to save speaker label.');
       return;
     }
     setSpeakerLabels(nextLabels);
-    setSaveFeedback("Speaker labels saved.");
+    setSaveFeedback('Speaker labels saved.');
     cancelSpeakerEdit();
   };
 
@@ -469,9 +503,9 @@ export function TranscriptCard({
     if (!transcriptText) return;
     try {
       await navigator.clipboard.writeText(transcriptText);
-      setCopyFeedback("Transcript copied");
+      setCopyFeedback('Transcript copied');
     } catch {
-      setCopyFeedback("Unable to copy transcript.");
+      setCopyFeedback('Unable to copy transcript.');
     }
     window.setTimeout(() => setCopyFeedback(null), 1800);
   };
@@ -479,7 +513,7 @@ export function TranscriptCard({
   const submitEdit = async () => {
     const normalized = draftText.trim();
     if (!normalized) {
-      setSaveError("Transcript cannot be empty.");
+      setSaveError('Transcript cannot be empty.');
       return;
     }
     setIsSaving(true);
@@ -488,16 +522,18 @@ export function TranscriptCard({
     setIsSaving(false);
     if (ok) {
       setIsEditing(false);
-      setSaveFeedback("Transcript saved.");
+      setSaveFeedback('Transcript saved.');
       return;
     }
-    setSaveError("Unable to save transcript edits.");
+    setSaveError('Unable to save transcript edits.');
   };
 
   const highlightText = (text: string, lineIndex: number): React.ReactNode => {
     if (!searchQuery.trim()) return text;
 
-    const matches = searchMatches.filter((m) => m.lineIndex === lineIndex).sort((a, b) => a.startPos - b.startPos);
+    const matches = searchMatches
+      .filter(m => m.lineIndex === lineIndex)
+      .sort((a, b) => a.startPos - b.startPos);
     if (matches.length === 0) return text;
 
     const parts: React.ReactNode[] = [];
@@ -513,7 +549,7 @@ export function TranscriptCard({
       parts.push(
         <span
           key={`match-${i}`}
-          className={`transition-colors ${isActive ? "bg-yellow-400 dark:bg-yellow-600" : "bg-yellow-200 dark:bg-yellow-800"}`}
+          className={`transition-colors ${isActive ? 'bg-yellow-400 dark:bg-yellow-600' : 'bg-yellow-200 dark:bg-yellow-800'}`}
         >
           {text.substring(match.startPos, match.endPos)}
         </span>
@@ -529,7 +565,7 @@ export function TranscriptCard({
   };
 
   const onEditKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Escape") {
+    if (event.key === 'Escape') {
       event.preventDefault();
       if (isSaving) return;
       setDraftText(transcriptText);
@@ -537,7 +573,7 @@ export function TranscriptCard({
       setSaveError(null);
       return;
     }
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault();
       if (!isSaving) {
         void submitEdit();
@@ -554,45 +590,56 @@ export function TranscriptCard({
             <p className="workspace-label">Workspace panel</p>
             <h2 className="workspace-title">Transcript</h2>
           </div>
-          <span className="status-chip">{transcriptionStatus ?? "not_started"}</span>
+          <span className="status-chip">{transcriptionStatus ?? 'not_started'}</span>
         </div>
       )}
 
       {/* Status messages */}
-      {(transcriptionStatus === "queued" || transcriptionStatus === "processing") && (
-        <p className={`legacy-muted ${compact ? "px-3 py-3 text-[13px]" : "text-sm"}`}>
+      {(transcriptionStatus === 'queued' || transcriptionStatus === 'processing') && (
+        <p className={`legacy-muted ${compact ? 'px-3 py-3 text-[13px]' : 'text-sm'}`}>
           Transcription is running. Updates automatically.
         </p>
       )}
-      {transcriptionStatus === "not_started" && (
-        <p className={`legacy-muted ${compact ? "px-3 py-3 text-[13px]" : "text-sm"}`}>
+      {transcriptionStatus === 'not_started' && (
+        <p className={`legacy-muted ${compact ? 'px-3 py-3 text-[13px]' : 'text-sm'}`}>
           Transcription will start after processing completes.
         </p>
       )}
-      {transcriptionStatus === "no_audio" && (
-        <p className={`panel-subtle ${compact ? "m-3 text-[13px]" : ""}`}>
+      {transcriptionStatus === 'no_audio' && (
+        <p className={`panel-subtle ${compact ? 'm-3 text-[13px]' : ''}`}>
           No audio track was detected for this recording.
         </p>
       )}
-      {transcriptionStatus === "failed" && (
-        <p className={`panel-danger ${compact ? "m-3 text-[13px]" : ""}`}>
-          {errorMessage ? `Transcription failed: ${errorMessage}` : "Transcription failed after retries."}
+      {transcriptionStatus === 'failed' && (
+        <p className={`panel-danger ${compact ? 'm-3 text-[13px]' : ''}`}>
+          {errorMessage
+            ? `Transcription failed: ${errorMessage}`
+            : 'Transcription failed after retries.'}
         </p>
       )}
-      {transcriptionStatus === "complete" && transcriptText.length === 0 && (
-        <p className={`panel-subtle ${compact ? "m-3 text-[13px]" : ""}`}>
+      {transcriptionStatus === 'complete' && transcriptText.length === 0 && (
+        <p className={`panel-subtle ${compact ? 'm-3 text-[13px]' : ''}`}>
           Transcript completed, but no text was returned.
         </p>
       )}
 
-      {transcriptionStatus === "complete" && transcriptText.length > 0 && (
-        <div className={compact ? "" : "space-y-3"}>
+      {transcriptionStatus === 'complete' && transcriptText.length > 0 && (
+        <div className={compact ? '' : 'space-y-3'}>
           {/* Search bar */}
           {!isEditing && (
-            <div className={`flex items-center gap-1.5 ${compact ? "px-2.5 py-2" : "px-3 py-2"}`}>
-              <div className="flex-1 flex items-center gap-1.5 bg-surface-subtle rounded-md border px-2 py-1.5"
-                   style={{ borderColor: "var(--border-default)" }}>
-                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--text-muted)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <div className={`flex items-center gap-1.5 ${compact ? 'px-2.5 py-2' : 'px-3 py-2'}`}>
+              <div
+                className="flex-1 flex items-center gap-1.5 bg-surface-subtle rounded-md border px-2 py-1.5"
+                style={{ borderColor: 'var(--border-default)' }}
+              >
+                <svg
+                  className="h-3.5 w-3.5 flex-shrink-0"
+                  style={{ color: 'var(--text-muted)' }}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
@@ -600,17 +647,20 @@ export function TranscriptCard({
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search transcript…"
                   className="flex-1 bg-transparent text-[13px] outline-none"
-                  style={{ color: "var(--text-primary)" }}
+                  style={{ color: 'var(--text-primary)' }}
                 />
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => { setSearchQuery(""); setActiveMatchIndex(-1); }}
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActiveMatchIndex(-1);
+                    }}
                     className="text-[13px] font-medium"
-                    style={{ color: "var(--text-muted)" }}
+                    style={{ color: 'var(--text-muted)' }}
                     title="Clear search"
                   >
                     ✕
@@ -618,10 +668,12 @@ export function TranscriptCard({
                 )}
               </div>
               {searchQuery && (
-                <span className="text-[11px] font-medium whitespace-nowrap"
-                      style={{ color: "var(--text-secondary)" }}>
+                <span
+                  className="text-[11px] font-medium whitespace-nowrap"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
                   {searchMatches.length === 0
-                    ? "No matches"
+                    ? 'No matches'
                     : `${activeMatchIndex + 1}/${searchMatches.length}`}
                 </span>
               )}
@@ -629,36 +681,49 @@ export function TranscriptCard({
           )}
 
           {/* Action bar */}
-          <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "px-2.5 py-2 border-b" : "mb-3"}`}>
+          <div
+            className={`flex flex-wrap items-center gap-1.5 ${compact ? 'px-2.5 py-2 border-b' : 'mb-3'}`}
+          >
             <div className="pill-toggle">
               <button
                 type="button"
-                onClick={() => setTextViewMode("current")}
-                className={`pill-toggle-btn ${textViewMode === "current" ? "pill-toggle-btn-active" : ""}`}
-                aria-pressed={textViewMode === "current"}
+                onClick={() => setTextViewMode('current')}
+                className={`pill-toggle-btn ${textViewMode === 'current' ? 'pill-toggle-btn-active' : ''}`}
+                aria-pressed={textViewMode === 'current'}
               >
                 Current
               </button>
               <button
                 type="button"
-                onClick={() => setTextViewMode("original")}
-                className={`pill-toggle-btn ${textViewMode === "original" ? "pill-toggle-btn-active" : ""}`}
-                aria-pressed={textViewMode === "original"}
+                onClick={() => setTextViewMode('original')}
+                className={`pill-toggle-btn ${textViewMode === 'original' ? 'pill-toggle-btn-active' : ''}`}
+                aria-pressed={textViewMode === 'original'}
               >
                 Original
               </button>
             </div>
-            <button type="button" onClick={() => void copyTranscript()} className="btn-secondary text-[11px] px-2 py-0.5">
+            <button
+              type="button"
+              onClick={() => void copyTranscript()}
+              className="btn-secondary text-[11px] px-2 py-0.5"
+            >
               Copy
             </button>
             {!isEditing && (
-              <button type="button" onClick={() => setIsEditing(true)} className="btn-secondary text-[11px] px-2 py-0.5">
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="btn-secondary text-[11px] px-2 py-0.5"
+              >
                 Edit
               </button>
             )}
             {/* Confidence stats badge */}
             {confidenceStats && (
-              <span className="confidence-badge" title={`${confidenceStats.highCount}/${confidenceStats.total} segments with ≥80% confidence`}>
+              <span
+                className="confidence-badge"
+                title={`${confidenceStats.highCount}/${confidenceStats.total} segments with ≥80% confidence`}
+              >
                 {confidenceStats.percentage}% high confidence
               </span>
             )}
@@ -667,10 +732,12 @@ export function TranscriptCard({
               <button
                 type="button"
                 onClick={toggleReviewMode}
-                className={`btn-secondary text-[11px] px-2 py-0.5 ${isReviewMode ? "!bg-amber-50 !border-amber-300 !text-amber-900" : ""}`}
+                className={`btn-secondary text-[11px] px-2 py-0.5 ${isReviewMode ? '!bg-amber-50 !border-amber-300 !text-amber-900' : ''}`}
                 title={`${uncertainSegments.length} uncertain segments (<80% confidence)`}
               >
-                {isReviewMode ? `Reviewing (${reviewIndex + 1}/${uncertainSegments.length})` : "Review uncertain"}
+                {isReviewMode
+                  ? `Reviewing (${reviewIndex + 1}/${uncertainSegments.length})`
+                  : 'Review uncertain'}
               </button>
             )}
             {/* Review mode navigation */}
@@ -678,7 +745,7 @@ export function TranscriptCard({
               <>
                 <button
                   type="button"
-                  onClick={() => navigateReview("prev")}
+                  onClick={() => navigateReview('prev')}
                   className="btn-secondary text-[11px] px-2 py-0.5"
                   title="Previous uncertain segment"
                 >
@@ -686,7 +753,7 @@ export function TranscriptCard({
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigateReview("next")}
+                  onClick={() => navigateReview('next')}
                   className="btn-secondary text-[11px] px-2 py-0.5"
                   title="Next uncertain segment"
                 >
@@ -696,21 +763,23 @@ export function TranscriptCard({
             )}
           </div>
           {speakerIds.length > 0 && (
-            <div className={`flex flex-wrap items-center gap-1.5 ${compact ? "px-2.5 pb-2" : "mb-3"}`}>
+            <div
+              className={`flex flex-wrap items-center gap-1.5 ${compact ? 'px-2.5 pb-2' : 'mb-3'}`}
+            >
               <span className="text-[11px] font-medium text-muted">Speakers:</span>
-              {speakerIds.map((speaker) => {
+              {speakerIds.map(speaker => {
                 const isHidden = hiddenSpeakers.has(speaker);
                 return (
                   <button
                     key={`speaker-filter-${speaker}`}
                     type="button"
                     onClick={() => toggleSpeakerVisibility(speaker)}
-                    className={`speaker-filter-chip ${isHidden ? "speaker-filter-chip-hidden" : ""}`}
+                    className={`speaker-filter-chip ${isHidden ? 'speaker-filter-chip-hidden' : ''}`}
                     style={{
                       borderColor: speakerColor(speaker),
-                      color: isHidden ? "var(--text-muted)" : speakerColor(speaker)
+                      color: isHidden ? 'var(--text-muted)' : speakerColor(speaker),
                     }}
-                    title={isHidden ? "Show speaker" : "Hide speaker"}
+                    title={isHidden ? 'Show speaker' : 'Hide speaker'}
                   >
                     {getSpeakerLabel(speaker)}
                   </button>
@@ -719,25 +788,38 @@ export function TranscriptCard({
             </div>
           )}
           {speakerSaveError && (
-            <p className={`text-[11px] text-red-700 ${compact ? "px-2.5 pb-2" : "mb-3"}`}>{speakerSaveError}</p>
+            <p className={`text-[11px] text-red-700 ${compact ? 'px-2.5 pb-2' : 'mb-3'}`}>
+              {speakerSaveError}
+            </p>
           )}
 
           {/* Edit mode */}
           {isEditing ? (
-            <div className={`panel-subtle space-y-2 rounded-lg p-3 ${compact ? "mx-2.5 mb-2.5" : ""}`}>
+            <div
+              className={`panel-subtle space-y-2 rounded-lg p-3 ${compact ? 'mx-2.5 mb-2.5' : ''}`}
+            >
               <textarea
                 value={draftText}
-                onChange={(event) => setDraftText(event.target.value)}
+                onChange={event => setDraftText(event.target.value)}
                 onKeyDown={onEditKeyDown}
                 className="input-control min-h-48 rounded-lg p-2.5 text-[13px] leading-relaxed"
               />
               <div className="flex flex-wrap items-center gap-1.5">
-                <button type="button" onClick={() => void submitEdit()} disabled={isSaving} className="btn-primary text-xs px-2.5 py-1">
-                  {isSaving ? "Saving…" : "Save transcript"}
+                <button
+                  type="button"
+                  onClick={() => void submitEdit()}
+                  disabled={isSaving}
+                  className="btn-primary text-xs px-2.5 py-1"
+                >
+                  {isSaving ? 'Saving…' : 'Save transcript'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setDraftText(transcriptText); setIsEditing(false); setSaveError(null); }}
+                  onClick={() => {
+                    setDraftText(transcriptText);
+                    setIsEditing(false);
+                    setSaveError(null);
+                  }}
                   disabled={isSaving}
                   className="btn-secondary text-xs px-2.5 py-1"
                 >
@@ -752,24 +834,30 @@ export function TranscriptCard({
                the outer container in VideoPage controls the scroll */
             <div
               ref={transcriptScrollRef}
-              className={`space-y-0 relative ${compact ? "" : "scroll-panel max-h-[32rem] overflow-auto rounded-lg p-1"}`}
+              className={`space-y-0 relative ${compact ? '' : 'scroll-panel max-h-[32rem] overflow-auto rounded-lg p-1'}`}
             >
               {transcriptLines.map((line, index) => {
                 // Review mode filtering
-                if (isReviewMode && (line.confidence === null || line.confidence >= 0.8)) return null;
+                if (isReviewMode && (line.confidence === null || line.confidence >= 0.8))
+                  return null;
                 if (line.speaker !== null && hiddenSpeakers.has(line.speaker)) return null;
 
-                const isActive = index === activeLineIndex && textViewMode === "current";
-                const lineText = textViewMode === "original" && line.originalText ? line.originalText : line.text;
+                const isActive = index === activeLineIndex && textViewMode === 'current';
+                const lineText =
+                  textViewMode === 'original' && line.originalText ? line.originalText : line.text;
                 const highlightedContent = highlightText(lineText, index);
                 const isVerified = verifiedSegments.has(line.index);
                 const speakerName = getSpeakerLabel(line.speaker);
-                const isEditingThisSpeaker = line.speaker !== null && editingSpeaker === line.speaker && editingSpeakerLineIndex === index;
+                const isEditingThisSpeaker =
+                  line.speaker !== null &&
+                  editingSpeaker === line.speaker &&
+                  editingSpeakerLineIndex === index;
 
                 // Determine confidence class
-                let confidenceClass = "";
+                let confidenceClass = '';
                 if (line.confidence !== null && line.confidence < 0.8) {
-                  confidenceClass = line.confidence < 0.6 ? "confidence-very-low" : "confidence-low";
+                  confidenceClass =
+                    line.confidence < 0.6 ? 'confidence-very-low' : 'confidence-low';
                 }
 
                 return (
@@ -777,13 +865,13 @@ export function TranscriptCard({
                     key={`${line.index}-${line.startSeconds}`}
                     data-transcript-line-index={index}
                     onClick={() => onSeekToSeconds(line.startSeconds)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
                         onSeekToSeconds(line.startSeconds);
                       }
                     }}
-                    onMouseEnter={(e) => {
+                    onMouseEnter={e => {
                       setHoveredLineIndex(index);
                       if (line.confidence !== null && line.confidence < 1.0) {
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -795,7 +883,7 @@ export function TranscriptCard({
                       setTooltipPosition(null);
                     }}
                     className={`line-item w-full rounded-none px-3 py-2 text-left transition focus-visible:outline-none ${
-                      isActive ? "line-item-active" : ""
+                      isActive ? 'line-item-active' : ''
                     }`}
                     role="button"
                     tabIndex={0}
@@ -806,21 +894,18 @@ export function TranscriptCard({
                     {line.speaker !== null && (
                       <span
                         className="speaker-badge"
-                        style={{
-                          borderColor: speakerColor(line.speaker),
-                          backgroundColor: `${speakerColor(line.speaker)}22`,
-                          color: speakerColor(line.speaker)
-                        }}
-                        onClick={(event) => {
+                        style={{ ['--speaker-color' as string]: speakerColor(line.speaker) }}
+                        onClick={event => {
                           event.stopPropagation();
                           if (isSavingSpeaker) return;
-                          if (!isEditingThisSpeaker) startSpeakerEdit(line.speaker as number, index);
+                          if (!isEditingThisSpeaker)
+                            startSpeakerEdit(line.speaker as number, index);
                         }}
                         role="button"
                         tabIndex={0}
-                        onKeyDown={(event) => {
+                        onKeyDown={event => {
                           if (line.speaker === null || isSavingSpeaker) return;
-                          if (event.key === "Enter" || event.key === " ") {
+                          if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
                             if (!isEditingThisSpeaker) startSpeakerEdit(line.speaker, index);
                           }
@@ -831,16 +916,16 @@ export function TranscriptCard({
                             <input
                               autoFocus
                               value={speakerDraft}
-                              onChange={(event) => setSpeakerDraft(event.target.value)}
-                              onClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => {
+                              onChange={event => setSpeakerDraft(event.target.value)}
+                              onClick={event => event.stopPropagation()}
+                              onKeyDown={event => {
                                 event.stopPropagation();
-                                if (event.key === "Enter") {
+                                if (event.key === 'Enter') {
                                   event.preventDefault();
                                   if (line.speaker !== null && !isSavingSpeaker) {
                                     void saveSpeakerLabel(line.speaker);
                                   }
-                                } else if (event.key === "Escape") {
+                                } else if (event.key === 'Escape') {
                                   event.preventDefault();
                                   cancelSpeakerEdit();
                                 }
@@ -851,18 +936,19 @@ export function TranscriptCard({
                               type="button"
                               className="speaker-badge-action"
                               disabled={isSavingSpeaker}
-                              onClick={(event) => {
+                              onClick={event => {
                                 event.stopPropagation();
-                                if (line.speaker !== null && !isSavingSpeaker) void saveSpeakerLabel(line.speaker);
+                                if (line.speaker !== null && !isSavingSpeaker)
+                                  void saveSpeakerLabel(line.speaker);
                               }}
                             >
-                              {isSavingSpeaker ? "..." : "Save"}
+                              {isSavingSpeaker ? '...' : 'Save'}
                             </button>
                             <button
                               type="button"
                               className="speaker-badge-action"
                               disabled={isSavingSpeaker}
-                              onClick={(event) => {
+                              onClick={event => {
                                 event.stopPropagation();
                                 cancelSpeakerEdit();
                               }}
@@ -882,7 +968,11 @@ export function TranscriptCard({
                     {isVerified && (
                       <span className="verified-marker ml-2 inline-flex" title="Verified">
                         <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </span>
                     )}
@@ -890,7 +980,10 @@ export function TranscriptCard({
                     {isReviewMode && !isVerified && (
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); toggleVerified(line.index); }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          toggleVerified(line.index);
+                        }}
                         className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200"
                         title="Mark as verified"
                       >
@@ -902,28 +995,32 @@ export function TranscriptCard({
               })}
 
               {/* Confidence tooltip */}
-              {hoveredLineIndex !== null && tooltipPosition && transcriptLines[hoveredLineIndex]?.confidence !== null && (
-                <div
-                  className="confidence-tooltip"
-                  style={{
-                    position: "fixed",
-                    left: `${tooltipPosition.x}px`,
-                    top: `${tooltipPosition.y}px`,
-                    transform: "translate(-50%, -100%)"
-                  }}
-                >
-                  Confidence: {Math.round(transcriptLines[hoveredLineIndex]!.confidence! * 100)}%
-                </div>
-              )}
+              {hoveredLineIndex !== null &&
+                tooltipPosition &&
+                transcriptLines[hoveredLineIndex]?.confidence !== null && (
+                  <div
+                    className="confidence-tooltip"
+                    style={{
+                      position: 'fixed',
+                      left: `${tooltipPosition.x}px`,
+                      top: `${tooltipPosition.y}px`,
+                      transform: 'translate(-50%, -100%)',
+                    }}
+                  >
+                    Confidence: {Math.round(transcriptLines[hoveredLineIndex]!.confidence! * 100)}%
+                  </div>
+                )}
             </div>
           ) : (
-            <pre className={`overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed ${compact ? "px-3 py-2" : "scroll-panel max-h-[28rem] rounded-lg p-4"}`}>
-              {textViewMode === "original" ? originalTranscriptText : transcriptText}
+            <pre
+              className={`overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed ${compact ? 'px-3 py-2' : 'scroll-panel max-h-[28rem] rounded-lg p-4'}`}
+            >
+              {textViewMode === 'original' ? originalTranscriptText : transcriptText}
             </pre>
           )}
 
           {transcript?.vttKey && (
-            <span className={`text-[11px] text-muted block ${compact ? "px-3 pb-2" : ""}`}>
+            <span className={`text-[11px] text-muted block ${compact ? 'px-3 pb-2' : ''}`}>
               VTT: <span className="font-mono">{transcript.vttKey}</span>
             </span>
           )}
@@ -931,10 +1028,14 @@ export function TranscriptCard({
       )}
 
       {copyFeedback && (
-        <p className={`text-[11px] font-medium text-muted ${compact ? "px-3 pb-2" : "mt-3"}`}>{copyFeedback}</p>
+        <p className={`text-[11px] font-medium text-muted ${compact ? 'px-3 pb-2' : 'mt-3'}`}>
+          {copyFeedback}
+        </p>
       )}
       {saveFeedback && (
-        <p className={`text-[11px] font-medium text-accent-700 ${compact ? "px-3 pb-2" : "mt-2"}`}>{saveFeedback}</p>
+        <p className={`text-[11px] font-medium text-accent-700 ${compact ? 'px-3 pb-2' : 'mt-2'}`}>
+          {saveFeedback}
+        </p>
       )}
     </div>
   );

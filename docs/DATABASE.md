@@ -1,438 +1,285 @@
-# Database Schema & State Machine
+# Database Schema
 
-Reference documentation for cap4's database structure.
-
----
+Current schema reference for cap4, based on `db/migrations/0001_init.sql` through `0006_add_transcript_speaker_labels.sql`.
 
 ## Overview
 
-cap4 uses PostgreSQL 16 as the single source of truth for all state.
+PostgreSQL is the source of truth for:
 
-**Key principle:** All data in database. No in-memory state.
-- Enables recovery from crashes
-- Enables horizontal scaling (multiple workers)
-- Enables webhook auditing
+- video lifecycle state
+- upload tracking
+- queue state and retries
+- transcript and AI outputs
+- idempotency records
+- webhook audit records
 
----
+The application uses monotonic phase ranks to prevent stale progress updates from moving a video backwards.
+
+## Enum Types
+
+### `processing_phase`
+
+- `not_required`
+- `queued`
+- `downloading`
+- `probing`
+- `processing`
+- `uploading`
+- `generating_thumbnail`
+- `complete`
+- `failed`
+- `cancelled`
+
+Phase ranks are stored in `videos.processing_phase_rank` and `webhook_events.phase_rank`:
+
+- `0` `not_required`
+- `10` `queued`
+- `20` `downloading`
+- `30` `probing`
+- `40` `processing`
+- `50` `uploading`
+- `60` `generating_thumbnail`
+- `70` `complete`
+- `80` `failed`
+- `90` `cancelled`
+
+### `transcription_status`
+
+- `not_started`
+- `queued`
+- `processing`
+- `complete`
+- `no_audio`
+- `skipped`
+- `failed`
+
+### `ai_status`
+
+- `not_started`
+- `queued`
+- `processing`
+- `complete`
+- `skipped`
+- `failed`
+
+### Other enums
+
+- `source_type`: `web_mp4`, `processed_mp4`, `hls`
+- `upload_mode`: `singlepart`, `multipart`
+- `upload_phase`: `pending`, `uploading`, `completing`, `uploaded`, `aborted`, `failed`
+- `job_type`: initially `process_video`, `transcribe_video`, `generate_ai`, `cleanup_artifacts`, later migration `0003` adds `deliver_webhook`
+- `job_status`: `queued`, `leased`, `running`, `succeeded`, `cancelled`, `dead`
+- `ai_provider`: `groq`, `openai`
 
 ## Core Tables
 
-### videos
-Main table tracking video state.
+### `videos`
 
-```sql
-CREATE TABLE videos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  
-  -- User metadata
-  uploadedAt TIMESTAMP NOT NULL DEFAULT NOW(),
-  completedAt TIMESTAMP,
-  deletedAt TIMESTAMP,  -- Soft delete
-  
-  -- State machine
-  processingPhase TEXT NOT NULL,
-  rank INT NOT NULL DEFAULT 0,
-  -- Phases: not_required (0) → uploading (5) → queued (10) →
-  --         processing (20) → processed (25) →
-  --         transcribing (30) → transcribed (35) →
-  --         generating_ai (40) → generated_ai (45) →
-  --         complete (50) [terminal]
-  
-  -- Raw/processed files
-  rawKey TEXT,              -- S3 key for uploaded video
-  resultKey TEXT,           -- S3 key for processed video
-  thumbnailKey TEXT,        -- S3 key for thumbnail
-  
-  -- Metadata
-  title TEXT,               -- AI-generated
-  summary TEXT,             -- AI-generated
-  transcript TEXT,          -- From Deepgram
-  chapters JSONB,           -- AI-generated array
-  
-  -- Tracking
-  updatedAt TIMESTAMP NOT NULL DEFAULT NOW(),
-  version INT DEFAULT 1     -- For optimistic locking
-);
+Primary entity row for each uploaded recording.
 
-CREATE INDEX idx_videos_phase ON videos(processingPhase);
-CREATE INDEX idx_videos_rank ON videos(rank);
-CREATE INDEX idx_videos_uploadedAt ON videos(uploadedAt DESC);
-CREATE INDEX idx_videos_deletedAt ON videos(deletedAt);
+Important columns:
+
+- `id uuid primary key`
+- `name text`
+- `source_type source_type`
+- `processing_phase processing_phase`
+- `processing_phase_rank smallint`
+- `processing_progress int`
+- `transcription_status transcription_status`
+- `ai_status ai_status`
+- `duration_seconds numeric(10,3)`
+- `width int`
+- `height int`
+- `fps numeric(7,3)`
+- `result_key text`
+- `thumbnail_key text`
+- `error_code text`
+- `error_message text`
+- `webhook_url text` added by migration `0003`
+- `deleted_at timestamptz` added by migration `0002`
+- `created_at`, `updated_at`, `completed_at`
+
+Indexes:
+
+- `idx_videos_created_at`
+- `idx_videos_processing_phase`
+- `idx_videos_transcription_status`
+- `idx_videos_ai_status`
+- `idx_videos_active_created_at` on non-deleted rows
+
+### `uploads`
+
+Tracks raw object upload state for a video.
+
+Important columns:
+
+- `video_id uuid primary key references videos(id)`
+- `mode upload_mode`
+- `phase upload_phase`
+- `multipart_upload_id text`
+- `raw_key text`
+- `uploaded_bytes bigint`
+- `total_bytes bigint`
+- `etag_manifest jsonb`
+- `last_client_heartbeat_at timestamptz`
+- `created_at`, `updated_at`
+
+### `job_queue`
+
+Canonical async queue.
+
+Important columns:
+
+- `id bigserial primary key`
+- `video_id uuid references videos(id)`
+- `job_type job_type`
+- `status job_status`
+- `priority smallint`
+- `payload jsonb`
+- `attempts int`
+- `max_attempts int`
+- `run_after timestamptz`
+- `locked_by text`
+- `locked_until timestamptz`
+- `lease_token uuid`
+- `last_attempt_at timestamptz`
+- `last_error text`
+- `created_at`, `updated_at`, `finished_at`
+
+Important index/constraint behavior:
+
+- `uq_job_queue_one_active_per_video_type` prevents more than one active (`queued`, `leased`, `running`) job per `(video_id, job_type)`
+- lease consistency is enforced with a table check constraint
+
+### `transcripts`
+
+Transcript storage for a video.
+
+Important columns:
+
+- `video_id uuid primary key references videos(id)`
+- `provider text default 'deepgram'`
+- `language text not null default 'en'`
+- `vtt_key text`
+- `segments_json jsonb`
+- `speaker_labels_json jsonb not null default '{}'::jsonb` added by migration `0006`
+- `created_at`, `updated_at`
+
+Notes:
+
+- `speaker_labels_json` must be a JSON object
+- `segments_json` is the source used to derive editable transcript text in the watch view
+
+### `ai_outputs`
+
+AI-generated metadata for a video.
+
+Important columns:
+
+- `video_id uuid primary key references videos(id)`
+- `provider ai_provider`
+- `model text`
+- `title text`
+- `summary text`
+- `chapters_json jsonb not null default '[]'::jsonb`
+- `entities_json jsonb` added by migration `0005`
+- `action_items_json jsonb default '[]'::jsonb` added by migration `0005`
+- `quotes_json jsonb default '[]'::jsonb` added by migration `0005`
+- `created_at`, `updated_at`
+
+Constraints:
+
+- `chapters_json` must be a JSON array
+- `action_items_json` must be a JSON array
+- `quotes_json` must be a JSON array
+
+Note:
+
+- The worker persists richer enrichment data here, but the current `/api/videos/:id/status` route only exposes `provider`, `model`, `title`, `summary`, and `keyPoints`.
+
+### `idempotency_keys`
+
+Deduplicates API requests and stores cached responses.
+
+Columns:
+
+- `endpoint text`
+- `idempotency_key text`
+- `request_hash text`
+- `status_code int`
+- `response_headers jsonb`
+- `response_body jsonb`
+- `created_at timestamptz`
+- `expires_at timestamptz`
+
+Primary key:
+
+- `(endpoint, idempotency_key)`
+
+### `webhook_events`
+
+Audits media-server progress webhooks.
+
+Important columns:
+
+- `id bigserial primary key`
+- `source text`
+- `delivery_id text`
+- `job_id text`
+- `video_id uuid references videos(id)`
+- `phase processing_phase`
+- `phase_rank smallint`
+- `progress int`
+- `progress_bucket smallint generated`
+- `payload jsonb`
+- `signature text`
+- `received_at timestamptz`
+- `processed_at timestamptz`
+- `accepted boolean`
+- `reject_reason text`
+
+Important uniqueness guarantees:
+
+- `uq_webhook_source_delivery`
+- `uq_webhook_source_job_phase_bucket`
+
+## Relationships
+
+One-to-one by `video_id`:
+
+- `videos` -> `uploads`
+- `videos` -> `transcripts`
+- `videos` -> `ai_outputs`
+
+One-to-many by `video_id`:
+
+- `videos` -> `job_queue`
+- `videos` -> `webhook_events`
+
+## Updated-At Triggers
+
+`set_updated_at()` is attached to:
+
+- `videos`
+- `uploads`
+- `job_queue`
+- `transcripts`
+- `ai_outputs`
+
+## Migration List
+
+```text
+0001_init.sql
+0002_video_soft_delete.sql
+0003_add_webhook_reporting.sql
+0004_fix_transcript_language.sql
+0005_add_ai_enrichment_fields.sql
+0006_add_transcript_speaker_labels.sql
 ```
 
-### jobs
-Async job queue for background processing.
-
-```sql
-CREATE TABLE jobs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  videoId UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
-  
-  -- Job details
-  type TEXT NOT NULL,  -- 'process_video', 'transcribe', 'generate_ai'
-  status TEXT NOT NULL DEFAULT 'pending',  -- pending, claimed, completed, failed
-  
-  -- Worker lease
-  leaseExpiry TIMESTAMP,  -- When lease expires (worker crash recovery)
-  claimedBy TEXT,         -- Which worker claimed it
-  
-  -- Retry logic
-  retryCount INT DEFAULT 0,
-  maxRetries INT DEFAULT 5,
-  lastError TEXT,
-  
-  -- Tracking
-  createdAt TIMESTAMP NOT NULL DEFAULT NOW(),
-  claimedAt TIMESTAMP,
-  completedAt TIMESTAMP
-);
-
-CREATE INDEX idx_jobs_status ON jobs(status);
-CREATE INDEX idx_jobs_videoId ON jobs(videoId);
-CREATE INDEX idx_jobs_leaseExpiry ON jobs(leaseExpiry) WHERE status = 'claimed';
-```
-
-### idempotency_keys
-Prevents duplicate requests.
-
-```sql
-CREATE TABLE idempotency_keys (
-  key UUID PRIMARY KEY,
-  videoId UUID REFERENCES videos(id),
-  response JSONB NOT NULL,
-  createdAt TIMESTAMP NOT NULL DEFAULT NOW(),
-  expiresAt TIMESTAMP NOT NULL  -- Auto-delete after 24h
-);
-
-CREATE INDEX idx_idempotency_keys_expiry ON idempotency_keys(expiresAt);
-```
-
-### webhook_requests
-Audit trail of webhook calls (for debugging).
-
-```sql
-CREATE TABLE webhook_requests (
-  id SERIAL PRIMARY KEY,
-  videoId UUID REFERENCES videos(id),
-  source TEXT,  -- 'media-server', 'minio', 'user'
-  event TEXT,   -- 'processing_complete', 'error', etc.
-  payload JSONB,
-  signature TEXT,
-  verified BOOLEAN,
-  statusCode INT,
-  error TEXT,
-  receivedAt TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_webhook_requests_videoId ON webhook_requests(videoId);
-CREATE INDEX idx_webhook_requests_source ON webhook_requests(source);
-```
-
-### phase_transitions
-State machine audit log (optional, for history).
-
-```sql
-CREATE TABLE phase_transitions (
-  id SERIAL PRIMARY KEY,
-  videoId UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
-  fromPhase TEXT,
-  toPhase TEXT NOT NULL,
-  reason TEXT,
-  timestamp TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_phase_transitions_videoId ON phase_transitions(videoId);
-```
-
----
-
-## State Machine Details
-
-### Phase Ranks
-
-```
-Rank 0:  not_required (starting)
-Rank 5:  uploading
-Rank 10: queued
-Rank 20: processing
-Rank 25: processed
-Rank 30: transcribing
-Rank 35: transcribed (or failed_transcription)
-Rank 40: generating_ai
-Rank 45: generated_ai (or failed_ai_gen)
-Rank 50: complete (terminal)
-         failed_processing (terminal)
-         failed_transcription (terminal) [retryable]
-         failed_ai_gen (terminal) [retryable]
-         cancelled (terminal)
-```
-
-### Monotonic Transitions
-
-Only forward transitions allowed:
-
-```sql
--- This is enforced in application code:
--- UPDATE videos
--- SET processingPhase = $1, rank = $2, updatedAt = NOW()
--- WHERE id = $3 
---   AND rank <= $2  -- Only allow rank increases
-```
-
-### Atomic Updates
-
-Compare-and-set prevents race conditions:
-
-```sql
--- Before updating, verify current phase
-UPDATE videos
-SET processingPhase = $1, rank = $2, updatedAt = NOW()
-WHERE id = $3 
-  AND processingPhase = $4  -- Ensure it hasn't changed
-RETURNING *;
-```
-
----
-
-## Job Queue Logic
-
-### Claiming a Job
-
-Only one worker claims a job:
-
-```sql
--- Worker polls for work
-SELECT * FROM jobs
-WHERE status = 'pending'
-FOR UPDATE SKIP LOCKED  -- Lock + skip if already locked
-LIMIT 1;
-
--- If found, claim it
-UPDATE jobs
-SET status = 'claimed', leaseExpiry = NOW() + INTERVAL '5 minutes'
-WHERE id = $1
-RETURNING *;
-```
-
-### Completing a Job
-
-```sql
--- After processing succeeds
-DELETE FROM jobs WHERE id = $1;
-
--- Or mark as completed
-UPDATE jobs SET status = 'completed', completedAt = NOW() WHERE id = $1;
-```
-
-### Retrying a Job
-
-```sql
--- If max retries not exceeded
-INSERT INTO jobs (videoId, type, status, retryCount, maxRetries)
-VALUES ($1, $2, 'pending', $3 + 1, $4);
-
--- Otherwise, move to dead-letter
-INSERT INTO dead_letter_jobs SELECT * FROM jobs WHERE id = $1;
-DELETE FROM jobs WHERE id = $1;
-```
-
-### Lease Expiry Recovery
-
-```sql
--- Another worker can reclaim if lease has expired
-SELECT * FROM jobs
-WHERE status = 'claimed' AND leaseExpiry < NOW()
-FOR UPDATE SKIP LOCKED
-LIMIT 1;
-
--- Reset and reclaim
-UPDATE jobs
-SET status = 'pending', leaseExpiry = NULL
-WHERE id = $1
-RETURNING *;
-```
-
----
-
-## Idempotency Key Logic
-
-### First Request
-
-```sql
--- Check if key has been seen before
-SELECT * FROM idempotency_keys WHERE key = $1;
-
--- If not found, process request and cache response
-INSERT INTO idempotency_keys (key, videoId, response, expiresAt)
-VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours');
-```
-
-### Duplicate Request
-
-```sql
--- Same key = return cached response
-SELECT response FROM idempotency_keys WHERE key = $1;
-```
-
----
-
-## Performance Tuning
-
-### Indexes
-
-Current indexes optimize:
-- Phase lookups (status queries)
-- Job leasing (FOR UPDATE queries)
-- Idempotency key expiry
-
-### Connection Pooling
-
-PostgreSQL connection pool:
-```
-Max connections: 20 (development), 50+ (production)
-```
-
-Configure in `.env`:
-```
-DB_POOL_SIZE=20
-DB_POOL_IDLE_TIMEOUT=30000
-```
-
-### Query Performance
-
-Most common queries are O(1) with direct lookups:
-
-```sql
--- O(1) - Direct ID lookup
-SELECT * FROM videos WHERE id = $1;
-
--- O(log n) - Index scan
-SELECT * FROM jobs WHERE status = 'pending' LIMIT 1;
-
--- O(1) - Hash lookup
-SELECT * FROM idempotency_keys WHERE key = $1;
-```
-
----
-
-## Backup & Recovery
-
-### Backup Schedule
-
-```bash
-# Daily backup at 2 AM UTC
-0 2 * * * pg_dump -h db -U cap4 cap4 | gzip > /backups/cap4-$(date +\%Y\%m\%d).sql.gz
-
-# Keep last 30 days
-find /backups -name "cap4-*.sql.gz" -mtime +30 -delete
-```
-
-### Restore from Backup
-
-```bash
-# Restore latest backup
-gunzip < /backups/cap4-20260306.sql.gz | psql -h db -U cap4 cap4
-
-# Or restore to point-in-time
-# See PostgreSQL PITR documentation
-```
-
-### Disaster Recovery
-
-If database is corrupted:
-
-```sql
--- Wipe everything
-DROP SCHEMA public CASCADE;
-CREATE SCHEMA public;
-
--- Re-run migrations
--- npm run migrate
-
--- Recreate from S3 (if videos are in S3)
-INSERT INTO videos (id, uploadedAt, processingPhase, rank, rawKey)
-SELECT uuid, now(), 'queued', 10, s3_key FROM s3_listing;
-```
-
----
-
-## Migrations
-
-Database schema evolves via SQL migrations:
-
-```
-db/migrations/
-├── 0001_init.sql              -- Initial schema
-├── 0002_video_soft_delete.sql -- Add deleted_at column
-└── 0003_add_webhook_reporting.sql
-```
-
-Run migrations:
-```bash
-npm run migrate
-```
-
-View status:
-```bash
-npm run migrate:status
-```
-
-Rollback:
-```bash
-npm run migrate:rollback
-```
-
----
-
-## Monitoring
-
-### Key Metrics
-
-```sql
--- Videos in progress
-SELECT processingPhase, COUNT(*) 
-FROM videos 
-WHERE deletedAt IS NULL 
-GROUP BY processingPhase;
-
--- Pending jobs
-SELECT COUNT(*) FROM jobs WHERE status = 'pending';
-
--- Failed jobs
-SELECT type, COUNT(*) FROM jobs WHERE status = 'failed' GROUP BY type;
-
--- Idempotency cache size
-SELECT COUNT(*) FROM idempotency_keys;
-
--- Database size
-SELECT pg_size_pretty(pg_database_size('cap4'));
-```
-
-### Query Performance
-
-```sql
--- Slow queries log
-SELECT mean_exec_time, calls, query 
-FROM pg_stat_statements 
-ORDER BY mean_exec_time DESC 
-LIMIT 10;
-
--- Connection usage
-SELECT count(*) FROM pg_stat_activity;
-```
-
----
-
-## Best Practices
-
-1. **Always use transactions** for multi-table changes
-2. **Use compare-and-set** for state machine updates
-3. **Implement idempotency keys** for POST requests
-4. **Clean up expired data** regularly (vacuum)
-5. **Monitor slow queries** and create indexes as needed
-6. **Backup regularly** and test restore procedure
-7. **Use parameterized queries** to prevent SQL injection
-
----
-
-**Questions?** See [ARCHITECTURE.md](ARCHITECTURE.md) or [../ops/TROUBLESHOOTING.md](../ops/TROUBLESHOOTING.md)
+## Operational Notes
+
+- Docker startup runs migrations automatically through the `migrate` service.
+- Soft-deleted videos remain in `videos` with `deleted_at` set; API list/status routes exclude them.
+- Worker retry state lives in `job_queue.attempts`, `max_attempts`, `status`, and `last_error`.
+- Monotonic progress updates are enforced in route and worker logic by comparing phase rank and progress before applying updates.

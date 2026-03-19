@@ -46,7 +46,7 @@ export function ProviderStatusPanel({ data, loading = false, errorMessage = null
 
       <div className="grid gap-3 md:grid-cols-2">
         {(data?.providers ?? []).map((provider) => (
-          <article key={provider.key} className="panel-subtle space-y-3 p-3">
+          <article key={provider.key} className="provider-status-card panel-subtle space-y-3 p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">{provider.label}</p>

@@ -30,7 +30,10 @@ module.exports = {
           border:  "var(--accent-blue-border)",
           muted:   "var(--accent-blue-muted)",
         },
-        // ── Legacy green accent (kept for build compat) ────────────────
+        // ── Primary accent (sage green) ─────────────────────────────────
+        // Available palette entries kept for design-system consistency.
+        // Currently used in app code: accent-700 only.
+        // Currently unused in app code: accent-50, accent-100, accent-200, accent-500, accent-600.
         accent: {
           50:  "#f0f5f1",
           100: "#dce8dd",

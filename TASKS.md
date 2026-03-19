@@ -1,12 +1,48 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-09 (Phase 4.6 complete ✓ — UI design system overhaul, 3-tab rail, seeker preview)
+**Last updated:** 2026-03-19 (Full audit complete — fix plan active)
 
 ---
 
 ## Active
 
-### Phase 5 — Auth (NEXT UP)
+### Full-App Audit & Fix — [AUDIT_PLAN.md](AUDIT_PLAN.md)
+
+Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews, cross-validated). Execution order follows the real dependency chain.
+
+- [ ] **Phase A** — Runtime/job correctness (CRITICAL)
+  - [ ] A1: Fix 6 unacked worker skip paths (`worker/src/index.ts`)
+  - [ ] A2: Fix deliver_webhook INSERT constraint violation (`worker/src/index.ts`)
+  - [ ] A3: Fix `/retry` invalid `'failed'` enum value (`routes/videos.ts`)
+  - [ ] A4: Clean up `/retry` `'dead'` status check on wrong enum (`routes/videos.ts`)
+- [ ] **Phase B** — Verification infrastructure
+  - [ ] B1: Create root `tsconfig.json` (fixes ESLint)
+  - [ ] B2: Fix groq test stale assertion
+  - [ ] B3: Add `test:e2e` script to root package.json
+  - [ ] B4: Verify dist/ excluded from test discovery
+- [ ] **Phase C** — Frontend correctness
+  - [ ] C1: Fix verified-segments localStorage key (bleeds across videos)
+  - [ ] C2: Reset verified segments on video navigation
+  - [ ] C3: Fix speaker label edit state on save failure
+  - [ ] C4: Fix polling after failed delete
+- [ ] **Phase D** — Docs truth pass
+  - [ ] D1: Rewrite WEBHOOKS.md from code outward
+  - [ ] D2: Decide on GET /api/playlist stub
+  - [ ] D3: Fix CONTRIBUTING.md placeholders
+  - [ ] D4: Align .env.example model name with master plan
+  - [ ] D5: Verify ARCHITECTURE.md accuracy
+  - [ ] D6: Archive ROADMAP.md to docs/archive/
+  - [ ] D7: Merge DESIGN.md into DESIGN_SYSTEM.md
+  - [ ] D8: Update TASKS.md (this file — done)
+- [ ] **Phase E** — Repo hygiene cleanup
+  - [ ] E1: Delete empty `main` file
+  - [ ] E2: Remove tracked .DS_Store files
+  - [ ] E3: Gitignore .cursor/
+  - [ ] E4: Cap_for_reference_only/ archive decision
+  - [ ] E5: Review samplevids/ contents
+- [ ] **Phase F** — Optional hardening (not blocking)
+
+### Phase 5 — Auth (deferred by owner — after audit fixes)
 
 - [ ] Single-user authentication (JWT or session-based)
 - [ ] Protected routes on frontend
@@ -15,6 +51,18 @@
 ---
 
 ## Recently Completed
+
+### Phase 4.7 — Agent Sprint (BJK-9 through BJK-18) (✓ Complete)
+- [x] **BJK-9** — Add micro-animations and transitions system
+- [x] **BJK-10** — Redesign color system with gradient accents and enhanced dark mode
+- [x] **BJK-11** — Build custom video player controls replacing native chrome
+- [x] **BJK-12** — Redesign library grid with rich video cards
+- [x] **BJK-13** — Add keyboard shortcuts and command palette
+- [x] **BJK-14** — Add speaker diarization UI and editable speaker labels
+- [x] **BJK-15** — Add confidence highlighting and uncertain segment review mode
+- [x] **BJK-16** — Enhance Groq AI prompt for richer structured output
+- [x] **BJK-17** — Add transcript full-text search with highlighting
+- [x] **BJK-18** — UI overhaul: theme redesign, layout polish, delete button fix
 
 ### Phase 4.6 — UI Design System Overhaul (✓ Complete)
 - [x] **tailwind.config.cjs** — semantic color tokens backed by CSS vars; `darkMode` config; font + shadow extensions

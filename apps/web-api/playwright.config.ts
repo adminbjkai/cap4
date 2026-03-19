@@ -14,7 +14,7 @@ loadEnv({ path: resolve(__dirname, '../../.env') });
  *   pnpm --filter @cap/web-api test:e2e
  *
  * Prerequisites:
- *   - `docker compose up -d` must be running and healthy
+ *   - `docker compose up -d` must be running and healthy (postgres + minio + migrate at minimum)
  *   - All env vars in .env must be set (Deepgram + Groq keys in particular)
  *   - Database should be migrated and ready
  *
@@ -64,4 +64,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+
+  // Boot the API automatically for e2e runs to avoid ECONNREFUSED.
+  // Note: external dependencies (DB, S3/MinIO) still must be running.
+  webServer: {
+    // Use the compiled output to avoid tsx's IPC pipe (can fail under sandboxing).
+    command: 'pnpm run build && node --enable-source-maps dist/index.js',
+    port: 3000,
+    reuseExistingServer: true,
+    timeout: 60_000,
+  },
 });
