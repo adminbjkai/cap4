@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { VideoStatusResponse } from '../lib/api';
 
 type TranscriptCardProps = {
+  videoId: string | undefined;
   transcriptionStatus: VideoStatusResponse['transcriptionStatus'] | undefined;
   transcript: VideoStatusResponse['transcript'] | null | undefined;
   errorMessage: string | null | undefined;
@@ -67,6 +68,7 @@ function formatTimestamp(secondsInput: number): string {
 }
 
 export function TranscriptCard({
+  videoId,
   transcriptionStatus,
   transcript,
   errorMessage,
@@ -107,8 +109,7 @@ export function TranscriptCard({
   const [isSavingSpeaker, setIsSavingSpeaker] = useState(false);
 
   // Track verified segments in localStorage
-  const videoId = transcript?.vttKey?.split('/')[0] ?? 'unknown';
-  const verifiedSegmentsKey = `cap4:verified-segments:${videoId}`;
+  const verifiedSegmentsKey = `cap4:verified-segments:${videoId ?? 'unknown'}`;
   const [verifiedSegments, setVerifiedSegments] = useState<Set<number>>(() => {
     try {
       const stored = localStorage.getItem(verifiedSegmentsKey);
@@ -117,6 +118,15 @@ export function TranscriptCard({
       return new Set();
     }
   });
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(verifiedSegmentsKey);
+      setVerifiedSegments(stored ? new Set(JSON.parse(stored) as number[]) : new Set());
+    } catch {
+      setVerifiedSegments(new Set());
+    }
+  }, [verifiedSegmentsKey]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -492,6 +502,7 @@ export function TranscriptCard({
     setIsSavingSpeaker(false);
     if (!ok) {
       setSpeakerSaveError('Unable to save speaker label.');
+      cancelSpeakerEdit();
       return;
     }
     setSpeakerLabels(nextLabels);

@@ -278,13 +278,13 @@ export function VideoPage() {
   useEffect(() => { if (videoId) void refresh(); }, [videoId, refresh]);
 
   useEffect(() => {
-    if (!videoId || isDeleted || hasReachedTerminalState(status)) return;
+    if (!videoId || isDeleted || isDeleting || hasReachedTerminalState(status)) return;
     const delayMs = consecutivePollFailures === 0
       ? 2000
       : Math.min(15000, 2000 * 2 ** consecutivePollFailures);
     const timeout = window.setTimeout(() => void refresh(), delayMs);
     return () => window.clearTimeout(timeout);
-  }, [videoId, status, refresh, consecutivePollFailures, isDeleted]);
+  }, [videoId, status, refresh, consecutivePollFailures, isDeleted, isDeleting]);
 
   /* ── Retry ───────────────────────────────────────────────────────────── */
   const handleRetry = useCallback(async () => {
@@ -386,6 +386,7 @@ export function VideoPage() {
     }
     return (
       <TranscriptCard
+        videoId={videoId}
         transcriptionStatus={status?.transcriptionStatus}
         transcript={status?.transcript}
         errorMessage={status?.transcriptErrorMessage}
