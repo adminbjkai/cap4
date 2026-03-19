@@ -269,7 +269,6 @@ export {
 };
 
 export function getS3ClientAndBucket() {
-  const endpoint = process.env.S3_ENDPOINT;
   const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT ?? "http://localhost:9000";
   const signingEndpoint = publicEndpoint;
   const region = process.env.S3_REGION ?? "us-east-1";

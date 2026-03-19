@@ -319,7 +319,7 @@ test.describe('Webhooks API', () => {
     });
 
     expect(response1.status()).toBe(200);
-    const body1 = await response1.json();
+    await response1.json();
 
     // Second request with same delivery-id
     const response2 = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {

@@ -56,7 +56,11 @@ describe("summarizeWithGroq", () => {
       model: "llama-3.3",
       title: "Release recap",
       summary: "A concise summary.",
-      keyPoints: ["One", "Two"]
+      keyPoints: ["One", "Two"],
+      chapters: [],
+      entities: undefined,
+      actionItems: undefined,
+      quotes: undefined
     });
   });
 

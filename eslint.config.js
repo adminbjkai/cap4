@@ -50,6 +50,14 @@ export default [
     },
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.config.js', '**/*.config.cjs'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
+      '**/.playwright/**',
+      '**/*.config.js',
+      '**/*.config.cjs',
+    ],
   },
 ];

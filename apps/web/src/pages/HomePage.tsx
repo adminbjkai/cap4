@@ -88,7 +88,7 @@ export function HomePage() {
       setLoadingProviderStatus(true);
       try {
         setProviderStatus(await getSystemProviderStatus());
-      } catch (e) {
+      } catch {
         setProviderStatusError('Status check failed');
       } finally {
         setLoadingProviderStatus(false);
@@ -108,7 +108,7 @@ export function HomePage() {
       });
       setLibraryItems(current => [...current, ...response.items]);
       setNextCursor(response.nextCursor);
-    } catch (error) {
+    } catch {
       setLibraryError('Unable to load more items.');
     } finally {
       setLoadingLibrary(false);
@@ -127,7 +127,7 @@ export function HomePage() {
         setDeletingVideoIds(current => current.filter(id => id !== removedId));
       }, 200);
       setDeleteTarget(null);
-    } catch (error) {
+    } catch {
       setDeleteError('Delete failed');
     } finally {
       setIsDeleting(false);

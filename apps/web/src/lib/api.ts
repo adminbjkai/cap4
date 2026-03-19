@@ -319,7 +319,7 @@ export async function uploadMultipart(
   const totalParts = Math.ceil(blob.size / CHUNK_SIZE);
 
   // 1. Initiate
-  const init = await parseJson<MultipartInitiateResponse>(
+  await parseJson<MultipartInitiateResponse>(
     await fetch("/api/uploads/multipart/initiate", {
       method: "POST",
       headers: {

@@ -13,8 +13,6 @@ import { randomUUID } from 'crypto';
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 
 test.describe('Videos API', () => {
-  let createdVideoId: string;
-
   test('POST /api/videos - should create a new video', async ({ request }) => {
     const idempotencyKey = randomUUID();
 
@@ -36,7 +34,6 @@ test.describe('Videos API', () => {
     expect(body.rawKey).toContain('videos/');
     expect(body.rawKey).toContain('/raw/source.mp4');
 
-    createdVideoId = body.videoId;
   });
 
   test('POST /api/videos - should be idempotent', async ({ request }) => {
