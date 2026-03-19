@@ -503,7 +503,7 @@ export async function videoRoutes(app: FastifyInstance) {
       const jobsReset: string[] = [];
 
       // 3. Reset Transcription Job if failed/dead
-      if (["failed", "dead", "not_started"].includes(video.transcription_status) || video.transcription_status === "processing") {
+      if (["failed", "not_started"].includes(video.transcription_status) || video.transcription_status === "processing") {
         const res = await client.query(
           `UPDATE job_queue
            SET status = 'queued',
@@ -512,7 +512,7 @@ export async function videoRoutes(app: FastifyInstance) {
                last_error = NULL,
                updated_at = now()
            WHERE video_id = $1::uuid AND job_type = 'transcribe_video'
-             AND status IN ('failed', 'dead', 'running', 'leased')`,
+             AND status IN ('dead', 'running', 'leased')`,
           [videoId]
         );
         if ((res.rowCount ?? 0) > 0) {
@@ -522,7 +522,7 @@ export async function videoRoutes(app: FastifyInstance) {
       }
 
       // 4. Reset AI Job if failed/dead
-      if (["failed", "dead", "not_started"].includes(video.ai_status) || video.ai_status === "processing") {
+      if (["failed", "not_started"].includes(video.ai_status) || video.ai_status === "processing") {
         const res = await client.query(
           `UPDATE job_queue
            SET status = 'queued',
@@ -531,7 +531,7 @@ export async function videoRoutes(app: FastifyInstance) {
                last_error = NULL,
                updated_at = now()
            WHERE video_id = $1::uuid AND job_type = 'generate_ai'
-             AND status IN ('failed', 'dead', 'running', 'leased')`,
+             AND status IN ('dead', 'running', 'leased')`,
           [videoId]
         );
         if ((res.rowCount ?? 0) > 0) {

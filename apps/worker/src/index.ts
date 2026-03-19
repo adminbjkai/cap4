@@ -461,6 +461,9 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
 
   if (preProcess.skip) {
     log("job.process.skip", { job_id: job.id, video_id: job.video_id, reason: preProcess.reason });
+    await withTransaction(env.DATABASE_URL, async (client) => {
+      await ack(client, job);
+    });
     return;
   }
 
@@ -496,6 +499,7 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
 
     if (current.rows[0]!.deleted_at) {
       log("job.process.skip", { job_id: job.id, video_id: job.video_id, reason: "deleted_during_finalize" });
+      await ack(client, job);
       return;
     }
 
@@ -548,6 +552,7 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
     if (hasAudio) {
       const shouldQueueTranscription = transcriptionStatus === "not_started" || transcriptionStatus === "queued";
       if (!shouldQueueTranscription) {
+        await ack(client, job);
         return;
       }
 
@@ -706,6 +711,7 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
            AND transcription_status IN ('processing', 'queued', 'not_started')`,
         [job.video_id]
       );
+      await ack(client, job);
     });
 
     log("job.transcribe.no_audio", {
@@ -741,6 +747,7 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
         video_id: job.video_id,
         reason: "deleted_during_finalize"
       });
+      await ack(client, job);
       return;
     }
 
@@ -775,7 +782,9 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
     if (row?.webhook_url) {
       await client.query(
         `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
-         VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+         VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)
+         ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
+         DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`,
         [job.video_id, JSON.stringify({ webhookUrl: row.webhook_url, event: "video.transcription_complete", videoId: job.video_id })]
       );
     }
@@ -888,6 +897,9 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
       video_id: job.video_id,
       reason: transcriptRecord.reason
     });
+    await withTransaction(env.DATABASE_URL, async (client) => {
+      await ack(client, job);
+    });
     return;
   }
 
@@ -907,6 +919,7 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
            AND ai_status IN('processing', 'queued', 'not_started')`,
         [job.video_id]
       );
+      await ack(client, job);
     });
 
     log("job.ai.skip", {
@@ -956,6 +969,7 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
         video_id: job.video_id,
         reason: "deleted_during_finalize"
       });
+      await ack(client, job);
       return;
     }
 
@@ -1000,7 +1014,9 @@ async function handleGenerateAi(job: JobRow): Promise<void> {
     if (row && row.webhook_url) {
       await client.query(
         `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
-         VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+         VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)
+         ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
+         DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`,
         [job.video_id, JSON.stringify({ webhookUrl: row.webhook_url, event: "video.ai_complete", videoId: job.video_id })]
       );
     }
