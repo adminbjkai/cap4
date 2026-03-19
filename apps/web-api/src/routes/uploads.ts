@@ -254,6 +254,9 @@ export async function uploadRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------
 
   app.post<{ Body: { videoId: string; partNumber: number } }>("/api/uploads/multipart/presign-part", async (req, reply) => {
+    const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
+    if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
+
     const { videoId, partNumber } = req.body ?? ({} as any);
     if (!videoId || !partNumber) return reply.code(400).send(badRequest("videoId and partNumber are required"));
 
@@ -363,6 +366,9 @@ export async function uploadRoutes(app: FastifyInstance) {
   // ------------------------------------------------------------------
 
   app.post<{ Body: { videoId: string } }>("/api/uploads/multipart/abort", async (req, reply) => {
+    const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
+    if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
+
     const { videoId } = req.body ?? ({} as any);
     if (!videoId) return reply.code(400).send(badRequest("videoId is required"));
 

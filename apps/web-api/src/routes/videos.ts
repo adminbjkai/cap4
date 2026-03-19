@@ -208,10 +208,8 @@ export async function videoRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string }; Body: { title?: string | null; transcriptText?: string | null; speakerLabels?: Record<string, string> | null } }>("/api/videos/:id/watch-edits", async (req, reply) => {
     const videoId = req.params.id;
-    const idempotencyKey = req.headers["idempotency-key"];
-    if (!idempotencyKey || typeof idempotencyKey !== "string" || idempotencyKey.trim().length === 0) {
-      return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
-    }
+    const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
+    if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
     const titleProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, "title");
     const transcriptProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, "transcriptText");
@@ -223,6 +221,14 @@ export async function videoRoutes(app: FastifyInstance) {
     const title = titleProvided ? String(req.body?.title ?? "").trim() : null;
     const transcriptText = transcriptProvided ? String(req.body?.transcriptText ?? "").trim() : null;
     const speakerLabels = speakerLabelsProvided ? normalizeSpeakerLabels(req.body?.speakerLabels ?? {}) : null;
+    if (titleProvided && title !== null) {
+      if (title.length === 0) {
+        return reply.code(400).send(badRequest("Title cannot be empty"));
+      }
+      if (title.length > 500) {
+        return reply.code(400).send(badRequest("Title too long (max 500 characters)"));
+      }
+    }
     const endpointKey = `/api/videos/${videoId}/watch-edits`;
     const requestHash = sha256Hex(JSON.stringify({
       videoId,
@@ -300,18 +306,17 @@ export async function videoRoutes(app: FastifyInstance) {
       }
 
       if (transcriptProvided) {
-        const transcriptLookup = await client.query<{ segments_json: unknown; speaker_labels_json: unknown }>(
-          `SELECT segments_json, speaker_labels_json FROM transcripts WHERE video_id = $1::uuid`,
+        const transcriptLookup = await client.query<{ segments_json: unknown }>(
+          `SELECT segments_json FROM transcripts WHERE video_id = $1::uuid`,
           [videoId]
         );
         if ((transcriptLookup.rowCount ?? 0) > 0) {
           const normalizedSegments = normalizeEditableTranscriptSegments(transcriptLookup.rows[0]?.segments_json ?? [], transcriptText ?? "");
-          const normalizedSpeakerLabels = normalizeSpeakerLabels(transcriptLookup.rows[0]?.speaker_labels_json ?? {});
           await client.query(
             `UPDATE transcripts
-             SET segments_json = $2::jsonb, speaker_labels_json = $3::jsonb, updated_at = now()
+             SET segments_json = $2::jsonb, updated_at = now()
              WHERE video_id = $1::uuid`,
-            [videoId, JSON.stringify(normalizedSegments), JSON.stringify(normalizedSpeakerLabels)]
+            [videoId, JSON.stringify(normalizedSegments)]
           );
           transcriptUpdated = true;
         }
@@ -435,10 +440,8 @@ export async function videoRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>("/api/videos/:id/retry", async (req, reply) => {
     const videoId = req.params.id;
-    const idempotencyKey = req.headers["idempotency-key"];
-    if (!idempotencyKey || typeof idempotencyKey !== "string" || idempotencyKey.trim().length === 0) {
-      return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
-    }
+    const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
+    if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
     const endpointKey = `/api/videos/${videoId}/retry`;
     const requestHash = sha256Hex(JSON.stringify({ videoId, action: "retry" }));

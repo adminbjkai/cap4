@@ -280,6 +280,7 @@ test.describe('Uploads API - Multipart', () => {
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/presign-part`, {
       headers: {
         'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
       },
       data: {
         videoId,
@@ -301,6 +302,7 @@ test.describe('Uploads API - Multipart', () => {
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/presign-part`, {
       headers: {
         'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
       },
       data: {
         videoId,
@@ -317,6 +319,7 @@ test.describe('Uploads API - Multipart', () => {
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/presign-part`, {
       headers: {
         'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
       },
       data: {
         videoId,
@@ -413,6 +416,7 @@ test.describe('Uploads API - Multipart', () => {
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/abort`, {
       headers: {
         'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
       },
       data: {
         videoId,
@@ -429,6 +433,7 @@ test.describe('Uploads API - Multipart', () => {
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/abort`, {
       headers: {
         'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
       },
       data: {},
     });
@@ -443,6 +448,7 @@ test.describe('Uploads API - Multipart', () => {
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/abort`, {
       headers: {
         'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
       },
       data: {
         videoId,
