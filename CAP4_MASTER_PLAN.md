@@ -100,7 +100,7 @@ No changes from what's working in v4. The stack is proven.
 | Object Storage | MinIO (S3-compatible) | Latest |
 | Video Processing | FFmpeg (via media-server) | 6+ |
 | Transcription | Deepgram | Nova-2 model |
-| AI Generation | Groq | llama-3.1-8b-instant |
+| AI Generation | Groq | llama-3.3-70b-versatile |
 | Logging | Pino (via @cap/logger) | Structured JSON |
 | Package Manager | pnpm workspaces | 9+ |
 

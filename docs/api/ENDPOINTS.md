@@ -85,7 +85,7 @@ Response shape:
   },
   "aiOutput": {
     "provider": "groq",
-    "model": "llama-3.1-8b-instant",
+    "model": "llama-3.3-70b-versatile",
     "title": "Weekly review",
     "summary": "Summary text",
     "keyPoints": ["Point 1", "Point 2"]
@@ -205,7 +205,9 @@ Response:
 
 ### `GET /api/playlist`
 
-Currently returns `501 Not Implemented`.
+Currently implemented as a deliberate `501 Not Implemented` stub in `apps/web-api/src/routes/videos.ts`.
+
+Keep-or-remove decision is still pending. Do not build product behavior against this route.
 
 ## Upload Routes
 

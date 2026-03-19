@@ -231,6 +231,16 @@ Grid: `lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)]`
 
 ---
 
+## Design Maintenance Rules
+
+- Add new raw values in `apps/web/src/index.css` as CSS variables first.
+- Map reusable values into Tailwind tokens before using them across components.
+- Do not hardcode hex colors in component files.
+- Add new shared component classes under `@layer components` in `apps/web/src/index.css`.
+- Update this file when adding a reusable visual pattern, token, or layout convention.
+
+---
+
 ## File Reference
 
 | File | Role |
