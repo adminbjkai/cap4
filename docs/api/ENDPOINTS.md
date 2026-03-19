@@ -203,12 +203,6 @@ Response:
 }
 ```
 
-### `GET /api/playlist`
-
-Currently implemented as a deliberate `501 Not Implemented` stub in `apps/web-api/src/routes/videos.ts`.
-
-Keep-or-remove decision is still pending. Do not build product behavior against this route.
-
 ## Upload Routes
 
 ### `POST /api/uploads/signed`

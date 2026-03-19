@@ -5,7 +5,6 @@
  *   PATCH /api/videos/:id/watch-edits    — update title / transcript
  *   POST  /api/videos/:id/delete         — soft delete
  *   POST  /api/videos/:id/retry          — re-queue failed video
- *   GET   /api/playlist                  — 501 stub
  */
 
 import type { FastifyInstance } from "fastify";
@@ -356,12 +355,6 @@ export async function videoRoutes(app: FastifyInstance) {
 
     return reply.code(result.statusCode).send(result.body);
   });
-
-  // ------------------------------------------------------------------
-  // GET /api/playlist — 501 stub
-  // ------------------------------------------------------------------
-
-  app.get("/api/playlist", async (_req, reply) => reply.code(501).send({ ok: false, error: "Not Implemented" }));
 
   // ------------------------------------------------------------------
   // POST /api/videos/:id/delete — soft delete (idempotent)
