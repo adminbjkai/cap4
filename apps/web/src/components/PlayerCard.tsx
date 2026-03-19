@@ -62,8 +62,9 @@ export function PlayerCard({
   const [hoverSeconds,        setHoverSeconds]        = useState<number | null>(null);
   const [hoverChapterLabel,   setHoverChapterLabel]   = useState<string | null>(null);
 
-  const videoRef    = useRef<HTMLVideoElement | null>(null);
-  const trackRef    = useRef<HTMLDivElement | null>(null);
+  const videoRef     = useRef<HTMLVideoElement | null>(null);
+  const videoContainerRef = useRef<HTMLDivElement | null>(null);
+  const trackRef     = useRef<HTMLDivElement | null>(null);
 
   /* ── Seek on external request ─────────────────────────────────────────── */
   useEffect(() => {
@@ -218,7 +219,7 @@ export function PlayerCard({
 
       {/* Video */}
       <div className="video-frame">
-        <div className="relative h-full w-full">
+        <div ref={videoContainerRef} className="relative h-full w-full">
           <video
             ref={videoRef}
             playsInline
@@ -244,6 +245,7 @@ export function PlayerCard({
           />
           <CustomVideoControls
             videoRef={videoRef}
+            containerRef={videoContainerRef}
             playbackTimeSeconds={playbackTimeSeconds}
             durationSeconds={durationSeconds}
             chapters={timelineChapters}

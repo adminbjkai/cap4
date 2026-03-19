@@ -93,6 +93,7 @@ export async function transcribeWithDeepgram(args: {
   url.searchParams.set("smart_format", "true");
   url.searchParams.set("punctuate", "true");
   url.searchParams.set("utterances", "true");
+  url.searchParams.set("diarize", "true");
   url.searchParams.set("detect_language", "true");
 
   try {

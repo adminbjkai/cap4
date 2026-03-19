@@ -317,7 +317,7 @@ export async function uploadRoutes(app: FastifyInstance) {
       }
 
       const { raw_key: rawKey, multipart_upload_id: uploadId } = uploadLookup.rows[0]!;
-      const { client: s3Client, bucket } = getS3ClientAndBucket();
+      const { client: s3Client, bucket } = getInternalS3ClientAndBucket();
 
       // S3 expects MultipartUpload with Parts sorted by PartNumber
       const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
@@ -386,7 +386,7 @@ export async function uploadRoutes(app: FastifyInstance) {
     }
 
     const { raw_key: rawKey, multipart_upload_id: uploadId } = uploadLookup.rows[0]!;
-    const { client: s3Client, bucket } = getS3ClientAndBucket();
+    const { client: s3Client, bucket } = getInternalS3ClientAndBucket();
 
     const abortCommand = new AbortMultipartUploadCommand({
       Bucket: bucket,

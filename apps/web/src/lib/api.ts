@@ -345,7 +345,7 @@ export async function uploadMultipart(
     const presign = await parseJson<MultipartPresignResponse>(
       await fetch("/api/uploads/multipart/presign-part", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": newIdempotencyKey("mp-presign") },
         body: JSON.stringify({ videoId, partNumber })
       })
     );

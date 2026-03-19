@@ -1025,6 +1025,17 @@ body {
   .custom-video-shell-fullscreen {
     animation: fullscreen-pop 180ms ease-out;
   }
+
+  /* When the video container goes fullscreen, fill the screen */
+  div:fullscreen > video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  div:fullscreen {
+    background: #000;
+  }
+
   .buffering-overlay {
     @apply pointer-events-none absolute inset-0 z-10 flex items-center justify-center;
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.22));

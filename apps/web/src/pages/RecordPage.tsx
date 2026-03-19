@@ -65,6 +65,7 @@ export function RecordPage() {
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [uploadContext, setUploadContext] = useState<UploadAttemptContext | null>(null);
 
+  const autoUploadTriggeredRef = useRef(false);
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
 
   const displayStreamRef = useRef<MediaStream | null>(null);
@@ -475,6 +476,17 @@ export function RecordPage() {
     }
   }, [recordedBlob, navigate, uploadContext]);
 
+  // Auto-upload recordings immediately after capture completes (not file selections)
+  useEffect(() => {
+    if (state === "preview" && recordedBlob && sourceLabel === "Screen recording" && !autoUploadTriggeredRef.current) {
+      autoUploadTriggeredRef.current = true;
+      void uploadAndProcess();
+    }
+    if (state !== "preview") {
+      autoUploadTriggeredRef.current = false;
+    }
+  }, [state, recordedBlob, sourceLabel, uploadAndProcess]);
+
   const downloadRecording = useCallback(() => {
     if (!previewUrl) return;
     const a = document.createElement("a");
@@ -520,7 +532,7 @@ export function RecordPage() {
             {[
               { id: 1, label: "Setup", copy: "Choose sources" },
               { id: 2, label: "Preview", copy: "Review output" },
-              { id: 3, label: "Upload", copy: "Queue pipeline" }
+              { id: 3, label: "Upload", copy: "Auto-queued" }
             ].map((step) => {
               const isActive = activeStep === step.id;
               const isComplete = activeStep > step.id;
@@ -704,19 +716,23 @@ export function RecordPage() {
             <>
               <video controls src={previewUrl} className="video-frame mt-4 w-full rounded-lg" />
               <div className="mt-4 action-group">
-                <button
-                  type="button"
-                  onClick={() => void uploadAndProcess()}
-                  className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={state === "uploading" || state === "processing"}
-                >
-                  {state === "uploading" ? "Uploading..." : state === "processing" ? "Queued for processing..." : "Upload and process"}
-                </button>
+                {sourceLabel === "Screen recording" && state === "preview" ? (
+                  <span className="text-sm text-muted">Auto-uploading...</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void uploadAndProcess()}
+                    className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={state === "uploading" || state === "processing"}
+                  >
+                    {state === "uploading" ? "Uploading..." : state === "processing" ? "Queued for processing..." : "Upload and process"}
+                  </button>
+                )}
                 {retryAvailable ? (
                   <button
                     type="button"
                     onClick={() => void uploadAndProcess()}
-                    className="btn-tertiary px-4 py-2"
+                    className="btn-primary px-4 py-2"
                   >
                     Retry upload
                   </button>

@@ -4,6 +4,7 @@ type ChapterItem = { title: string; seconds: number };
 
 type Props = {
   videoRef: RefObject<HTMLVideoElement | null>;
+  containerRef?: RefObject<HTMLElement | null>;
   playbackTimeSeconds: number;
   durationSeconds: number;
   chapters: ChapterItem[];
@@ -26,6 +27,7 @@ function formatTimestamp(secondsInput: number): string {
 
 export function CustomVideoControls({
   videoRef,
+  containerRef,
   playbackTimeSeconds,
   durationSeconds,
   chapters,
@@ -133,8 +135,8 @@ export function CustomVideoControls({
 
   useEffect(() => {
     const onFsChange = () => {
-      const host = hostRef.current;
-      setIsFullscreen(Boolean(host && document.fullscreenElement === host));
+      const fsTarget = containerRef?.current ?? hostRef.current;
+      setIsFullscreen(Boolean(fsTarget && document.fullscreenElement === fsTarget));
     };
     const onPipEnter = () => setIsInPip(true);
     const onPipLeave = () => setIsInPip(false);
@@ -238,13 +240,13 @@ export function CustomVideoControls({
   };
 
   const toggleFullscreen = async () => {
-    const host = hostRef.current;
-    if (!host) return;
-    if (document.fullscreenElement === host) {
+    const fsTarget = containerRef?.current ?? hostRef.current;
+    if (!fsTarget) return;
+    if (document.fullscreenElement === fsTarget) {
       await document.exitFullscreen();
       return;
     }
-    await host.requestFullscreen();
+    await fsTarget.requestFullscreen();
   };
 
   const togglePip = async () => {
