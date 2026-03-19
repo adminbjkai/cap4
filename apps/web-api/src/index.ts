@@ -73,8 +73,8 @@ await app.register(webhookRoutes);
 
 await app.listen({ host: "0.0.0.0", port: env.WEB_API_PORT });
 
-if ((app as any).serviceLogger) {
-  (app as any).serviceLogger.info('web-api log', { event: "server.started", port: env.WEB_API_PORT });
+if (app.serviceLogger) {
+  app.serviceLogger.info('web-api log', { event: "server.started", port: env.WEB_API_PORT });
 } else {
   console.log(JSON.stringify({ service: "web-api", event: "server.started", port: env.WEB_API_PORT }));
 }

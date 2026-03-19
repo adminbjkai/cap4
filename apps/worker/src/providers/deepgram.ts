@@ -33,6 +33,8 @@ export type DeepgramTranscription = {
   segments: TranscriptSegment[];
 };
 
+type FatalError = Error & { fatal?: boolean };
+
 function finiteNumber(value: unknown, fallback = 0): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -106,9 +108,9 @@ export async function transcribeWithDeepgram(args: {
 
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 400);
-      const error = new Error(`deepgram request failed (${response.status}): ${detail}`);
+      const error: FatalError = new Error(`deepgram request failed (${response.status}): ${detail}`);
       if (response.status === 401 || response.status === 403) {
-        (error as any).fatal = true;
+        error.fatal = true;
       }
       throw error;
     }

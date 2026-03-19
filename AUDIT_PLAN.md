@@ -1,7 +1,7 @@
 # Audit & Fix Plan — cap4
 
 **Created:** 2026-03-19
-**Status:** Phases A-E completed on 2026-03-19; Phase F optional hardening remains
+**Status:** Phases A-E completed on 2026-03-19; selected Phase F items completed
 **Audited by:** Claude Opus 4.6 + Codex (independent reviews, findings merged)
 
 ---
@@ -239,25 +239,25 @@ Already gitignored, not tracked. Only referenced once in `CAP4_MASTER_PLAN.md` (
 `vid0.mp4` is used by integration tests. Review other video files for removal.
 
 - [x] Keep `vid0.mp4`
-- [ ] Review and remove unused sample videos
+- [x] Review and remove unused sample videos
 
 ---
 
 ## Phase F — Optional Hardening
 
-**Status:** `pending` (not blocking — improvements only)
-**Exit criteria:** None required. These are quality improvements.
+**Status:** `completed` for F1-F5 and F7. F6 and F8 remain deferred.
+**Exit criteria:** Selected hardening items completed; deferred items explicitly noted.
 
 | # | Item | File | Notes |
 |---|------|------|-------|
-| F1 | Add idempotency to `presign-part` | `uploads.ts:256` | Missing idempotency key validation |
-| F2 | Add idempotency to `multipart/abort` | `uploads.ts:365` | Missing idempotency key validation |
-| F3 | Watch-edits: preserve speaker_labels when only transcript updated | `videos.ts:318-323` | Real but low-severity; re-normalization is currently idempotent |
-| F4 | Standardize idempotency validation (helper vs inline) | `videos.ts:220,453` | Code quality — use `requireIdempotencyKey()` everywhere |
-| F5 | `GET /api/playlist` — keep or remove stub | `videos.ts:369-372` | Product decision |
+| F1 | Add idempotency to `presign-part` | `uploads.ts:256` | Completed |
+| F2 | Add idempotency to `multipart/abort` | `uploads.ts:365` | Completed |
+| F3 | Watch-edits: preserve speaker_labels when only transcript updated | `videos.ts:318-323` | Completed |
+| F4 | Standardize idempotency validation (helper vs inline) | `videos.ts:220,453` | Completed |
+| F5 | `GET /api/playlist` — keep or remove stub | `videos.ts:369-372` | Removed |
 | F6 | Auth planning (Phase 5) | N/A | Deferred by owner |
-| F7 | Title length validation on watch-edits | `videos.ts:232` | No min/max length check |
-| F8 | Accessibility: aria-labels on icon buttons | `VideoPage.tsx` | Missing screen reader labels |
+| F7 | Title length validation on watch-edits | `videos.ts:232` | Completed |
+| F8 | Accessibility: aria-labels on icon buttons | `VideoPage.tsx` | Deferred |
 
 ---
 

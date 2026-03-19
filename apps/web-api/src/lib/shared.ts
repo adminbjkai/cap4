@@ -85,6 +85,18 @@ export type IdempotencyBeginResult =
   | { kind: "cached"; statusCode: number; body: Record<string, unknown> }
   | { kind: "conflict"; statusCode: 409; body: Record<string, unknown> };
 
+type QueryResult<Row extends Record<string, unknown>> = {
+  rowCount: number;
+  rows: Row[];
+};
+
+type QueryClient = {
+  query<Row extends Record<string, unknown> = Record<string, unknown>>(
+    text: string,
+    params?: readonly unknown[]
+  ): Promise<QueryResult<Row>>;
+};
+
 export type TranscriptSegmentRow = {
   startSeconds?: number;
   endSeconds?: number;
@@ -322,7 +334,7 @@ export function getInternalS3ClientAndBucket() {
 // ---------------------------------------------------------------------------
 
 export async function idempotencyBegin(args: {
-  client: { query: (text: string, params?: any[]) => Promise<{ rowCount: number; rows: any[] }> };
+  client: QueryClient;
   endpoint: string;
   idempotencyKey: string;
   requestHash: string;
@@ -371,7 +383,7 @@ export async function idempotencyBegin(args: {
 }
 
 export async function idempotencyFinish(args: {
-  client: { query: (text: string, params?: any[]) => Promise<any> };
+  client: QueryClient;
   endpoint: string;
   idempotencyKey: string;
   statusCode: number;

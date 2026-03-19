@@ -188,7 +188,7 @@ test.describe('Library API', () => {
 
     // Deleted video should not appear in the list
     const deletedVideoInList = libraryBody.items.some(
-      (item: any) => item.videoId === videoId
+      (item: { videoId?: string }) => item.videoId === videoId
     );
     expect(deletedVideoInList).toBe(false);
   });

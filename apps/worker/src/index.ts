@@ -71,6 +71,13 @@ function payloadString(payload: JobPayload, key: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function isFatalError(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "fatal" in error
+    && (error as { fatal?: unknown }).fatal === true;
+}
+
 function parseTranscriptTextFromSegments(raw: unknown): string {
   if (!Array.isArray(raw)) return "";
   return raw
@@ -1198,7 +1205,7 @@ async function processJob(job: JobRow): Promise<void> {
       return;
     }
 
-    const isFatal = (error as any)?.fatal === true;
+    const isFatal = isFatalError(error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const failed = await fail(job, errorMessage, isFatal);
 

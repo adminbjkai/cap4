@@ -27,8 +27,8 @@ const env = getEnv();
 const uiPublicBucketBase = `${(process.env.S3_PUBLIC_ENDPOINT ?? "http://localhost:9000").replace(/\/$/, "")}/${process.env.S3_BUCKET ?? "cap4"}`;
 
 function log(app: FastifyInstance, fields: Record<string, unknown>) {
-  if ((app as any).serviceLogger) {
-    (app as any).serviceLogger.info("web-api log", fields);
+  if (app.serviceLogger) {
+    app.serviceLogger.info("web-api log", fields);
   } else {
     console.log(JSON.stringify({ service: "web-api", ...fields }));
   }
@@ -303,7 +303,11 @@ export async function systemRoutes(app: FastifyInstance) {
     });
 
     app.post<{ Body: { videoId: string; jobType: JobType; payload?: Record<string, unknown>; priority?: number; maxAttempts?: number } }>("/debug/jobs/enqueue", async (req, reply) => {
-      const { videoId, jobType, payload, priority, maxAttempts } = req.body ?? ({} as any);
+      const videoId = req.body?.videoId;
+      const jobType = req.body?.jobType;
+      const payload = req.body?.payload;
+      const priority = req.body?.priority;
+      const maxAttempts = req.body?.maxAttempts;
       if (!videoId || !jobType) return reply.code(400).send(badRequest("videoId and jobType are required"));
 
       const result = await query<{ id: number; status: string }>(

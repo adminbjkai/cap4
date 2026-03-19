@@ -19,8 +19,8 @@ import {
 const env = getEnv();
 
 function log(app: FastifyInstance, fields: Record<string, unknown>) {
-  if ((app as any).serviceLogger) {
-    (app as any).serviceLogger.info("web-api log", fields);
+  if (app.serviceLogger) {
+    app.serviceLogger.info("web-api log", fields);
   } else {
     console.log(JSON.stringify({ service: "web-api", ...fields }));
   }

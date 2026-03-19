@@ -201,7 +201,8 @@ export async function uploadRoutes(app: FastifyInstance) {
     const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
     if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
-    const { videoId, contentType } = req.body ?? ({} as any);
+    const videoId = req.body?.videoId;
+    const contentType = req.body?.contentType;
     if (!videoId || !contentType) return reply.code(400).send(badRequest("videoId and contentType are required"));
 
     const endpointKey = "/api/uploads/multipart/initiate";
@@ -257,7 +258,8 @@ export async function uploadRoutes(app: FastifyInstance) {
     const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
     if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
-    const { videoId, partNumber } = req.body ?? ({} as any);
+    const videoId = req.body?.videoId;
+    const partNumber = req.body?.partNumber;
     if (!videoId || !partNumber) return reply.code(400).send(badRequest("videoId and partNumber are required"));
 
     const uploadLookup = await query<{ raw_key: string; multipart_upload_id: string }>(
@@ -292,7 +294,8 @@ export async function uploadRoutes(app: FastifyInstance) {
     const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
     if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
-    const { videoId, parts } = req.body ?? ({} as any);
+    const videoId = req.body?.videoId;
+    const parts = req.body?.parts;
     if (!videoId || !Array.isArray(parts)) return reply.code(400).send(badRequest("videoId and parts array are required"));
 
     const endpointKey = "/api/uploads/multipart/complete";
@@ -369,7 +372,7 @@ export async function uploadRoutes(app: FastifyInstance) {
     const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
     if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
-    const { videoId } = req.body ?? ({} as any);
+    const videoId = req.body?.videoId;
     if (!videoId) return reply.code(400).send(badRequest("videoId is required"));
 
     const uploadLookup = await query<{ raw_key: string; multipart_upload_id: string }>(

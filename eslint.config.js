@@ -20,6 +20,14 @@ export default [
         ...globals.browser,
       },
     },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
+    files: ['**/*.{tsx,jsx}'],
     plugins: {
       react,
       'react-hooks': reactHooks,
@@ -27,9 +35,6 @@ export default [
     rules: {
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
       'react/react-in-jsx-scope': 'off',
     },
     settings: {

@@ -1,6 +1,6 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-19 (Audit phases A-E executed)
+**Last updated:** 2026-03-19 (Audit phases A-E plus selected Phase F items executed)
 
 ---
 
@@ -27,7 +27,7 @@ Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews,
   - [x] C4: Fix polling after failed delete
 - [x] **Phase D** — Docs truth pass
   - [x] D1: Rewrite WEBHOOKS.md from code outward
-  - [x] D2: Document GET /api/playlist as 501 stub
+  - [x] D2: Remove GET /api/playlist and its docs
   - [x] D3: Fix CONTRIBUTING.md placeholders
   - [x] D4: Align .env.example model name with master plan
   - [x] D5: Verify ARCHITECTURE.md accuracy
@@ -39,8 +39,16 @@ Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews,
   - [x] E2: Verify no tracked .DS_Store files remained
   - [x] E3: Gitignore .cursor/ and untrack tracked plan file
   - [ ] E4: Cap_for_reference_only/ archive decision
-  - [x] E5: Review samplevids/ contents (`vid0.mp4` kept; others flagged for review)
-- [ ] **Phase F** — Optional hardening (not blocking)
+  - [x] E5: Remove unused samplevids and keep `vid0.mp4`
+- [x] **Phase F** — Selected optional hardening
+  - [x] F1: Require `Idempotency-Key` on multipart `presign-part`
+  - [x] F2: Require `Idempotency-Key` on multipart `abort`
+  - [x] F3: Preserve speaker labels on transcript-only watch edits
+  - [x] F4: Standardize route idempotency validation with `requireIdempotencyKey()`
+  - [x] F5: Remove dead playlist stub
+  - [x] F7: Add watch-edits title length validation
+  - [ ] F6: Auth planning remains deferred by owner
+  - [ ] F8: Accessibility follow-up remains deferred
 
 ### Phase 5 — Auth (deferred by owner — after audit fixes)
 

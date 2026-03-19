@@ -17,11 +17,17 @@ const loggingPlugin: FastifyPluginAsync<{
   serviceName: string;
   version?: string;
 }> = async (fastify, opts) => {
+  const requestedLevel = typeof process.env.LOG_LEVEL === 'string'
+    ? process.env.LOG_LEVEL.trim()
+    : '';
+  const level = ['trace', 'debug', 'info', 'warn', 'error'].includes(requestedLevel)
+    ? requestedLevel as 'trace' | 'debug' | 'info' | 'warn' | 'error'
+    : 'info';
   const rootLogger = createLogger({
     name: opts.serviceName,
     version: opts.version,
     pretty: process.env.LOG_PRETTY === 'true',
-    level: (process.env.LOG_LEVEL as any) || 'info',
+    level,
   });
 
   fastify.decorate('serviceLogger', rootLogger);

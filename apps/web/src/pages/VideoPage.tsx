@@ -199,7 +199,10 @@ export function VideoPage() {
   const shareableResultUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
   const videoUrl           = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
   const isProcessing       = !hasReachedTerminalState(status);
-  const transcriptSegments = status?.transcript?.segments ?? [];
+  const transcriptSegments = useMemo(
+    () => status?.transcript?.segments ?? [],
+    [status?.transcript?.segments],
+  );
   const chapters           = useMemo(
     () => deriveChapters(status?.aiOutput, transcriptSegments),
     [status?.aiOutput, transcriptSegments],

@@ -81,6 +81,8 @@ export type GroqSummary = {
   quotes?: GroqQuote[];
 };
 
+type FatalError = Error & { fatal?: boolean };
+
 function stripCodeFences(value: string): string {
   const trimmed = value.trim();
   if (!trimmed.startsWith("```")) return trimmed;
@@ -304,9 +306,9 @@ Return ONLY valid JSON without markdown or code fences.`;
 
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 400);
-      const error = new Error(`groq request failed (${response.status}): ${detail}`);
+      const error: FatalError = new Error(`groq request failed (${response.status}): ${detail}`);
       if (response.status === 401 || response.status === 403) {
-        (error as any).fatal = true;
+        error.fatal = true;
       }
       throw error;
     }

@@ -80,9 +80,14 @@ export function PlayerCard({
   const hasResult   = Boolean(resultKey);
   const videoUrl    = resultKey    ? buildPublicObjectUrl(resultKey)    : null;
   const thumbnailUrl = thumbnailKey ? buildPublicObjectUrl(thumbnailKey) : null;
-  const timelineChapters = durationSeconds > 0
-    ? chapters.filter((c) => c.seconds >= 0 && c.seconds <= durationSeconds)
-    : [];
+  const timelineChapters = useMemo(
+    () => (
+      durationSeconds > 0
+        ? chapters.filter((chapter) => chapter.seconds >= 0 && chapter.seconds <= durationSeconds)
+        : []
+    ),
+    [chapters, durationSeconds]
+  );
   const speakerSlices = useMemo(() => {
     if (durationSeconds <= 0) return [];
     const validSegments = (Array.isArray(transcriptSegments) ? transcriptSegments : [])

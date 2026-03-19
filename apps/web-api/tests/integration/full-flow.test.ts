@@ -427,7 +427,11 @@ describe("Full pipeline: upload → transcription → AI → complete", () => {
     const t = body.transcript!;
 
     // Handle language as either string or object (from Deepgram API response)
-    const lang = typeof t.language === "string" ? t.language : (t.language as any)?.language;
+    const lang = typeof t.language === "string"
+      ? t.language
+      : typeof t.language === "object" && t.language !== null && "language" in t.language && typeof t.language.language === "string"
+        ? t.language.language
+        : undefined;
     expect(lang, "transcript.language should exist").toBeTruthy();
     expect(lang?.length ?? 0, "transcript.language should be non-empty").toBeGreaterThan(0);
 

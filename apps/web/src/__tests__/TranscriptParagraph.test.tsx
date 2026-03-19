@@ -1,6 +1,9 @@
+import type { ComponentProps } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TranscriptParagraph } from "../components/TranscriptParagraph";
+
+type TranscriptSegments = ComponentProps<typeof TranscriptParagraph>["segments"];
 
 const SEGMENTS = [
   { startSeconds: 0, endSeconds: 5, text: "Welcome to this tutorial on building APIs." },
@@ -145,13 +148,13 @@ describe("TranscriptParagraph", () => {
   });
 
   it("handles segments with undefined startSeconds gracefully", () => {
-    const segmentsWithMissing = [
+    const segmentsWithMissing: TranscriptSegments = [
       { startSeconds: undefined, endSeconds: 5, text: "No start time here." },
       { startSeconds: 5, endSeconds: 10, text: "Has start time." }
     ];
     const { container } = render(
       <TranscriptParagraph
-        segments={segmentsWithMissing as any}
+        segments={segmentsWithMissing}
         transcriptionStatus="complete"
         onSeekToSeconds={vi.fn()}
       />
