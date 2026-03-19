@@ -283,3 +283,34 @@ One-to-many by `video_id`:
 - Soft-deleted videos remain in `videos` with `deleted_at` set; API list/status routes exclude them.
 - Worker retry state lives in `job_queue.attempts`, `max_attempts`, `status`, and `last_error`.
 - Monotonic progress updates are enforced in route and worker logic by comparing phase rank and progress before applying updates.
+
+---
+
+## Running Migrations
+
+Apply migrations in lexical order from `db/migrations/`.
+
+### Apply locally (Docker)
+
+```bash
+docker compose up -d postgres
+for f in /migrations/*.sql; do
+  docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap4} -f "$f"
+done
+```
+
+### Reset and re-apply from scratch
+
+```bash
+docker compose down -v
+docker compose up -d postgres
+for f in /migrations/*.sql; do
+  docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap4} -f "$f"
+done
+```
+
+### Verify
+
+```bash
+docker compose exec -T postgres psql -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-cap4} -c "\dt"
+```

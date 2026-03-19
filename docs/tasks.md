@@ -6,7 +6,7 @@
 
 ## Active
 
-### Full-App Audit & Fix — [AUDIT_PLAN.md](AUDIT_PLAN.md)
+### Full-App Audit & Fix — [audit-plan.md](archive/audit-plan.md)
 
 Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews, cross-validated). Execution order follows the real dependency chain.
 

@@ -463,30 +463,34 @@ All P0 security issues were fixed in v4 (Kimi's audit): HMAC verification, times
 
 ---
 
-## Documentation Structure (Already Complete)
+## Documentation Structure
 
-The `cap4/` directory already contains all the documentation from the previous refactor:
+All docs live in `docs/` with flat lowercase naming:
 
 ```
 cap4/
 ├── README.md                    ✓ Project overview + quick start
-├── CONTRIBUTING.md              ✓ Dev workflow, PR format, commit standards
-├── ARCHITECTURE.md              ✓ System design, state machine, job queue
+├── CONTRIBUTING.md              ✓ Dev workflow, contribution rules
+├── CLAUDE.md                    ✓ Agent working memory
 │
 └── docs/
-    ├── DATABASE.md              ✓ Full schema + state machine SQL
-    ├── api/
-    │   ├── ENDPOINTS.md         ✓ API reference (all DOC errors fixed)
-    │   └── WEBHOOKS.md          ✓ Webhook events, signing, delivery
-    ├── ops/
-    │   ├── LOCAL_DEV.md         ✓ 5-minute setup
-    │   ├── DEPLOYMENT.md        ✓ Production guide
-    │   └── TROUBLESHOOTING.md   ✓ Common issues
-    └── ui/
-        └── DESIGN_SYSTEM.md     ✓ Component library
+    ├── architecture.md          ✓ System design, state machine, job queue
+    ├── api.md                   ✓ API endpoints + webhook contract
+    ├── database.md              ✓ Full schema + migrations
+    ├── environment.md           ✓ Environment variable reference
+    ├── local-dev.md             ✓ Docker + no-Docker setup
+    ├── deployment.md            ✓ Production guide
+    ├── troubleshooting.md       ✓ Common issues
+    ├── design-system.md         ✓ UI tokens + component library
+    ├── tech-stack.md            ✓ Languages, frameworks, versions
+    ├── agents.md                ✓ AI agent roles + conventions
+    ├── master-plan.md           ✓ This file — authoritative plan
+    ├── tasks.md                 ✓ Current + completed work
+    ├── qa.md                    ✓ Speaker diarization test plan
+    └── archive/
+        ├── audit-plan.md        ✓ Completed audit tracker
+        └── roadmap.md           ✓ Archived cap3 roadmap
 ```
-
-No documentation changes needed before GitHub push.
 
 ---
 
@@ -616,16 +620,16 @@ Lessons from the 4-version evolution:
 
 ### Start Here
 - **README.md** — 5-minute project overview
-- **docs/ops/LOCAL_DEV.md** — Set up your dev environment
-- **ARCHITECTURE.md** — Understand the system design
+- **docs/local-dev.md** — Set up your dev environment
+- **docs/architecture.md** — Understand the system design
 
 ### Reference
-- **docs/api/ENDPOINTS.md** — Every API endpoint
-- **docs/DATABASE.md** — Full schema
+- **docs/api.md** — Every API endpoint + webhook contract
+- **docs/database.md** — Full schema
 - **CONTRIBUTING.md** — How to contribute code
 
 ### This Document
-- **CAP4_MASTER_PLAN.md** — This file. The authoritative plan.
+- **docs/master-plan.md** — This file. The authoritative plan.
 
 ---
 

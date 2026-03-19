@@ -88,7 +88,7 @@ apps/worker/tmp/
 # AI agent audit artifacts
 .audit/
 bykimi.md
-AGENTS.md
+/AGENTS.md
 
 # AI agent session directories
 .claude/

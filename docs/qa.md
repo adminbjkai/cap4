@@ -590,6 +590,6 @@ PATCH /api/videos/:id/watch-edits
 - `apps/web/src/components/PlayerCard.tsx` — Video player & timeline
 - `apps/web/src/pages/VideoPage.tsx` — Main layout
 - `apps/web-api/src/routes/videos.ts` — API endpoints
-- `docs/ui/DESIGN_SYSTEM.md` — UI tokens & styling
-- `docs/api/ENDPOINTS.md` — API reference
+- `docs/design-system.md` — UI tokens & styling
+- `docs/api.md` — API reference
 

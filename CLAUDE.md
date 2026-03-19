@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-03-19 (Full audit complete — fix plan active)
+**Last updated:** 2026-03-19 (Audit complete, post-audit fixes applied)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -9,12 +9,19 @@
 
 ## Current State
 
-Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent reviews, cross-validated). Critical runtime bugs found in worker job processing and API retry logic.
+Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent reviews, cross-validated). All critical bugs fixed, docs rewritten from code outward, repo cleaned.
 
-**Active work:** [AUDIT_PLAN.md](AUDIT_PLAN.md) — 6 phases (A through F), executing in dependency order.
-**Phase 5 Auth:** Deferred until audit fixes are complete.
+**Audit:** [audit-plan.md](docs/archive/audit-plan.md) — Phases A-F complete (F6 auth + F8 a11y deferred).
+**Next up:** Phase 5 Auth (single-user JWT/session) — deferred by owner.
 
 **Phase 4 — Integration Tests: ✅ 18/18 passing** (7 pipeline + 11 API contract)
+
+### Post-Audit Fixes
+- ✅ **Deepgram diarization** — added `diarize=true` to Deepgram API call so multi-speaker videos get proper speaker labels
+- ✅ **Multipart upload S3 client** — `complete` and `abort` endpoints now use internal S3 endpoint (was using public endpoint, causing ECONNREFUSED in Docker)
+- ✅ **Presign-part idempotency** — frontend now sends `Idempotency-Key` header on `presign-part` requests (required after Phase F hardening)
+- ✅ **Auto-upload recordings** — RecordPage auto-uploads immediately after capture; file selections still require manual "Upload and process"
+- ✅ **Fullscreen video fix** — fullscreen now targets the container holding both `<video>` and controls overlay (was only fullscreening the controls div, leaving video behind)
 
 ### Latest Changes (Phase 4.7 — Agent Sprint: BJK-9 through BJK-18)
 - ✅ **BJK-9** — micro-interaction animations added (page transitions, card motion, dialog backdrop)
@@ -48,20 +55,32 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 
 ## Key Files
 
+### Documentation (`docs/`)
+
 | File | Purpose |
 |------|---------|
-| `AUDIT_PLAN.md` | Active audit fix plan — 6 phases, dependency-ordered |
-| `CAP4_MASTER_PLAN.md` | Authoritative plan — start here |
 | `README.md` | Clean project overview |
-| `ARCHITECTURE.md` | State machine, job queue, services |
 | `CONTRIBUTING.md` | Dev workflow and contribution guide |
-| `docs/api/ENDPOINTS.md` | Full API reference |
-| `docs/api/WEBHOOKS.md` | Webhook payload + HMAC verification |
-| `docs/DATABASE.md` | Schema reference |
-| `docs/ops/DEPLOYMENT.md` | Production deployment guide |
-| `docs/ops/LOCAL_DEV.md` | Local dev setup (Docker + no-Docker) |
-| `docs/ops/TROUBLESHOOTING.md` | Common issues + fixes |
-| `docs/ui/DESIGN_SYSTEM.md` | UI tokens and component guide |
+| `docs/architecture.md` | State machine, job queue, services |
+| `docs/api.md` | Full API reference + webhook contract |
+| `docs/database.md` | Schema reference + migrations |
+| `docs/environment.md` | Environment variable reference |
+| `docs/local-dev.md` | Local dev setup (Docker + no-Docker) |
+| `docs/deployment.md` | Production deployment guide |
+| `docs/troubleshooting.md` | Common issues + fixes |
+| `docs/design-system.md` | UI tokens and component guide |
+| `docs/tech-stack.md` | Languages, frameworks, versions |
+| `docs/agents.md` | AI agent roles and conventions |
+| `docs/master-plan.md` | Authoritative plan — start here |
+| `docs/tasks.md` | Current and completed work |
+| `docs/qa.md` | Speaker diarization test plan |
+| `docs/archive/audit-plan.md` | Completed audit tracker (phases A-F) |
+| `docs/archive/roadmap.md` | Archived cap3 roadmap |
+
+### Code
+
+| File | Purpose |
+|------|---------|
 | `apps/web/src/components/CommandPalette.tsx` | Command palette modal with keyboard navigation |
 | `apps/web/src/components/CustomVideoControls.tsx` | Custom player chrome and transport controls |
 | `apps/web/src/components/ShortcutsOverlay.tsx` | In-app keyboard shortcut reference modal |
@@ -77,7 +96,7 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 
 ## Architecture in 30 Seconds
 
-- **8 Docker services:** postgres + migrate (auto-runs SQL) + minio + minio-setup + web-api + worker + media-server + nginx
+- **9 Docker services:** postgres + migrate (auto-runs SQL) + minio + minio-setup + web-api + worker + media-server + web-builder + web-internal (nginx)
 - **Migrations:** `migrate` service uses `schema_migrations` table to track applied migrations; runs on every `docker compose up`
 - **Job queue:** PostgreSQL `FOR UPDATE SKIP LOCKED` — no Redis
 - **State machine:** Monotonic `processing_phase_rank`, terminal states: `complete`, `failed`, `cancelled`
@@ -121,7 +140,7 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 | delivery_id | Webhook idempotency key stored in webhook_deliveries table |
 | phase_rank | Integer enforcing monotonic state transitions |
 | SKIP LOCKED | PostgreSQL clause for lock-free concurrent job claiming |
-| AUDIT_PLAN.md | Active tracking doc for 2026-03-19 full-app audit (6 phases A-F) |
+| audit-plan.md | Completed audit doc at `docs/archive/audit-plan.md` (6 phases A-F) |
 | unacked skip | Worker bug: handler returns without calling ack(), job retries forever |
 | job_status enum | `queued \| leased \| running \| succeeded \| cancelled \| dead` — no `'failed'` |
 

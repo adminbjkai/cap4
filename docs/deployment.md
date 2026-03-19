@@ -382,4 +382,4 @@ If production issue occurs:
 
 ---
 
-**Need help?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) or [../../CONTRIBUTING.md](../../CONTRIBUTING.md)
+**Need help?** See [troubleshooting.md](troubleshooting.md) or [CONTRIBUTING.md](../CONTRIBUTING.md)

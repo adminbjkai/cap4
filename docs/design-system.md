@@ -2,7 +2,7 @@
 
 Component library, token reference, and UI patterns.
 
-> **Last updated:** 2026-03-09 (Phase 4.7 — sage accent tokenization + agent sprint components)
+> **Last updated:** 2026-03-19 (Post-audit — fullscreen fix, auto-upload, diarization)
 
 ---
 

@@ -433,8 +433,8 @@ make smoke
 ## Getting Help
 
 1. Check logs: `docker compose logs -f {service}`
-2. Review [ARCHITECTURE.md](../../ARCHITECTURE.md)
-3. Check [../api/ENDPOINTS.md](../api/ENDPOINTS.md) for API issues
+2. Review [architecture.md](architecture.md)
+3. Check [api.md](api.md) for API issues
 4. Ask on GitHub Discussions
 5. Open GitHub Issue with logs
 

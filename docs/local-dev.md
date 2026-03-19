@@ -304,4 +304,4 @@ docker compose logs worker      # Docker
 
 Confirm `DATABASE_URL` and MinIO credentials are correct in `.env`.
 
-See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more common fixes.
+See [troubleshooting.md](troubleshooting.md) for more common fixes.

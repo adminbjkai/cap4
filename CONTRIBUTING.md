@@ -57,12 +57,19 @@ pnpm --filter @cap/web-api test:e2e
 
 ## Documentation
 
-Documentation is split by topic:
+Documentation lives in `docs/` with flat naming:
 
 - `README.md`: onboarding and quick start
-- `ARCHITECTURE.md`: current system behavior and service boundaries
-- `docs/api/*`: HTTP and webhook contracts
-- `docs/ops/*`: environment, local dev, deployment, troubleshooting
+- `docs/architecture.md`: system behavior and service boundaries
+- `docs/api.md`: HTTP endpoints and webhook contract
+- `docs/database.md`: schema and migrations
+- `docs/environment.md`: environment variable reference
+- `docs/local-dev.md`: local development setup
+- `docs/deployment.md`: production deployment
+- `docs/troubleshooting.md`: common issues and fixes
+- `docs/design-system.md`: UI tokens and components
+- `docs/tech-stack.md`: languages, frameworks, versions
+- `docs/agents.md`: AI agent conventions
 - `docs/archive/*`: historical planning docs only
 
 Historical plans are not authoritative unless they are explicitly linked from the current docs.

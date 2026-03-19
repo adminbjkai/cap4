@@ -5,9 +5,9 @@ Single-tenant video processing platform with a React watch app, Fastify API, Pos
 ## Current Repo Status
 
 - Upload -> process -> transcript -> AI summary flow is implemented.
-- Web app includes custom video controls, command palette, keyboard shortcuts, transcript review, speaker labels, and a dark/light theme.
-- **Full audit in progress** — see [AUDIT_PLAN.md](AUDIT_PLAN.md) for tracked fixes (runtime bugs, build hygiene, docs accuracy, repo cleanup).
-- Phase 5 auth is deferred until audit fixes are complete. The repo currently runs without end-user authentication.
+- In-browser screen recording with auto-upload (recordings upload immediately after capture; file selections require manual upload).
+- Web app includes custom video controls, command palette, keyboard shortcuts, transcript review, speaker diarization, and a dark/light theme.
+- Full audit complete (phases A-E) — see [audit-plan.md](docs/archive/audit-plan.md). Phase 5 auth is deferred. The repo currently runs without end-user authentication.
 
 ## Services
 
@@ -105,18 +105,23 @@ pnpm dev:media-server
 
 ## Documentation
 
-- [Audit & fix plan](AUDIT_PLAN.md) — active work tracker
-- [Local development](docs/ops/LOCAL_DEV.md)
-- [Deployment](docs/ops/DEPLOYMENT.md)
-- [Troubleshooting](docs/ops/TROUBLESHOOTING.md)
-- [API endpoints](docs/api/ENDPOINTS.md)
-- [Webhook contract](docs/api/WEBHOOKS.md)
-- [Database schema](docs/DATABASE.md)
-- [UI design system](docs/ui/DESIGN_SYSTEM.md)
-- [Architecture notes](ARCHITECTURE.md)
+- [Architecture](docs/architecture.md) — system design, state machine, services
+- [API reference](docs/api.md) — endpoints and webhook contract
+- [Database schema](docs/database.md) — tables, enums, migrations
+- [Environment variables](docs/environment.md) — full env var reference
+- [Local development](docs/local-dev.md) — Docker and no-Docker setup
+- [Deployment](docs/deployment.md) — production deployment guide
+- [Troubleshooting](docs/troubleshooting.md) — common issues and fixes
+- [Design system](docs/design-system.md) — UI tokens and components
+- [Tech stack](docs/tech-stack.md) — languages, frameworks, versions
+- [AI agents](docs/agents.md) — agent roles and conventions
+- [Master plan](docs/master-plan.md) — authoritative project roadmap
+- [Tasks](docs/tasks.md) — current and completed work
+- [QA: speaker diarization](docs/qa.md) — test plan
+- [Audit plan](docs/archive/audit-plan.md) — completed audit tracker
 
 ## Known Issues
 
-- `pnpm lint` fails due to missing root `tsconfig.json` — tracked in [AUDIT_PLAN.md](AUDIT_PLAN.md) Phase B1.
-- Worker job skip paths don't acknowledge jobs — tracked in Phase A1.
-- See [AUDIT_PLAN.md](AUDIT_PLAN.md) for the full list.
+- No authentication — Phase 5 auth is deferred.
+- Accessibility (aria-labels on icon buttons) is deferred.
+- See [audit-plan.md](docs/archive/audit-plan.md) for the full audit history.

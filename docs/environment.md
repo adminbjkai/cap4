@@ -53,7 +53,7 @@ DATABASE_URL=postgres://app:app@localhost:5432/cap4
 
 **Migrations** run automatically via the `migrate` Docker service on every
 `docker compose up`. For local dev, run the SQL files manually once (see
-`docs/ops/LOCAL_DEV.md`).
+`docs/local-dev.md`).
 
 ---
 
