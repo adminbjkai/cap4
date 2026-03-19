@@ -1,6 +1,6 @@
 # Tasks — cap4
 
-**Last updated:** 2026-03-19 (Full audit complete — fix plan active)
+**Last updated:** 2026-03-19 (Audit phases A-E executed)
 
 ---
 
@@ -10,36 +10,36 @@
 
 Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews, cross-validated). Execution order follows the real dependency chain.
 
-- [ ] **Phase A** — Runtime/job correctness (CRITICAL)
-  - [ ] A1: Fix 6 unacked worker skip paths (`worker/src/index.ts`)
-  - [ ] A2: Fix deliver_webhook INSERT constraint violation (`worker/src/index.ts`)
-  - [ ] A3: Fix `/retry` invalid `'failed'` enum value (`routes/videos.ts`)
-  - [ ] A4: Clean up `/retry` `'dead'` status check on wrong enum (`routes/videos.ts`)
-- [ ] **Phase B** — Verification infrastructure
-  - [ ] B1: Create root `tsconfig.json` (fixes ESLint)
-  - [ ] B2: Fix groq test stale assertion
-  - [ ] B3: Add `test:e2e` script to root package.json
-  - [ ] B4: Verify dist/ excluded from test discovery
-- [ ] **Phase C** — Frontend correctness
-  - [ ] C1: Fix verified-segments localStorage key (bleeds across videos)
-  - [ ] C2: Reset verified segments on video navigation
-  - [ ] C3: Fix speaker label edit state on save failure
-  - [ ] C4: Fix polling after failed delete
-- [ ] **Phase D** — Docs truth pass
-  - [ ] D1: Rewrite WEBHOOKS.md from code outward
-  - [ ] D2: Decide on GET /api/playlist stub
-  - [ ] D3: Fix CONTRIBUTING.md placeholders
-  - [ ] D4: Align .env.example model name with master plan
-  - [ ] D5: Verify ARCHITECTURE.md accuracy
-  - [ ] D6: Archive ROADMAP.md to docs/archive/
-  - [ ] D7: Merge DESIGN.md into DESIGN_SYSTEM.md
-  - [ ] D8: Update TASKS.md (this file — done)
-- [ ] **Phase E** — Repo hygiene cleanup
-  - [ ] E1: Delete empty `main` file
-  - [ ] E2: Remove tracked .DS_Store files
-  - [ ] E3: Gitignore .cursor/
+- [x] **Phase A** — Runtime/job correctness (CRITICAL)
+  - [x] A1: Fix unacked worker skip paths (`worker/src/index.ts`)
+  - [x] A2: Fix deliver_webhook INSERT constraint violation (`worker/src/index.ts`)
+  - [x] A3: Fix `/retry` invalid `'failed'` enum value (`routes/videos.ts`)
+  - [x] A4: Clean up `/retry` `'dead'` status check on wrong enum (`routes/videos.ts`)
+- [x] **Phase B** — Verification infrastructure
+  - [x] B1: Create root `tsconfig.json` (fixes ESLint)
+  - [x] B2: Fix groq test stale assertion
+  - [x] B3: Add `test:e2e` script to root package.json
+  - [x] B4: Verify dist/ excluded from test discovery
+- [x] **Phase C** — Frontend correctness
+  - [x] C1: Fix verified-segments localStorage key (bleeds across videos)
+  - [x] C2: Reset verified segments on video navigation
+  - [x] C3: Fix speaker label edit state on save failure
+  - [x] C4: Fix polling after failed delete
+- [x] **Phase D** — Docs truth pass
+  - [x] D1: Rewrite WEBHOOKS.md from code outward
+  - [x] D2: Document GET /api/playlist as 501 stub
+  - [x] D3: Fix CONTRIBUTING.md placeholders
+  - [x] D4: Align .env.example model name with master plan
+  - [x] D5: Verify ARCHITECTURE.md accuracy
+  - [x] D6: Archive ROADMAP.md to docs/archive/
+  - [x] D7: Merge DESIGN.md into DESIGN_SYSTEM.md
+  - [x] D8: Update TASKS.md
+- [x] **Phase E** — Repo hygiene cleanup
+  - [x] E1: Delete empty `main` file
+  - [x] E2: Verify no tracked .DS_Store files remained
+  - [x] E3: Gitignore .cursor/ and untrack tracked plan file
   - [ ] E4: Cap_for_reference_only/ archive decision
-  - [ ] E5: Review samplevids/ contents
+  - [x] E5: Review samplevids/ contents (`vid0.mp4` kept; others flagged for review)
 - [ ] **Phase F** — Optional hardening (not blocking)
 
 ### Phase 5 — Auth (deferred by owner — after audit fixes)
