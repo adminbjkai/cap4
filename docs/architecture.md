@@ -33,6 +33,7 @@ web-api
   -> creates videos/uploads rows
   -> enqueues process_video jobs
   -> serves status, retry, delete, upload endpoints
+  -> exposes /health and /ready for liveness/readiness
   -> exposes POST /api/webhooks/media-server/progress for signed progress callbacks
 
 worker
@@ -148,6 +149,7 @@ Current checked-in runtime note:
 - The main worker path calls `POST /process` on `apps/media-server` and waits for a synchronous result.
 - The checked-in `apps/media-server/src/index.ts` implementation shown in this repo does not itself emit signed progress callbacks during that mainline path.
 - `deliver_webhook` is unrelated to the internal media progress route; it sends outbound user webhooks stored in `videos.webhook_url`.
+- Debug-only routes such as `/debug/smoke` exist only in non-production builds and are not part of the production contract.
 
 ## Frontend Serving
 

@@ -26,7 +26,7 @@ This test plan covers the implementation of speaker diarization UI features that
 | Speaker timeline bar | PlayerCard.tsx | Frontend visualization |
 | Speaker filter toggle | TranscriptCard.tsx | Frontend filtering |
 | API speaker label storage | videos.ts (PATCH watch-edits) | Backend API |
-| Database persistence | Migration (if needed) | Database |
+| Database persistence | `transcripts.speaker_labels_json` | Database |
 
 ---
 
@@ -43,16 +43,16 @@ transcript.segments[]: {
 }
 ```
 
-### Expected Structure (Post-Implementation)
+### Current Stored Shape
 ```typescript
 transcript: {
   segments: [...],
-  speakers?: {
+  speakerLabels?: {
     [speakerId]: string  // e.g., { "0": "John", "1": "Jane" }
   }
 }
 
-ai_outputs.speaker_labels: {
+transcripts.speaker_labels_json: {
   [speakerId]: string  // Persistent storage for speaker renames
 }
 ```
@@ -77,7 +77,7 @@ PATCH /api/videos/:id/watch-edits
   1. Open Video page
   2. Navigate to Transcript rail
   3. Observe transcript segments
-- **Expected Result:** Each segment displays a colored speaker badge (e.g., "Speaker 0", "Speaker 1")
+- **Expected Result:** Each segment displays a colored speaker badge (e.g., "Speaker 1", "Speaker 2")
 - **Expected Style:** Compact badge with background color + text label
 - **Test Data:** Transcript with mixed speakers (at least 3 different speaker IDs)
 
@@ -106,7 +106,7 @@ PATCH /api/videos/:id/watch-edits
 **TC-004: Click speaker badge to edit name**
 - **Precondition:** Transcript displayed with speaker badges
 - **Steps:**
-  1. Click on a speaker badge (e.g., "Speaker 0")
+  1. Click on a speaker badge (e.g., "Speaker 1")
   2. Observe UI change
 - **Expected Result:**
   - Badge transforms to editable state (input field appears)
@@ -116,14 +116,14 @@ PATCH /api/videos/:id/watch-edits
 **TC-005: Edit speaker name and save**
 - **Precondition:** Speaker badge in edit mode
 - **Steps:**
-  1. Clear current text ("Speaker 0")
+  1. Clear current text ("Speaker 1")
   2. Type new name ("John")
   3. Press Enter or click Save
   4. Refresh page
 - **Expected Result:**
   - Name updates in all segments with that speaker ID
   - Edit reverts to badge display
-  - Persistence: name remains after page refresh (localStorage or API)
+  - Persistence: name remains after page refresh via API-backed persistence
 
 **TC-006: Cancel edit without saving**
 - **Precondition:** Speaker badge in edit mode with unsaved changes
@@ -177,8 +177,8 @@ PATCH /api/videos/:id/watch-edits
   1. View all transcript segments
   2. Identify color distribution
 - **Expected Result:**
-  - Speaker 8 reuses color from Speaker 0
   - Speaker 9 reuses color from Speaker 1
+  - Speaker 10 reuses color from Speaker 2
   - Pattern repeats (modulo 8)
   - No visual conflicts or ambiguity
 
@@ -209,7 +209,7 @@ PATCH /api/videos/:id/watch-edits
 **TC-013: Speaker timeline accuracy**
 - **Precondition:** Transcript with known speaker segments
 - **Steps:**
-  1. Note transcript segment timing (e.g., Speaker 0: 0-5s, Speaker 1: 5-10s)
+  1. Note transcript segment timing (e.g., Speaker 1: 0-5s, Speaker 2: 5-10s)
   2. Observe timeline bar
   3. Scrub through video
 - **Expected Result:**
@@ -386,8 +386,8 @@ PATCH /api/videos/:id/watch-edits
 **TC-029: Rapid speaker name edits**
 - **Precondition:** Multiple speaker edits in quick succession
 - **Steps:**
-  1. Edit Speaker 0 name
-  2. Before save completes, edit Speaker 1
+  1. Edit Speaker 1 name
+  2. Before save completes, edit Speaker 2
   3. Before that save completes, edit Speaker 2
   4. Observe all requests/responses
 - **Expected Result:**
@@ -405,7 +405,7 @@ PATCH /api/videos/:id/watch-edits
   1. Upload video with multi-speaker content
   2. Wait for transcription to complete
   3. View transcript with speaker data
-  4. Edit speaker names (Speaker 0 → "Host", Speaker 1 → "Guest")
+  4. Edit speaker names (Speaker 1 → "Host", Speaker 2 → "Guest")
   5. Apply speaker filter (Host only)
   6. Refresh page
   7. Verify filter state and name persistence
@@ -417,8 +417,8 @@ PATCH /api/videos/:id/watch-edits
 **TC-031: Concurrent user edits**
 - **Precondition:** Two users with access to same video
 - **Steps:**
-  1. User A edits Speaker 0 name → "John"
-  2. User B simultaneously edits Speaker 1 name → "Jane"
+  1. User A edits Speaker 1 name → "John"
+  2. User B simultaneously edits Speaker 2 name → "Jane"
   3. Both users refresh
 - **Expected Result:**
   - Both changes persisted
@@ -597,4 +597,3 @@ PATCH /api/videos/:id/watch-edits
 - `apps/web-api/src/routes/videos.ts` — API endpoints
 - `docs/design-system.md` — UI tokens & styling
 - `docs/api.md` — API reference
-

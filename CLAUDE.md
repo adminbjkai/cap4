@@ -18,7 +18,7 @@ Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independe
 ### 2026-03-23 Review Fixes (15 code + 7 doc)
 - ✅ **SSRF protection** — webhookUrl now validated (protocol, hostname blocklist for internal services)
 - ✅ **Path traversal fix** — media-server validates videoId is UUID before S3 key construction
-- ✅ **Webhook rate-limit bypass** — skip callback added to @fastify/rate-limit (was using unsupported per-route config)
+- ✅ **Webhook rate-limit bypass** — `allowList` callback added to `@fastify/rate-limit` (was using unsupported per-route config)
 - ✅ **Webhook secret hardened** — MEDIA_SERVER_WEBHOOK_SECRET now requires `.min(32)` (was `.min(1)`)
 - ✅ **Webhook timestamp default** — WEBHOOK_MAX_SKEW_SECONDS now defaults to 300s (was NaN on missing env var)
 - ✅ **Migration runner SQL injection** — version now uses dollar-quoting in psql INSERT
@@ -154,7 +154,7 @@ Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independe
 | schema_migrations | Table tracking which SQL migrations have been applied |
 | migrate service | Docker Compose service that auto-runs migrations on startup |
 | progress_bucket | Webhook dedup column — prevents duplicate 10%-bucket updates |
-| delivery_id | Webhook idempotency key stored in webhook_deliveries table |
+| delivery_id | Incoming webhook delivery identifier stored on `webhook_events` and deduped by `(source, delivery_id)` |
 | phase_rank | Integer enforcing monotonic state transitions |
 | SKIP LOCKED | PostgreSQL clause for lock-free concurrent job claiming |
 | audit-plan.md | Completed audit doc at `docs/archive/audit-plan.md` (6 phases A-F) |

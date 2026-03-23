@@ -11,6 +11,7 @@ Current HTTP contract for the Fastify API in `apps/web-api`.
 - Auth: none
 - Global rate limit: `100 requests / minute / IP`
 - Webhook route is excluded from the global rate limiter
+- Most POST/PATCH mutation routes require `Idempotency-Key`; the webhook route uses HMAC headers instead
 - Most validation errors return `{"ok": false, "error": "..." }`
 - Responses are route-specific JSON objects; there is no global `{ success, data }` envelope
 
@@ -54,6 +55,7 @@ Notes:
 - `Idempotency-Key` is required.
 - `name` is optional; default is `"Untitled Video"`.
 - `webhookUrl` is optional and stored on `videos.webhook_url`.
+- `webhookUrl` must use `http` or `https` and cannot target localhost, Docker service names, `.local`, or `.internal` hosts.
 
 ### `GET /api/videos/:id/status`
 
@@ -68,6 +70,7 @@ Response shape:
 ```json
 {
   "videoId": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Demo upload",
   "processingPhase": "complete",
   "processingProgress": 100,
   "resultKey": "videos/.../result.mp4",
@@ -132,6 +135,9 @@ AI statuses:
 
 Important:
 
+- `name` is the persisted video name and is the UI fallback when no AI title exists.
+- `transcript` is `null` until a transcript row with `vttKey` exists.
+- `aiOutput` is `null` until AI output exists.
 - The database stores enrichment fields such as `entities_json`, `action_items_json`, and `quotes_json`, but `GET /api/videos/:id/status` does not currently expose them.
 
 ### `PATCH /api/videos/:id/watch-edits`
@@ -169,6 +175,7 @@ Notes:
 - At least one of `title`, `transcriptText`, or `speakerLabels` must be present.
 - `title` updates `ai_outputs.title` if an AI row exists; otherwise falls back to updating `videos.name`.
 - `transcriptText` rewrites `transcripts.segments_json` while preserving timing metadata shape.
+- `speakerLabels` updates `transcripts.speaker_labels_json`.
 
 ### `POST /api/videos/:id/retry`
 
@@ -209,6 +216,8 @@ Response:
 ```
 
 ## Upload Routes
+
+All upload mutation routes below require `Idempotency-Key`.
 
 ### `POST /api/uploads/signed`
 
@@ -392,6 +401,11 @@ Response:
 ### `GET /api/jobs/:id`
 
 Return one `job_queue` row.
+
+Notes:
+
+- `id` must be numeric.
+- Field names are returned in `snake_case` because this route mirrors the queue row directly.
 
 ```json
 {

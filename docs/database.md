@@ -104,6 +104,11 @@ Important columns:
 - `deleted_at timestamptz` added by migration `0002`
 - `created_at`, `updated_at`, `completed_at`
 
+Notes:
+
+- `name` is the user-facing persisted title fallback when no `ai_outputs.title` exists.
+- Soft-deleted rows remain in the table and are excluded by API/library queries using `deleted_at IS NULL`.
+
 Indexes:
 
 - `idx_videos_created_at`
@@ -155,6 +160,7 @@ Important index/constraint behavior:
 
 - `uq_job_queue_one_active_per_video_type` prevents more than one active (`queued`, `leased`, `running`) job per `(video_id, job_type)`
 - lease consistency is enforced with a table check constraint
+- `last_error` is the canonical queue failure field surfaced by `GET /api/jobs/:id`
 
 ### `transcripts`
 
@@ -250,6 +256,11 @@ Important uniqueness guarantees:
 
 - `uq_webhook_source_delivery`
 - `uq_webhook_source_job_phase_bucket`
+
+Notes:
+
+- Incoming progress webhook auditing lives in `webhook_events`; there is no separate `webhook_deliveries` table in the current schema.
+- `delivery_id` dedupes exact replays, while `source + job_id + phase + progress_bucket` dedupes repeated progress updates within the same bucket.
 
 ## Relationships
 

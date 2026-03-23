@@ -8,13 +8,14 @@ This repository is a pnpm workspace with a React frontend, a Fastify API, a back
 pnpm install
 cp .env.example .env
 docker compose up -d
+make smoke
 pnpm build
 pnpm typecheck
 pnpm lint
 pnpm test
 ```
 
-Use `pnpm test:e2e` for the web-api Playwright suite when the local stack is running.
+Use `pnpm test:e2e` for the web-api Playwright suite when the local stack is running. The operator-facing smoke check is `make smoke`.
 
 ## Repo Layout
 
@@ -73,6 +74,8 @@ Documentation lives in `docs/` with flat naming:
 - `docs/archive/*`: historical planning docs only
 
 Historical plans are not authoritative unless they are explicitly linked from the current docs.
+
+When a route shape, env var, migration, or service contract changes, update the matching doc in the same change.
 
 ## Maintainers
 

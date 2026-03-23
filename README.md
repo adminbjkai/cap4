@@ -7,7 +7,9 @@ Single-tenant video processing platform with a React watch app, Fastify API, Pos
 - Upload -> process -> transcript -> AI summary flow is implemented.
 - In-browser screen recording with auto-upload (recordings upload immediately after capture; file selections require manual upload).
 - Web app includes custom video controls, command palette, keyboard shortcuts, transcript review, speaker diarization, and a dark/light theme.
-- Full audit complete (phases A-F) — see [audit-plan.md](docs/archive/audit-plan.md). The repo runs without end-user authentication.
+- Host verification on 2026-03-23 passed: `pnpm typecheck`, `pnpm build`, `docker compose up -d --build`, `GET /health`, `GET /ready`, `pnpm test:integration` (18/18), and `make smoke`.
+- Full audit complete (phases A-F) — see [audit-plan.md](docs/archive/audit-plan.md).
+- The current repo runs without end-user authentication. Auth is intentionally out of scope for the current state.
 
 ## Services
 
@@ -43,11 +45,13 @@ Open:
 - App: `http://localhost:8022`
 - API: `http://localhost:3000`
 - MinIO API: `http://localhost:8922`
-- MinIO console: `http://localhost:8923`
+- MinIO console: `http://localhost:8923` (bound to localhost only in Compose)
 
 ## Upload Flow
 
 The API is a two-step upload flow, not a direct multipart form upload to `/api/videos`.
+
+All mutation routes in this flow require an `Idempotency-Key` header.
 
 1. `POST /api/videos` to create the video row and upload record.
 2. `POST /api/uploads/signed` or multipart upload endpoints to obtain upload URLs.
@@ -122,6 +126,6 @@ pnpm dev:media-server
 
 ## Known Issues
 
-- No authentication.
+- No end-user authentication in the current repo state.
 - Accessibility (aria-labels on icon buttons) is deferred.
 - See [audit-plan.md](docs/archive/audit-plan.md) for the full audit history.

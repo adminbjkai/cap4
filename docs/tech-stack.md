@@ -10,8 +10,6 @@ Languages, frameworks, key dependencies, and versions used in cap4.
 ---
 
 ## Backend
-
-
 | Component         | Technology                | Version                 |
 | ----------------- | ------------------------- | ----------------------- |
 | Runtime           | Node.js                   | 20+                     |
@@ -30,8 +28,6 @@ Languages, frameworks, key dependencies, and versions used in cap4.
 
 
 ## Frontend
-
-
 | Component        | Technology                                       | Version              |
 | ---------------- | ------------------------------------------------ | -------------------- |
 | Framework        | React                                            | ^18.3.1              |
@@ -45,8 +41,6 @@ Languages, frameworks, key dependencies, and versions used in cap4.
 
 
 ## Testing
-
-
 | Component          | Technology             | Version |
 | ------------------ | ---------------------- | ------- |
 | Unit / integration | Vitest                 | ^4.0.18 |
@@ -56,21 +50,17 @@ Languages, frameworks, key dependencies, and versions used in cap4.
 
 
 ## Infrastructure
-
-
 | Component     | Technology              |
 | ------------- | ----------------------- |
 | Containers    | Docker + Docker Compose |
 | Reverse proxy | Nginx                   |
-| CI/CD         | GitHub Actions          |
+| CI/CD         | GitHub Actions workflows in `.github/workflows/` |
 | Repository    | GitHub                  |
 | Linting       | ESLint ^9.15.0          |
 | Formatting    | Prettier ^3.3.3         |
 
 
 ## Workspace Packages
-
-
 | Package             | Purpose                                       |
 | ------------------- | --------------------------------------------- |
 | `@cap/web`          | React/Vite frontend                           |

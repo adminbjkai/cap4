@@ -1,399 +1,197 @@
 ---
 title: "Deployment"
-description: "Production deployment guide for cap4"
+description: "Current deployment guidance for the checked-in Docker Compose stack"
 ---
 
 # Deployment Guide
 
-How to deploy cap4 to production.
+This repo currently documents one deployment path: the checked-in Docker
+Compose stack. It is the only deployment model described here because it exists
+in the repo, matches the code, and is the path that has been verified.
+
+If you adapt cap4 to another platform, treat the Compose setup, `.env.example`,
+and the runtime docs in this repo as the source of truth.
 
 ---
 
-## Quick Summary
+## What Gets Deployed
 
-1. Build Docker image
-2. Push to registry
-3. Deploy services (Docker Compose or Kubernetes)
-4. Run database migrations
-5. Start services
-6. Verify health checks
+The Compose stack brings up:
+
+- `postgres`
+- `migrate`
+- `minio`
+- `minio-setup`
+- `web-api`
+- `worker`
+- `media-server`
+- `web-builder`
+- `web-internal`
+
+Operationally important behavior:
+
+- `migrate` applies pending SQL on startup before `web-api` and `worker` start
+- `worker` drives the pipeline by claiming `job_queue` work from PostgreSQL
+- `media-server` is called synchronously by the worker via `POST /process`
+- `web-builder` copies the built frontend into the shared `web_dist` volume
+- `web-internal` serves the frontend on port `8022`
 
 ---
 
 ## Prerequisites
 
-- Docker registry (Docker Hub, ECR, private registry, etc.)
-- Production database (PostgreSQL 16+)
-- Production S3 storage (AWS S3, MinIO, etc.)
-- CI/CD pipeline (GitHub Actions, GitLab CI, etc.)
+- Docker Engine / Docker Desktop with Compose v2
+- A host with enough CPU, disk, and memory for FFmpeg processing
+- Valid `DEEPGRAM_API_KEY`
+- Valid `GROQ_API_KEY`
+- A `MEDIA_SERVER_WEBHOOK_SECRET` of at least 32 characters
 
 ---
 
-## Build & Push Docker Image
+## Required Configuration
 
-### Using Docker Compose
+Start from `.env.example`:
 
 ```bash
-# Build image
-docker build -t yourregistry/cap4:latest .
-
-# Tag with version
-docker tag yourregistry/cap4:latest yourregistry/cap4:v1.0.0
-
-# Push to registry
-docker push yourregistry/cap4:latest
-docker push yourregistry/cap4:v1.0.0
+cp .env.example .env
 ```
 
-### Using CI/CD (Recommended)
-
-GitHub Actions automatically builds and pushes on release:
-- See `.github/workflows/` for configuration
-- Triggered on git tags: `git tag v1.0.0 && git push origin v1.0.0`
-
----
-
-## Environment Configuration
-
-### Production .env
-
-Create `.env.production`:
+For the checked-in Compose deployment, the important variables are:
 
 ```bash
-# API
-WEB_API_PORT=3000
-NODE_ENV=production
 LOG_LEVEL=info
 
-# Database (must be external)
-DB_HOST=prod-db.example.com
-DB_PORT=5432
-DB_USER=cap4
-DB_PASSWORD=strong_password_here
-DB_NAME=cap4
-DB_POOL_SIZE=20
+POSTGRES_USER=app
+POSTGRES_PASSWORD=app
+POSTGRES_DB=cap4
+POSTGRES_PORT=5432
+DATABASE_URL=postgres://app:app@postgres:5432/cap4
 
-# MinIO / S3
-MINIO_HOST=prod-s3.example.com
-MINIO_PORT=9000
-MINIO_BUCKET=cap4-prod
-MINIO_USE_SSL=true
-MINIO_ROOT_USER=xxx
-MINIO_ROOT_PASSWORD=xxx
+S3_ENDPOINT=http://minio:9000
+S3_PUBLIC_ENDPOINT=https://your-browser-reachable-s3-origin
+S3_REGION=us-east-1
+S3_ACCESS_KEY=minio
+S3_SECRET_KEY=minio123
+S3_BUCKET=cap4
+S3_FORCE_PATH_STYLE=true
+MINIO_ROOT_USER=minio
+MINIO_ROOT_PASSWORD=minio123
+MINIO_PORT=8922
+MINIO_CONSOLE_PORT=8923
 
-# Or use AWS S3 (no MinIO)
-AWS_REGION=us-east-1
-AWS_BUCKET=cap4-prod
-AWS_ACCESS_KEY_ID=xxx
-AWS_SECRET_ACCESS_KEY=xxx
+WEB_API_PORT=3000
+MEDIA_SERVER_PORT=3100
+MEDIA_SERVER_BASE_URL=http://media-server:3100
 
-# External APIs
-DEEPGRAM_API_KEY=xxx
-GROQ_API_KEY=xxx
+MEDIA_SERVER_WEBHOOK_SECRET=change-this-to-a-secret-of-32-plus-chars
+WEBHOOK_MAX_SKEW_SECONDS=300
 
-# Webhook
-WEBHOOK_SECRET=generate_strong_secret
-WEBHOOK_TIMEOUT=30000
-
-# Security
-CORS_ORIGIN=https://yourapp.com
+DEEPGRAM_API_KEY=...
+GROQ_API_KEY=...
 ```
 
-### Secrets Management
+Notes:
 
-Never commit `.env.production`. Use:
-- **AWS Secrets Manager** (if on AWS)
-- **HashiCorp Vault** (general purpose)
-- **GitHub Secrets** (if using Actions)
-- **Docker Secrets** (if using Docker Swarm)
+- The checked-in Compose file sets `NODE_ENV=production` for the app services; you do not need to override it in `.env`.
+- Keep `S3_ENDPOINT` on the internal Docker hostname `http://minio:9000`
+- Keep `S3_PUBLIC_ENDPOINT` browser-reachable. For local single-host usage that is typically `http://localhost:8922`; for a remote host use the public origin the browser can reach.
+- Leave `VITE_S3_PUBLIC_ENDPOINT` unset for the nginx-served Docker deployment
+- The MinIO console host port is bound to `127.0.0.1` only in the checked-in Compose file
 
 ---
 
-## Deployment Models
-
-### Option 1: Docker Compose (Single Server)
+## First Deploy
 
 ```bash
-# On production server
-git clone https://github.com/yourorg/cap4
+git clone https://github.com/adminbjkai/cap4
 cd cap4
 
-# Copy production config
-cp .env.production .env
+cp .env.example .env
+# edit .env for your environment
 
-# Pull latest image
-docker compose pull
+docker compose up -d --build
+```
 
-# Start services
-docker compose up -d
+What happens on startup:
 
-# Run migrations
-docker compose exec web-api pnpm migrate
+1. `postgres` becomes healthy
+2. `migrate` applies pending SQL from `db/migrations/`
+3. `minio` and `minio-setup` ensure the bucket exists
+4. `web-api`, `worker`, and `media-server` start
+5. `web-builder` copies the built frontend into `web_dist`
+6. `web-internal` serves the app on port `8022`
 
-# Verify health
+---
+
+## Verification
+
+Minimum operator checks:
+
+```bash
+docker compose ps
 curl http://localhost:3000/health
+curl http://localhost:3000/ready
+make smoke
 ```
 
-**Pros:**
-- Simple setup
-- No Kubernetes complexity
-- Good for small/medium scale
+Expected results:
 
-**Cons:**
-- Single point of failure
-- Limited horizontal scaling
+- `docker compose ps` shows the stack up
+- `GET /health` returns `200` with `"status": "healthy"`
+- `GET /ready` returns `200` with `"status": "ready"`
+- `make smoke` passes against the running stack
 
-### Option 2: Kubernetes
+Open:
 
-See `k8s/` directory for Kubernetes manifests (if included).
+- App: `http://localhost:8022`
+- API: `http://localhost:3000`
+- MinIO API: `http://localhost:8922`
+- MinIO console: `http://localhost:8923`
+
+For a remote deployment, replace `localhost` above with the host or DNS name of the machine running the stack.
+
+---
+
+## Updating an Existing Deploy
 
 ```bash
-# Apply Kubernetes config
-kubectl apply -f k8s/
-
-# Check deployment
-kubectl get pods
-kubectl logs -f pod/cap4-xxx
+git pull
+docker compose up -d --build
 ```
 
-### Option 3: Cloud Platforms
+Because migrations run automatically through the `migrate` service, updating the
+stack with `docker compose up -d --build` is the normal upgrade path.
 
-#### AWS (Elastic Container Service)
+After upgrades:
 
-1. Push image to ECR
-2. Create ECS task definition
-3. Create ECS service
-4. Configure load balancer
-5. Deploy and monitor
+- check `docker compose logs migrate`
+- re-run `/health`, `/ready`, and `make smoke`
+- verify a fresh upload still completes end-to-end before considering the deploy healthy
 
-#### Heroku
+---
+
+## Operational Notes
+
+- PostgreSQL is the source of truth for state and queue data
+- MinIO stores raw uploads, processed outputs, thumbnails, and transcript assets
+- The checked-in Compose stack is single-host and single-tenant
+- The current repo has no end-user authentication layer
+- Incoming media progress webhooks are documented and supported, but the main worker path currently waits on synchronous `POST /process` responses from `media-server`
+
+---
+
+## Backups and Recovery
+
+This repo does not automate backups. For any non-throwaway environment, back up:
+
+- the PostgreSQL data volume or database
+- the MinIO data volume or bucket contents
+- the `.env` file or your secret source of truth
+
+For a destructive reset of a local or disposable environment:
 
 ```bash
-# Enable Heroku container registry
-heroku container:login
-
-# Push image
-heroku container:push web
-
-# Release
-heroku container:release web
+make reset-db
 ```
 
----
-
-## Database Migrations
-
-Run migrations before starting services:
-
-```bash
-# Using Docker Compose
-docker compose exec web-api pnpm migrate
-
-# Using kubectl (Kubernetes)
-kubectl run migration --image=yourregistry/cap4:latest \
-  -- pnpm migrate
-
-# Using raw command
-DATABASE_URL="postgresql://user:pass@host:5432/cap4" pnpm migrate
-```
-
-### Note on Migrations
-
-Migrations are idempotent SQL files applied automatically by the `migrate` service on startup. To manually trigger:
-
-```bash
-docker compose run migrate
-```
-
-There is no rollback command — migrations are applied forward only. To undo changes, write a new forward migration.
-
----
-
-## Health Checks
-
-### Endpoint
-
-`GET /health`
-
-```bash
-curl https://yourapp.com/health
-```
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-03-06T14:30:00Z",
-  "version": "0.1.0",
-  "service": "web-api",
-  "checks": {
-    "database": {
-      "status": "up",
-      "latencyMs": 3
-    }
-  }
-}
-```
-
-A separate readiness probe is available at `GET /ready` (returns `"ready"` or `"not_ready"` based on DB latency < 500ms).
-
-### Liveness Probe (Kubernetes)
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 3000
-  initialDelaySeconds: 10
-  periodSeconds: 10
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 3000
-  initialDelaySeconds: 5
-  periodSeconds: 5
-```
-
----
-
-## Scaling to Multiple Workers
-
-```bash
-# With Docker Compose
-docker compose up -d --scale worker=5
-
-# With Kubernetes
-kubectl scale deployment cap4-worker --replicas=5
-
-# Monitor
-docker compose ps | grep worker
-kubectl get pods | grep worker
-```
-
----
-
-## Backup & Recovery
-
-### Database Backup
-
-```bash
-# Manual backup
-pg_dump -h prod-db.example.com -U cap4 cap4 > backup.sql
-
-# Restore from backup
-psql -h prod-db.example.com -U cap4 cap4 < backup.sql
-
-# Automated backups (set up with cron or cloud provider)
-0 2 * * * pg_dump -h prod-db.example.com -U cap4 cap4 | gzip > /backups/cap4-$(date +\%Y\%m\%d).sql.gz
-```
-
-### S3 Bucket Backup
-
-```bash
-# Enable S3 versioning
-aws s3api put-bucket-versioning \
-  --bucket cap4-prod \
-  --versioning-configuration Status=Enabled
-
-# Periodic sync to backup bucket
-aws s3 sync s3://cap4-prod s3://cap4-prod-backup
-```
-
----
-
-## Monitoring
-
-### Key Metrics to Monitor
-
-```
-- Video processing time (per phase)
-- Error rate (by type)
-- Worker utilization
-- Database connection pool usage
-- S3 API latency
-- External API response times
-```
-
-### Using Prometheus
-
-Add to `docker-compose.yml`:
-
-```yaml
-prometheus:
-  image: prom/prometheus
-  ports:
-    - "9090:9090"
-  volumes:
-    - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
-```
-
-### Logging
-
-Send logs to:
-- **CloudWatch** (AWS)
-- **ELK Stack** (open source)
-- **Datadog** (SaaS)
-- **Papertrail** (SaaS)
-
----
-
-## Security Hardening
-
-- [ ] Enable HTTPS/TLS
-- [ ] Set strong database passwords
-- [ ] Use VPC/security groups
-- [ ] Enable database encryption
-- [ ] Rotate API keys regularly
-- [ ] Set rate limiting
-- [ ] Enable audit logging
-
----
-
-## Rollback Plan
-
-If deployment fails:
-
-```bash
-# Docker Compose
-docker compose down
-docker pull yourregistry/cap4:v1.0.0-previous
-docker compose up -d
-
-# Kubernetes
-kubectl rollout undo deployment/cap4
-kubectl rollout history deployment/cap4
-```
-
----
-
-## Release Checklist
-
-Before deploying to production:
-
-- [ ] All tests pass
-- [ ] Code reviewed and approved
-- [ ] Database migration tested in staging
-- [ ] Performance testing completed
-- [ ] Security audit passed
-- [ ] Rollback plan documented
-- [ ] Team notified of deployment
-- [ ] Monitoring is active
-- [ ] Backup is current
-
----
-
-## Incident Response
-
-If production issue occurs:
-
-1. **Assess impact** — How many users affected?
-2. **Roll back if critical** — Use rollback procedure
-3. **Investigate** — Check logs, metrics
-4. **Fix** — Update code, database, or config
-5. **Test in staging** — Verify fix works
-6. **Deploy carefully** — Monitor health
-7. **Post-mortem** — Document what happened
-
----
-
-**Need help?** See [troubleshooting.md](troubleshooting.md) or [CONTRIBUTING.md](../CONTRIBUTING.md)
+That is a local recovery convenience, not a production rollback strategy.

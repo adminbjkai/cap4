@@ -34,7 +34,10 @@ cp .env.example .env
 make up
 # or: docker compose up -d --build
 
-# 4. Open the app
+# 4. Verify the stack
+make smoke
+
+# 5. Open the app
 open http://localhost:8022
 ```
 
@@ -54,6 +57,7 @@ service applies any pending SQL files from `db/migrations/` using
 | **minio console** | http://localhost:8923 | MinIO admin UI               |
 
 MinIO default credentials (from `.env.example`): `minio` / `minio123`
+The console port is bound to localhost only in the checked-in Compose stack.
 
 ### Resetting Everything
 
@@ -104,7 +108,7 @@ without Docker rebuild cycles.
 ### Requirements
 
 - Node 20+ and pnpm
-- PostgreSQL 15+ running on localhost:5432
+- PostgreSQL 16+ running on localhost:5432
 - MinIO running on localhost:9000
 - ffmpeg
 
@@ -244,7 +248,7 @@ pnpm test:integration
 ```
 
 Integration tests run the real upload → transcode → transcribe → AI pipeline
-end-to-end. Expect 2–5 minutes.
+end-to-end. Host verification passed 18/18 on 2026-03-23. Expect roughly 2–5 minutes with real provider calls.
 
 ---
 
@@ -268,7 +272,7 @@ SELECT id, processing_phase, created_at FROM videos ORDER BY created_at DESC;
 SELECT id, job_type, status, attempts FROM job_queue WHERE status = 'queued';
 
 -- Recent failures
-SELECT id, job_type, error_message, updated_at FROM job_queue
+SELECT id, job_type, last_error, updated_at FROM job_queue
 WHERE status = 'dead' ORDER BY updated_at DESC LIMIT 10;
 
 -- Applied migrations

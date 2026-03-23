@@ -59,6 +59,9 @@ DATABASE_URL=postgres://app:app@localhost:5432/cap4
 `docker compose up`. For local dev, run the SQL files manually once (see
 `docs/local-dev.md`).
 
+`POSTGRES_*` values are used by the Compose-managed PostgreSQL and migrate
+containers. The application processes themselves use `DATABASE_URL`.
+
 ---
 
 ### Object Storage (MinIO / S3)
@@ -69,6 +72,8 @@ Two separate endpoint variables serve different purposes:
 |----------|---------|
 | `S3_ENDPOINT` | Backend → MinIO. Used for internal server-to-server operations (worker encoding, media-server uploads). Must be reachable from inside the Docker network. |
 | `S3_PUBLIC_ENDPOINT` | Browser-accessible URL. Used when generating presigned PUT upload URLs and in the dev UI result links. Must be reachable from the browser. |
+
+The current repo expects S3-compatible configuration through the `S3_*` variables above. There is no separate `AWS_*` environment contract in the application code.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -83,6 +88,8 @@ Two separate endpoint variables serve different purposes:
 | `MINIO_ROOT_PASSWORD` | — | MinIO root password. Must match `S3_SECRET_KEY`. |
 | `MINIO_PORT` | `8922` | Host port that MinIO API is mapped to. |
 | `MINIO_CONSOLE_PORT` | `8923` | Host port that MinIO console is mapped to. |
+
+In the checked-in Compose stack, the MinIO console host port is bound to `127.0.0.1` only.
 
 **Why two endpoints?**
 
@@ -134,7 +141,7 @@ but not from your browser or local machine.
 
 `MEDIA_SERVER_BASE_URL` is used by the main worker flow and the debug/system route to call `POST /process` on the media-server.
 
-Note: `WEB_API_BASE_URL` has been removed from the config schema. It was previously used only in the debug/system route to construct a webhook callback URL that was passed to the media-server — but the media-server never consumed it. The dead field has been cleaned up from both the request body and the config.
+Do not set `WEB_API_BASE_URL`. It is not part of the current config schema.
 
 ---
 
@@ -171,7 +178,7 @@ Note: `WEB_API_BASE_URL` has been removed from the config schema. It was previou
 | `WORKER_POLL_MS` | `2000` | How often the worker polls for new jobs (milliseconds). |
 | `WORKER_HEARTBEAT_MS` | `15000` | How often the worker renews active job leases. |
 | `WORKER_RECLAIM_MS` | `10000` | How often the worker scans for expired leases to reclaim. |
-| `WORKER_MAX_ATTEMPTS` | `6` | Maximum retries before a job is marked `failed`. |
+| `WORKER_MAX_ATTEMPTS` | `6` | Maximum retries before a job is marked `dead`. |
 
 ---
 
@@ -241,5 +248,5 @@ VITE_S3_PUBLIC_ENDPOINT=http://localhost:8922
 ```
 
 This makes the frontend construct absolute MinIO URLs (`http://localhost:8922/cap4/...`)
-instead of relative paths, so video playback works when the app is served at
-`http://localhost:5173` (Vite) rather than `http://localhost:8022` (nginx).
+instead of relative paths, so playback and asset links work when the app is
+served at `http://localhost:5173` (Vite) rather than `http://localhost:8022` (nginx).
