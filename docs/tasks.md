@@ -1,6 +1,11 @@
+---
+title: "Tasks"
+description: "Current and completed work tracker"
+---
+
 # Tasks — cap4
 
-**Last updated:** 2026-03-19 (Audit phases A-E plus selected Phase F items executed)
+**Last updated:** 2026-03-23 (Full audit phases A-F complete; code fixes applied; host runtime verification passed; docs alignment complete)
 
 ---
 
@@ -50,11 +55,7 @@ Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews,
   - [ ] F6: Auth planning remains deferred by owner
   - [ ] F8: Accessibility follow-up remains deferred
 
-### Phase 5 — Auth (deferred by owner — after audit fixes)
-
-- [ ] Single-user authentication (JWT or session-based)
-- [ ] Protected routes on frontend
-- [ ] Auth middleware on API endpoints
+### Phase 5 — Auth (out of scope — deferred by owner)
 
 ---
 
@@ -93,7 +94,7 @@ Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews,
 - [x] **CAP4_MASTER_PLAN.md** — phases 1–4.5 updated as complete, Phase 5 added, quick-reference updated
 - [x] **TASKS.md** — this file updated
 
-### Phase 4 — Integration Tests (✓ Complete — 18/18 passing)
+### Phase 4 — Integration Tests (✓ Complete — 18/18 passing; host-verified 2026-03-23)
 - [x] **Vitest integration config** — 180s timeout, singleFork execution
 - [x] **Test fixtures** — vid0.mp4 (30s, 2.6 MB) for fast real-pipeline tests
 - [x] **Full-flow tests (7)** — upload → transcribe → AI → complete pipeline verified
@@ -119,7 +120,7 @@ Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews,
 ## Completed
 
 ### Phase 3 — Hardening (✓ Complete)
-- [x] **Rate limiting** — `@fastify/rate-limit` v10.3.0 registered globally (100 req/min per IP); webhooks exempt via `rateLimit: false`
+- [x] **Rate limiting** — `@fastify/rate-limit` v10.3.0 registered globally (100 req/min per IP); webhooks exempt via `allowList` callback
 - [x] **Nginx upload size limit** — `client_max_body_size 2g;` added to both nginx configs
 - [x] **Security audit** — fastify bumped to ^5.8.1; `routerPath` → `routeOptions.url` migration applied
 - [x] **Key log audit** — `@cap/logger` pino redact strips API keys + secrets with `remove: true`

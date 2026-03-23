@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-03-19 (Audit complete, post-audit fixes applied)
+**Last updated:** 2026-03-23 (Cross-validated review: Claude Opus + Codex + Gemini; all fixes applied)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -9,14 +9,31 @@
 
 ## Current State
 
-Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent reviews, cross-validated). All critical bugs fixed, docs rewritten from code outward, repo cleaned.
+Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independent reviews, cross-validated). 15 security/correctness bugs fixed, 19 doc alignment issues corrected across two passes. Documentation re-scanned and verified against code. Host runtime verification also completed on 2026-03-23: `pnpm typecheck`, `pnpm build`, `docker compose up -d --build`, `GET /health`, `GET /ready`, `pnpm test:integration` (18/18), and `make smoke` all passed.
 
 **Audit:** [audit-plan.md](docs/archive/audit-plan.md) — Phases A-F complete (F6 auth + F8 a11y deferred).
-**Next up:** Phase 5 Auth (single-user JWT/session) — deferred by owner.
 
-**Phase 4 — Integration Tests: ✅ 18/18 passing** (7 pipeline + 11 API contract)
+**Phase 4 — Integration Tests: ✅ 18/18 passing** (7 pipeline + 11 API contract; host-verified 2026-03-23)
 
-### Post-Audit Fixes
+### 2026-03-23 Review Fixes (15 code + 7 doc)
+- ✅ **SSRF protection** — webhookUrl now validated (protocol, hostname blocklist for internal services)
+- ✅ **Path traversal fix** — media-server validates videoId is UUID before S3 key construction
+- ✅ **Webhook rate-limit bypass** — skip callback added to @fastify/rate-limit (was using unsupported per-route config)
+- ✅ **Webhook secret hardened** — MEDIA_SERVER_WEBHOOK_SECRET now requires `.min(32)` (was `.min(1)`)
+- ✅ **Webhook timestamp default** — WEBHOOK_MAX_SKEW_SECONDS now defaults to 300s (was NaN on missing env var)
+- ✅ **Migration runner SQL injection** — version now uses dollar-quoting in psql INSERT
+- ✅ **MinIO console** — port 8923 bound to 127.0.0.1 only
+- ✅ **Unacked worker jobs** — skip paths in handleTranscribeVideo now call ack() before return
+- ✅ **Webhook dedupe** — catches second unique constraint violation (source, job_id, phase, progress_bucket)
+- ✅ **Webhook job queue** — deliver_webhook INSERT now has ON CONFLICT handling
+- ✅ **Title handling** — /status now returns `v.name`; watch-edits falls back to `videos.name` when no ai_outputs row
+- ✅ **Provider status** — deriveProviderHealthState returns `"idle"` (was `"ready"`, frontend mismatch)
+- ✅ **Multipart soft-delete** — presign-part, complete, abort now JOIN videos and check deleted_at IS NULL
+- ✅ **Groq chunk errors** — logged per-chunk failures, abort if >30% fail
+- ✅ **DB pool config** — Pool now has max:20, idleTimeoutMillis:30000, connectionTimeoutMillis:5000
+- ✅ **7 doc fixes** — master-plan Fastify version, deployment npm→pnpm, stale endpoints, media-server description, queue status enums
+
+### Earlier Post-Audit Fixes
 - ✅ **Deepgram diarization** — added `diarize=true` to Deepgram API call so multi-speaker videos get proper speaker labels
 - ✅ **Multipart upload S3 client** — `complete` and `abort` endpoints now use internal S3 endpoint (was using public endpoint, causing ECONNREFUSED in Docker)
 - ✅ **Presign-part idempotency** — frontend now sends `Idempotency-Key` header on `presign-part` requests (required after Phase F hardening)
@@ -31,7 +48,7 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 - ✅ **BJK-13** — keyboard shortcuts + command palette (`Cmd+K` / `Ctrl+K`) and shortcuts overlay
 - ✅ **BJK-14** — speaker diarization UI (badges, editable labels, filters) + API support for `speakerLabels`
 - ✅ **BJK-15** — transcript confidence highlighting and uncertain-segment review workflow
-- ✅ **BJK-16** — Groq enrichment upgrade: entities, action items, quotes, chapter sentiment + schema validation
+- ✅ **BJK-16** — Groq enrichment upgrade: entities, action items, quotes + schema validation (chapter sentiment parsed but not yet persisted)
 - ✅ **BJK-17** — transcript full-text search with highlighting + keyboard match navigation
 - ✅ **BJK-18** — sage green theme pass, true-dark surfaces, delete button fix, summary strip between player and chapters
 
@@ -47,7 +64,7 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 ### Earlier Changes (Phase 4 + 4.5 branding)
 - ✅ apps/web/index.html: title cap3 → cap4
 - ✅ docker-compose.yml: container names cap3-* → cap4-* (commented)
-- ✅ Integration test suite: 18/18 passing — full upload → transcribe → AI → complete pipeline
+- ✅ Integration test suite: 18/18 passing — full upload → transcribe → AI → complete pipeline (host-verified 2026-03-23)
 - ✅ transcript.language defaulted to 'en' at 3 layers
 - ✅ Migration 0004: backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
 
@@ -100,7 +117,7 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 - **Migrations:** `migrate` service uses `schema_migrations` table to track applied migrations; runs on every `docker compose up`
 - **Job queue:** PostgreSQL `FOR UPDATE SKIP LOCKED` — no Redis
 - **State machine:** Monotonic `processing_phase_rank`, terminal states: `complete`, `failed`, `cancelled`
-- **Webhooks:** media-server → web-api via HMAC-signed HTTP (replay-protected)
+- **Webhooks:** inbound progress webhook route exists for signed callbacks; mainline worker flow currently calls media-server synchronously via `POST /process`
 - **AI:** Deepgram (transcription) + Groq (title/summary/chapters)
 - **URL routing:** Frontend uses relative `/cap4/...` paths → nginx proxies to MinIO (Docker); Vite dev server proxies to `localhost:9000` (local dev)
 
@@ -126,14 +143,14 @@ Full-app audit completed 2026-03-19 (Claude Opus 4.6 + Codex, independent review
 | Phase 1 | API split + GitHub repo creation ✓ |
 | Phase 2 | Player UI (ChapterList, TranscriptParagraph, lg breakpoint) ✓ |
 | Phase 3 | Hardening (rate limiting, nginx, fastify v5, key log audit) ✓ |
-| Phase 4 | Integration tests — 18/18 passing ✓ |
+| Phase 4 | Integration tests — 18/18 passing (host-verified 2026-03-23) |
 | Phase 4.5 | Docker/config audit — auto-migrations, local dev docs ✓ |
 | command palette | Global quick-action and navigation modal opened via `Cmd+K` / `Ctrl+K` |
 | speaker diarization | Per-segment speaker attribution with editable display labels |
 | confidence review | Transcript mode focused on low-confidence segments for verification |
 | custom controls | App-rendered video controls replacing native browser video chrome |
 | sage green theme | Muted green accent system replacing prior blue-heavy palette |
-| Phase 5 | Auth — single-user JWT/session (NEXT UP) |
+| Phase 5 | Auth — single-user JWT/session (deferred by owner; out of scope) |
 | schema_migrations | Table tracking which SQL migrations have been applied |
 | migrate service | Docker Compose service that auto-runs migrations on startup |
 | progress_bucket | Webhook dedup column — prevents duplicate 10%-bucket updates |

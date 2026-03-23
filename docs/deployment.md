@@ -1,3 +1,8 @@
+---
+title: "Deployment"
+description: "Production deployment guide for cap4"
+---
+
 # Deployment Guide
 
 How to deploy cap4 to production.
@@ -56,7 +61,7 @@ Create `.env.production`:
 
 ```bash
 # API
-API_PORT=3000
+WEB_API_PORT=3000
 NODE_ENV=production
 LOG_LEVEL=info
 
@@ -123,10 +128,10 @@ docker compose pull
 docker compose up -d
 
 # Run migrations
-docker compose exec web-api npm run migrate
+docker compose exec web-api pnpm migrate
 
 # Verify health
-curl http://localhost:3000/api/health
+curl http://localhost:3000/health
 ```
 
 **Pros:**
@@ -182,27 +187,25 @@ Run migrations before starting services:
 
 ```bash
 # Using Docker Compose
-docker compose exec web-api npm run migrate
+docker compose exec web-api pnpm migrate
 
 # Using kubectl (Kubernetes)
 kubectl run migration --image=yourregistry/cap4:latest \
-  -- npm run migrate
+  -- pnpm migrate
 
 # Using raw command
-DATABASE_URL="postgresql://user:pass@host:5432/cap4" npm run migrate
+DATABASE_URL="postgresql://user:pass@host:5432/cap4" pnpm migrate
 ```
 
-### Rollback
+### Note on Migrations
 
-If migration fails:
+Migrations are idempotent SQL files applied automatically by the `migrate` service on startup. To manually trigger:
 
 ```bash
-# View migration history
-npm run migrate:status
-
-# Rollback last migration
-npm run migrate:rollback
+docker compose run migrate
 ```
+
+There is no rollback command — migrations are applied forward only. To undo changes, write a new forward migration.
 
 ---
 
@@ -210,10 +213,10 @@ npm run migrate:rollback
 
 ### Endpoint
 
-`GET /api/health`
+`GET /health`
 
 ```bash
-curl https://yourapp.com/api/health
+curl https://yourapp.com/health
 ```
 
 **Response:**
@@ -221,23 +224,34 @@ curl https://yourapp.com/api/health
 {
   "status": "healthy",
   "timestamp": "2026-03-06T14:30:00Z",
-  "services": {
-    "database": "connected",
-    "storage": "connected",
-    "worker": "active"
+  "version": "0.1.0",
+  "service": "web-api",
+  "checks": {
+    "database": {
+      "status": "up",
+      "latencyMs": 3
+    }
   }
 }
 ```
+
+A separate readiness probe is available at `GET /ready` (returns `"ready"` or `"not_ready"` based on DB latency < 500ms).
 
 ### Liveness Probe (Kubernetes)
 
 ```yaml
 livenessProbe:
   httpGet:
-    path: /api/health
+    path: /health
     port: 3000
   initialDelaySeconds: 10
   periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5
 ```
 
 ---

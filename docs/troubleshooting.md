@@ -1,3 +1,8 @@
+---
+title: "Troubleshooting"
+description: "Common issues and how to fix them"
+---
+
 # Troubleshooting Guide
 
 Common issues and how to fix them.
@@ -109,10 +114,10 @@ File exceeds 2GB limit.
 # Check file size
 ls -lh video.mp4
 
-# For large files, use multipart upload endpoint:
-# POST /api/videos/upload/init
-# POST /api/videos/upload/{id}/part
-# POST /api/videos/upload/{id}/complete
+# For large files, use multipart upload endpoints:
+# POST /api/uploads/multipart/create
+# POST /api/uploads/multipart/presign-part
+# POST /api/uploads/multipart/complete
 ```
 
 ### "400 Bad Request"
@@ -177,14 +182,11 @@ docker compose exec postgres psql -U cap4 -d cap4 -c \
 Database schema issue.
 
 ```bash
-# Check migration status
-docker compose exec web-api npm run migrate:status
+# Check logs for migration errors
+docker compose logs migrate
 
-# Rollback last migration
-docker compose exec web-api npm run migrate:rollback
-
-# Apply again
-docker compose exec web-api npm run migrate
+# Reset and re-apply migrations
+make reset-db
 ```
 
 ---
@@ -268,16 +270,16 @@ docker compose down
 docker compose up -d worker
 ```
 
-### Jobs stuck in "claimed" state
+### Jobs stuck in "leased" state
 
 ```bash
 # Check database
 docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "SELECT * FROM jobs WHERE status = 'claimed';"
+  "SELECT * FROM job_queue WHERE status IN ('leased', 'running') AND locked_until < NOW();"
 
 # If lease has expired, reset
 docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "UPDATE jobs SET status = 'pending', leaseExpiry = NULL WHERE status = 'claimed' AND leaseExpiry < NOW();"
+  "UPDATE job_queue SET status = 'queued', locked_by = NULL, locked_until = NULL, lease_token = NULL WHERE status IN ('leased', 'running') AND locked_until < NOW();"
 
 # Restart worker
 docker compose restart worker
@@ -322,13 +324,21 @@ docker volume rm cap4_minio_data
 ### Signed URLs don't work
 
 ```bash
-# Check MINIO_HOST is set correctly
-# Must match actual network location (not localhost in production)
+# Check S3_PUBLIC_ENDPOINT is set correctly
+# Must be browser-accessible (not localhost in production)
 
-# Test signed URL generation
-curl -X POST http://localhost:3000/api/videos/upload/init \
+# Test the full upload flow:
+# 1. Create video
+curl -X POST http://localhost:3000/api/videos \
   -H "Content-Type: application/json" \
-  -d '{"filename":"test.mp4","size":1000000,"contentType":"video/mp4"}'
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"name":"test video"}'
+
+# 2. Request signed upload URL
+curl -X POST http://localhost:3000/api/uploads/signed \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"videoId":"550e8400-e29b-41d4-a716-446655440000","contentType":"video/mp4"}'
 ```
 
 ---
@@ -389,7 +399,7 @@ Host firewall or network issue.
 ```bash
 # Test connectivity
 telnet localhost 3000
-curl http://localhost:3000/api/health
+curl http://localhost:3000/health
 
 # If working locally but not from another machine:
 # - Check firewall rules
@@ -410,7 +420,7 @@ docker network inspect cap4_default
 # Check docker-compose.yml networking section
 
 # Test from media-server container
-docker compose exec media-server curl http://web-api:3000/api/health
+docker compose exec media-server curl http://web-api:3000/health
 ```
 
 ---
@@ -457,6 +467,6 @@ docker compose exec postgres \
 # Monitor job queue
 docker compose exec postgres \
   psql -U cap4 -d cap4 -c \
-  "SELECT status, count(*) FROM jobs GROUP BY status;"
+  "SELECT status, count(*) FROM job_queue GROUP BY status;"
 ```
 

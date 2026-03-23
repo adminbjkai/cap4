@@ -1,3 +1,8 @@
+---
+title: "Environment Variables"
+description: "Complete reference for all cap4 environment variables"
+---
+
 # Environment Variables Reference
 
 Complete reference for all cap4 environment variables.
@@ -11,7 +16,6 @@ Complete reference for all cap4 environment variables.
 | `DATABASE_URL` | `postgres://app:app@postgres:5432/cap4` | `postgres://app:app@localhost:5432/cap4` |
 | `S3_ENDPOINT` | `http://minio:9000` | `http://localhost:9000` |
 | `S3_PUBLIC_ENDPOINT` | `http://localhost:8922` | `http://localhost:9000` |
-| `WEB_API_BASE_URL` | `http://web-api:3000` | `http://localhost:3000` |
 | `MEDIA_SERVER_BASE_URL` | `http://media-server:3100` | `http://localhost:3100` |
 | `VITE_S3_PUBLIC_ENDPOINT` | *(leave unset)* | *(leave unset)* |
 
@@ -126,11 +130,11 @@ but not from your browser or local machine.
 
 | Variable | Default (Docker) | Local override |
 |----------|-----------------|----------------|
-| `WEB_API_BASE_URL` | `http://web-api:3000` | `http://localhost:3000` |
 | `MEDIA_SERVER_BASE_URL` | `http://media-server:3100` | `http://localhost:3100` |
 
-`WEB_API_BASE_URL` is used by the media-server to post webhook callbacks.
-`MEDIA_SERVER_BASE_URL` is used by the web-api to trigger FFmpeg jobs.
+`MEDIA_SERVER_BASE_URL` is used by the main worker flow and the debug/system route to call `POST /process` on the media-server.
+
+Note: `WEB_API_BASE_URL` has been removed from the config schema. It was previously used only in the debug/system route to construct a webhook callback URL that was passed to the media-server — but the media-server never consumed it. The dead field has been cleaned up from both the request body and the config.
 
 ---
 
@@ -138,7 +142,7 @@ but not from your browser or local machine.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEDIA_SERVER_WEBHOOK_SECRET` | `change-me-in-real-env` | HMAC-SHA256 shared secret used to sign and verify webhook payloads between media-server and web-api. **Change this in production.** |
+| `MEDIA_SERVER_WEBHOOK_SECRET` | *(no default — must set)* | HMAC-SHA256 shared secret. **Must be at least 32 characters.** Generate with `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. Change before deploying. |
 | `WEBHOOK_MAX_SKEW_SECONDS` | `300` | Maximum age (in seconds) of an accepted webhook timestamp. Prevents replay attacks. |
 
 ---
@@ -193,13 +197,12 @@ MINIO_ROOT_USER=minio
 MINIO_ROOT_PASSWORD=minio123
 MINIO_PORT=8922
 
-WEB_API_BASE_URL=http://web-api:3000
 MEDIA_SERVER_BASE_URL=http://media-server:3100
 
 DEEPGRAM_API_KEY=<your_key>
 GROQ_API_KEY=<your_key>
 
-MEDIA_SERVER_WEBHOOK_SECRET=change-me-in-real-env
+MEDIA_SERVER_WEBHOOK_SECRET=change-this-to-a-secret-of-32-plus-chars
 ```
 
 ### Local Dev Without Docker (`.env`)
@@ -221,13 +224,12 @@ S3_BUCKET=cap4
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
 
-WEB_API_BASE_URL=http://localhost:3000
 MEDIA_SERVER_BASE_URL=http://localhost:3100
 
 DEEPGRAM_API_KEY=<your_key>
 GROQ_API_KEY=<your_key>
 
-MEDIA_SERVER_WEBHOOK_SECRET=dev-only-secret
+MEDIA_SERVER_WEBHOOK_SECRET=dev-only-secret-that-is-32-plus-chars-long
 ```
 
 ### Mixed (Docker infra + local Vite dev server)

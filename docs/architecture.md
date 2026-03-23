@@ -1,3 +1,8 @@
+---
+title: "Architecture"
+description: "System design, state machine, Docker services, and data flow"
+---
+
 # cap4 Architecture
 
 Current system architecture for the repo in this branch. This document follows the code, migrations, and `docker-compose.yml`.
@@ -12,7 +17,7 @@ The default Docker stack defines nine services:
 4. `minio-setup` — bucket/bootstrap helper
 5. `web-api` — Fastify HTTP API on port `3000`
 6. `worker` — background job runner
-7. `media-server` — FFmpeg wrapper and progress webhook emitter on port `3100`
+7. `media-server` — FFmpeg RPC service on port `3100`
 8. `web-builder` — one-shot frontend build copier for the shared `web_dist` volume
 9. `web-internal` — nginx serving the built frontend on port `8022`
 
@@ -28,7 +33,7 @@ web-api
   -> creates videos/uploads rows
   -> enqueues process_video jobs
   -> serves status, retry, delete, upload endpoints
-  -> receives media-server progress webhooks
+  -> exposes POST /api/webhooks/media-server/progress for signed progress callbacks
 
 worker
   -> claims jobs from job_queue with leasing
@@ -37,10 +42,10 @@ worker
   -> updates database state and queues downstream jobs
 
 media-server
-  -> downloads source video
-  -> runs ffmpeg processing
-  -> uploads outputs
-  -> posts signed progress updates back to web-api
+  -> exposes /health and /process endpoints
+  -> worker calls POST /process (synchronous RPC)
+  -> processes video: downloads, runs ffmpeg, uploads outputs
+  -> returns completion status to worker
 ```
 
 ## Source Of Truth
@@ -132,11 +137,17 @@ The queue also enforces one active job per `(video_id, job_type)` for active sta
 There are two separate webhook concepts:
 
 - Incoming: `POST /api/webhooks/media-server/progress`
-  Used internally by media-server to report progress and completion.
+  Route exists for signed progress updates and is covered by the API contract plus debug/test tooling.
 - Outgoing: `deliver_webhook` jobs
   Sent to a user-provided `videos.webhook_url` after selected milestones.
 
 Incoming webhook requests are HMAC-signed, timestamp-validated, deduplicated by delivery ID, and applied only if they pass monotonic state guards.
+
+Current checked-in runtime note:
+
+- The main worker path calls `POST /process` on `apps/media-server` and waits for a synchronous result.
+- The checked-in `apps/media-server/src/index.ts` implementation shown in this repo does not itself emit signed progress callbacks during that mainline path.
+- `deliver_webhook` is unrelated to the internal media progress route; it sends outbound user webhooks stored in `videos.webhook_url`.
 
 ## Frontend Serving
 

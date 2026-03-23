@@ -22,7 +22,7 @@ Use `pnpm test:e2e` for the web-api Playwright suite when the local stack is run
 apps/web          React frontend
 apps/web-api      Fastify HTTP API
 apps/worker       Background job runner
-apps/media-server FFmpeg wrapper / webhook emitter
+apps/media-server FFmpeg wrapper (worker calls POST /process)
 packages/*        Shared config, DB, and logger packages
 docs/             Current documentation
 db/migrations     Schema source of truth

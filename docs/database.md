@@ -1,3 +1,8 @@
+---
+title: "Database Schema"
+description: "Tables, enums, migrations, and operational notes"
+---
+
 # Database Schema
 
 Current schema reference for cap4, based on `db/migrations/0001_init.sql` through `0006_add_transcript_speaker_labels.sql`.
@@ -165,9 +170,12 @@ Important columns:
 - `speaker_labels_json jsonb not null default '{}'::jsonb` added by migration `0006`
 - `created_at`, `updated_at`
 
+Constraints:
+
+- `speaker_labels_json` must be a JSON object and is NOT NULL with DEFAULT '{}' (CHECK constraint)
+
 Notes:
 
-- `speaker_labels_json` must be a JSON object
 - `segments_json` is the source used to derive editable transcript text in the watch view
 
 ### `ai_outputs`
@@ -189,9 +197,9 @@ Important columns:
 
 Constraints:
 
-- `chapters_json` must be a JSON array
-- `action_items_json` must be a JSON array
-- `quotes_json` must be a JSON array
+- `chapters_json` must be a JSON array (CHECK constraint)
+- `action_items_json` must be a JSON array (CHECK constraint)
+- `quotes_json` must be a JSON array (CHECK constraint)
 
 Note:
 

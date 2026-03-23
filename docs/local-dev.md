@@ -1,3 +1,8 @@
+---
+title: "Local Development"
+description: "Docker and no-Docker setup for local development"
+---
+
 # Local Development
 
 Two ways to run cap4 locally. **Docker (recommended)** is the fastest path and
@@ -180,7 +185,6 @@ Then update `.env` to point to `localhost` instead of Docker service names:
 DATABASE_URL=postgres://app:app@localhost:5432/cap4
 S3_ENDPOINT=http://localhost:9000
 S3_PUBLIC_ENDPOINT=http://localhost:9000
-WEB_API_BASE_URL=http://localhost:3000
 MEDIA_SERVER_BASE_URL=http://localhost:3100
 
 # MinIO credentials (match your local MinIO setup)
@@ -261,11 +265,11 @@ Useful queries:
 SELECT id, processing_phase, created_at FROM videos ORDER BY created_at DESC;
 
 -- Pending jobs
-SELECT id, job_type, status, attempts FROM job_queue WHERE status = 'pending';
+SELECT id, job_type, status, attempts FROM job_queue WHERE status = 'queued';
 
 -- Recent failures
-SELECT id, job_type, last_error, updated_at FROM job_queue
-WHERE status = 'failed' ORDER BY updated_at DESC LIMIT 10;
+SELECT id, job_type, error_message, updated_at FROM job_queue
+WHERE status = 'dead' ORDER BY updated_at DESC LIMIT 10;
 
 -- Applied migrations
 SELECT version, applied_at FROM schema_migrations ORDER BY version;

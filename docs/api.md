@@ -1,3 +1,8 @@
+---
+title: "API Reference"
+description: "HTTP endpoints and webhook contract"
+---
+
 # API Reference
 
 Current HTTP contract for the Fastify API in `apps/web-api`.
@@ -162,7 +167,7 @@ Notes:
 
 - `Idempotency-Key` is required.
 - At least one of `title`, `transcriptText`, or `speakerLabels` must be present.
-- `title` only updates when an `ai_outputs` row already exists.
+- `title` updates `ai_outputs.title` if an AI row exists; otherwise falls back to updating `videos.name`.
 - `transcriptText` rewrites `transcripts.segments_json` while preserving timing metadata shape.
 
 ### `POST /api/videos/:id/retry`
@@ -431,17 +436,18 @@ Provider health summary consumed by the home page.
 
 ## Webhooks
 
-Current webhook contract for the incoming media-server callback handled by `apps/web-api`.
+Current webhook contract for media-server progress updates handled by `apps/web-api`.
 
 - Route: `POST /api/webhooks/media-server/progress`
 - Purpose: update `videos.processing_phase` and `processing_progress`
 - Auth: HMAC verification plus timestamp skew validation
 - Rate limit: excluded from the global API limiter
 - Content type: `application/cap4-webhook+json`
+- Flow note: this route exists for signed progress updates and is covered by the API contract plus test/debug tooling. The checked-in main worker path still calls media-server `/process` synchronously, and the `apps/media-server` implementation shown in this repo does not itself emit these callbacks during that path.
 
 ### What This Route Does
 
-The media-server posts progress and completion updates back to the API. The API:
+When a signed progress update is posted to this route, the API:
 
 1. Verifies required headers.
 2. Verifies the HMAC signature against the raw request body.

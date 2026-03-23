@@ -1,3 +1,8 @@
+---
+title: "QA: Speaker Diarization"
+description: "Test plan for speaker diarization UI feature"
+---
+
 # QA Test Plan: Speaker Diarization UI
 
 **Feature:** Add speaker diarization UI and editable speaker labels
@@ -301,7 +306,7 @@ PATCH /api/videos/:id/watch-edits
   2. Observe response
 - **Expected Result:**
   - Status: 200 OK
-  - Response body: `{ "ok": true, "updated": { "speakers": true } }`
+  - Response body: `{ "ok": true, "videoId": "...", "updated": { "title": false, "transcript": false, "speakerLabels": true } }`
   - Speaker labels stored in database
 
 **TC-022: GET /api/videos/:id/status returns speaker labels**

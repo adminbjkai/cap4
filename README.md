@@ -7,14 +7,14 @@ Single-tenant video processing platform with a React watch app, Fastify API, Pos
 - Upload -> process -> transcript -> AI summary flow is implemented.
 - In-browser screen recording with auto-upload (recordings upload immediately after capture; file selections require manual upload).
 - Web app includes custom video controls, command palette, keyboard shortcuts, transcript review, speaker diarization, and a dark/light theme.
-- Full audit complete (phases A-E) — see [audit-plan.md](docs/archive/audit-plan.md). Phase 5 auth is deferred. The repo currently runs without end-user authentication.
+- Full audit complete (phases A-F) — see [audit-plan.md](docs/archive/audit-plan.md). The repo runs without end-user authentication.
 
 ## Services
 
 - `apps/web` — React/Vite frontend
 - `apps/web-api` — Fastify API
 - `apps/worker` — queue worker for processing, transcription, and AI jobs
-- `apps/media-server` — FFmpeg wrapper with webhook progress callbacks
+- `apps/media-server` — FFmpeg wrapper invoked synchronously by the worker via POST /process
 - `packages/db` / `db/migrations` — PostgreSQL access and schema
 - `packages/logger`, `packages/config` — shared packages
 
@@ -122,6 +122,6 @@ pnpm dev:media-server
 
 ## Known Issues
 
-- No authentication — Phase 5 auth is deferred.
+- No authentication.
 - Accessibility (aria-labels on icon buttons) is deferred.
 - See [audit-plan.md](docs/archive/audit-plan.md) for the full audit history.
