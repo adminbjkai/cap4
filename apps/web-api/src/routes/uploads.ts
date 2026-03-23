@@ -264,7 +264,9 @@ export async function uploadRoutes(app: FastifyInstance) {
 
     const uploadLookup = await query<{ raw_key: string; multipart_upload_id: string }>(
       env.DATABASE_URL,
-      `SELECT raw_key, multipart_upload_id FROM uploads WHERE video_id = $1::uuid AND mode = 'multipart'`,
+      `SELECT raw_key, multipart_upload_id FROM uploads u
+       INNER JOIN videos v ON v.id = u.video_id
+       WHERE u.video_id = $1::uuid AND u.mode = 'multipart' AND v.deleted_at IS NULL`,
       [videoId]
     );
 
@@ -306,7 +308,10 @@ export async function uploadRoutes(app: FastifyInstance) {
       if (begin.kind === "cached" || begin.kind === "conflict") return { statusCode: begin.statusCode, body: begin.body };
 
       const uploadLookup = await client.query<{ raw_key: string; multipart_upload_id: string }>(
-        `SELECT raw_key, multipart_upload_id FROM uploads WHERE video_id = $1::uuid AND mode = 'multipart' FOR UPDATE`,
+        `SELECT raw_key, multipart_upload_id FROM uploads u
+         INNER JOIN videos v ON v.id = u.video_id
+         WHERE u.video_id = $1::uuid AND u.mode = 'multipart' AND v.deleted_at IS NULL
+         FOR UPDATE`,
         [videoId]
       );
 
@@ -377,7 +382,9 @@ export async function uploadRoutes(app: FastifyInstance) {
 
     const uploadLookup = await query<{ raw_key: string; multipart_upload_id: string }>(
       env.DATABASE_URL,
-      `SELECT raw_key, multipart_upload_id FROM uploads WHERE video_id = $1::uuid AND mode = 'multipart'`,
+      `SELECT raw_key, multipart_upload_id FROM uploads u
+       INNER JOIN videos v ON v.id = u.video_id
+       WHERE u.video_id = $1::uuid AND u.mode = 'multipart' AND v.deleted_at IS NULL`,
       [videoId]
     );
 

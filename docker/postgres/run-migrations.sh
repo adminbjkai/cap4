@@ -43,13 +43,13 @@ for migration_file in "$MIGRATIONS_DIR"/*.sql; do
 
   # Check if this version has already been applied
   count=$(psql "$DATABASE_URL" -t -A -c \
-    "SELECT COUNT(*) FROM schema_migrations WHERE version = '$version'")
+    "SELECT COUNT(*) FROM schema_migrations WHERE version = \$\$${version}\$\$")
 
   if [ "$count" = "0" ]; then
     echo "  Applying: $version"
     psql "$DATABASE_URL" -f "$migration_file" -v ON_ERROR_STOP=1
     psql "$DATABASE_URL" -c \
-      "INSERT INTO schema_migrations (version) VALUES ('$version') ON CONFLICT DO NOTHING"
+      "INSERT INTO schema_migrations (version) VALUES (\$\$${version}\$\$) ON CONFLICT DO NOTHING"
     echo "  Applied:  $version"
     applied=$((applied + 1))
   else

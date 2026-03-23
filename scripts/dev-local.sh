@@ -21,6 +21,8 @@
 #   psql -d cap4 -f db/migrations/0002_video_soft_delete.sql
 #   psql -d cap4 -f db/migrations/0003_add_webhook_reporting.sql
 #   psql -d cap4 -f db/migrations/0004_fix_transcript_language.sql
+#   psql -d cap4 -f db/migrations/0005_add_ai_enrichment_fields.sql
+#   psql -d cap4 -f db/migrations/0006_add_transcript_speaker_labels.sql
 #
 # Usage:
 #   ./scripts/dev-local.sh           # start all 4 services concurrently
@@ -45,7 +47,6 @@ fi
 export DATABASE_URL="${DATABASE_URL:-postgres://app:app@localhost:5432/cap4}"
 export S3_ENDPOINT="${S3_ENDPOINT:-http://localhost:9000}"
 export S3_PUBLIC_ENDPOINT="${S3_PUBLIC_ENDPOINT:-http://localhost:9000}"
-export WEB_API_BASE_URL="${WEB_API_BASE_URL:-http://localhost:3000}"
 export MEDIA_SERVER_BASE_URL="${MEDIA_SERVER_BASE_URL:-http://localhost:3100}"
 export WEB_API_PORT="${WEB_API_PORT:-3000}"
 export MEDIA_SERVER_PORT="${MEDIA_SERVER_PORT:-3100}"

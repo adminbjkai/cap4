@@ -4,7 +4,12 @@ let pool: Pool | null = null;
 
 export function getPool(databaseUrl: string): Pool {
   if (!pool) {
-    pool = new Pool({ connectionString: databaseUrl });
+    pool = new Pool({
+      connectionString: databaseUrl,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
   }
   return pool;
 }

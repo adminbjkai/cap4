@@ -28,8 +28,12 @@ reset-db:
 	docker compose -p $(PROJECT) up -d --build
 
 # Run the smoke test (requires services to be up and healthy).
+# /debug/smoke is only registered in non-production builds (NODE_ENV != production).
+# The prod stack uses /health and /ready as the canonical liveness checks.
 smoke:
-	curl -sS -X POST http://localhost:3000/debug/smoke
+	@echo "--- /health ---" && curl -fsS http://localhost:3000/health
+	@echo "--- /ready ---"  && curl -fsS http://localhost:3000/ready
+	@echo "\nSmoke passed."
 
 # Remove containers, volumes, and dangling build cache.
 prune:

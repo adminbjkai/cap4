@@ -40,6 +40,7 @@ await app.register(rateLimit, {
     (req.headers["x-real-ip"] as string) ||
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
     req.ip,
+  allowList: (req: FastifyRequest) => req.url?.startsWith('/api/webhooks/') ?? false,
   errorResponseBuilder: (_req: FastifyRequest, context: errorResponseBuilderContext) => ({
     statusCode: 429,
     error: "Too Many Requests",

@@ -174,6 +174,11 @@ app.post<{ Body: ProcessRequest }>("/process", async (req, reply) => {
     return reply.code(400).send({ ok: false, error: "videoId and rawKey are required" });
   }
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(videoId)) {
+    return reply.code(400).send({ error: "Invalid videoId format" });
+  }
+
   const workDir = join("/tmp", "cap4-media", videoId);
   const inputPath = join(workDir, "source-input.mp4");
   const resultPath = join(workDir, "result.mp4");

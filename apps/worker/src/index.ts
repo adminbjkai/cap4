@@ -684,6 +684,9 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
       video_id: job.video_id,
       reason: prepared.reason
     });
+    await withTransaction(env.DATABASE_URL, async (client) => {
+      await ack(client, job);
+    });
     return;
   }
 

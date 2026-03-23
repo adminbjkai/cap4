@@ -385,15 +385,12 @@ export async function systemRoutes(app: FastifyInstance) {
           [created.videoId]
         );
 
-        const webhookUrl = `${env.WEB_API_BASE_URL}/api/webhooks/media-server/progress`;
         const processRes = await fetch(`${env.MEDIA_SERVER_BASE_URL}/process`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             videoId: created.videoId,
-            rawKey: created.rawKey,
-            jobId: String(created.jobId),
-            webhookUrl
+            rawKey: created.rawKey
           })
         });
 
@@ -469,7 +466,6 @@ export async function systemRoutes(app: FastifyInstance) {
           videoId: created.videoId,
           rawKey: created.rawKey,
           jobId: created.jobId,
-          webhookUrl,
           media: mediaJson,
           finalVideo: finalVideoResult.rows[0] ?? null,
           queueJob: queueRow.rows[0] ?? null

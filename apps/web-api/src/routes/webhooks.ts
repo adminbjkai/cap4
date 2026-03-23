@@ -37,7 +37,7 @@ export async function webhookRoutes(app: FastifyInstance) {
 
   app.post(
     "/api/webhooks/media-server/progress",
-    { config: { rawBody: true, rateLimit: false } },
+    { config: { rawBody: true } },
     async (req, reply) => {
       const timestamp = req.headers["x-cap-timestamp"];
       const signature = req.headers["x-cap-signature"];
@@ -53,7 +53,8 @@ export async function webhookRoutes(app: FastifyInstance) {
       if (!Number.isFinite(ts)) return reply.code(401).send(badRequest("Invalid timestamp"));
 
       const now = Math.floor(Date.now() / 1000);
-      if (Math.abs(now - ts) > env.WEBHOOK_MAX_SKEW_SECONDS) {
+      const WEBHOOK_MAX_SKEW_SECONDS = Number(env.WEBHOOK_MAX_SKEW_SECONDS) || 300;
+      if (Math.abs(now - ts) > WEBHOOK_MAX_SKEW_SECONDS) {
         return reply.code(401).send(badRequest("Timestamp outside allowed skew"));
       }
 
@@ -78,18 +79,39 @@ export async function webhookRoutes(app: FastifyInstance) {
       let result: { duplicate: boolean; applied: boolean };
       try {
         result = await withTransaction(env.DATABASE_URL, async (client) => {
-          const inserted = await client.query<{ id: number }>(
-            `INSERT INTO webhook_events (
-               source, delivery_id, job_id, video_id, phase, phase_rank, progress, payload, signature, accepted
-             ) VALUES (
-               'media-server', $1, $2, $3::uuid, $4::processing_phase, $5::smallint, $6::int, $7::jsonb, $8, true
-             )
-             ON CONFLICT (source, delivery_id) DO NOTHING
-             RETURNING id`,
-            [deliveryId, payload.jobId, payload.videoId, payload.phase, rank, progress, raw, signature]
-          );
+          let duplicate = false;
+          let insertedId: number | undefined;
 
-          const duplicate = inserted.rowCount === 0;
+          try {
+            const inserted = await client.query<{ id: number }>(
+              `INSERT INTO webhook_events (
+                 source, delivery_id, job_id, video_id, phase, phase_rank, progress, payload, signature, accepted
+               ) VALUES (
+                 'media-server', $1, $2, $3::uuid, $4::processing_phase, $5::smallint, $6::int, $7::jsonb, $8, true
+               )
+               ON CONFLICT (source, delivery_id) DO NOTHING
+               RETURNING id`,
+              [deliveryId, payload.jobId, payload.videoId, payload.phase, rank, progress, raw, signature]
+            );
+
+            duplicate = inserted.rowCount === 0;
+            insertedId = inserted.rows[0]?.id;
+          } catch (err: any) {
+            if (err.code === '23505') {
+              duplicate = true;
+            } else {
+              throw err;
+            }
+          }
+
+          if (duplicate && !insertedId) {
+            return { duplicate: true, applied: false };
+          }
+
+          if (!insertedId) {
+            return { duplicate: true, applied: false };
+          }
+
           let applied = false;
 
           if (!duplicate) {
@@ -136,14 +158,15 @@ export async function webhookRoutes(app: FastifyInstance) {
                    accepted = $2,
                    reject_reason = CASE WHEN $2 THEN NULL ELSE 'monotonic_guard_rejected' END
                WHERE id = $1`,
-              [inserted.rows[0].id, applied]
+              [insertedId, applied]
             );
 
             if (applied && update.rows[0]?.webhook_url) {
               const webhookUrl = update.rows[0].webhook_url;
               await client.query(
                 `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
-                 VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)`,
+                 VALUES ($1::uuid, 'deliver_webhook', 'queued', 10, now(), $2::jsonb, 5)
+                 ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running') DO UPDATE SET updated_at = now()`,
                 [
                   payload.videoId,
                   JSON.stringify({

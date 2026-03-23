@@ -13,7 +13,8 @@ const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 
 // This should match MEDIA_SERVER_WEBHOOK_SECRET from your env
 // In a real test environment, you'd load this from the same source as the API
-const WEBHOOK_SECRET = process.env.MEDIA_SERVER_WEBHOOK_SECRET || 'change-me-in-real-env';
+const WEBHOOK_SECRET =
+  process.env.MEDIA_SERVER_WEBHOOK_SECRET || 'change-this-to-a-secret-of-32-plus-chars';
 
 /**
  * Generate HMAC signature for webhook payload

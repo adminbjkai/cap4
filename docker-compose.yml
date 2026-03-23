@@ -48,7 +48,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "${MINIO_PORT:-8922}:9000"
-      - "${MINIO_CONSOLE_PORT:-8923}:9001"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-8923}:9001"
     volumes:
       - minio_data:/data
 
@@ -127,7 +127,6 @@ services:
       CI: "1"
       NODE_ENV: production
       MEDIA_SERVER_PORT: 3100
-      WEB_API_BASE_URL: http://web-api:3000
     ports:
       - "${MEDIA_SERVER_PORT:-3100}:3100"
     depends_on:

@@ -365,7 +365,9 @@ async function generateMultipleChunks(
     actionItems?: GroqActionItem[];
     quotes?: GroqQuote[];
   }[] = [];
-  
+
+  let failedChunks = 0;
+
   for (let i = 0; i < chunks.length; i++) {
     const chunkPrompt = `You are Cap AI, an expert at analyzing video content. This is section ${i + 1} of ${chunks.length} from a longer video.
 
@@ -445,9 +447,14 @@ ${chunks[i]}`;
           quotes: quotes.length > 0 ? quotes : undefined
         });
       }
-    } catch {
-      // Continue to next chunk
+    } catch (err: any) {
+      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: err.message }));
+      failedChunks++;
     }
+  }
+
+  if (failedChunks > 0 && failedChunks / chunks.length > 0.3) {
+    throw new Error(`Groq enrichment failed: ${failedChunks}/${chunks.length} chunks errored`);
   }
 
   // Synthesize final summary from chunk summaries

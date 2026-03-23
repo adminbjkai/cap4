@@ -210,7 +210,7 @@ export function VideoPage() {
   const summaryText = status?.aiOutput?.summary?.trim() ?? "";
   const hasSummaryStrip = summaryText.length > 0;
   const shouldTruncateSummary = summaryText.length > 220;
-  const displayTitle = status?.aiOutput?.title?.trim() || "Untitled recording";
+  const displayTitle = status?.aiOutput?.title?.trim() || status?.name?.trim() || "Untitled recording";
 
   const showRetryButton = useMemo(() => {
     if (!status) return false;

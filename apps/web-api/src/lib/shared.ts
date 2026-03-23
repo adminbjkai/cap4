@@ -57,7 +57,7 @@ export type WebhookPayload = {
   };
 };
 
-export type ProviderHealthState = "healthy" | "active" | "degraded" | "ready" | "unavailable";
+export type ProviderHealthState = "healthy" | "active" | "degraded" | "idle" | "unavailable";
 
 export type ProviderStatusResponse = {
   checkedAt: string;
@@ -418,7 +418,7 @@ export function deriveProviderHealthState(args: {
   if (args.lastSuccessAt) {
     return "healthy";
   }
-  return "ready";
+  return "idle";
 }
 
 export async function getSystemProviderStatus(): Promise<ProviderStatusResponse> {

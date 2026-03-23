@@ -47,6 +47,22 @@ export async function videoRoutes(app: FastifyInstance) {
 
     const name = String(req.body?.name ?? "Untitled Video").trim() || "Untitled Video";
     const webhookUrl = req.body?.webhookUrl ? String(req.body.webhookUrl).trim() : null;
+
+    if (webhookUrl) {
+      try {
+        const parsed = new URL(webhookUrl);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return reply.code(400).send(badRequest('webhookUrl must use http or https'));
+        }
+        const blocked = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'minio', 'postgres', 'media-server', 'web-api', 'worker'];
+        if (blocked.some(h => parsed.hostname === h) || parsed.hostname.endsWith('.internal') || parsed.hostname.endsWith('.local')) {
+          return reply.code(400).send(badRequest('webhookUrl cannot target internal services'));
+        }
+      } catch {
+        return reply.code(400).send(badRequest('webhookUrl is not a valid URL'));
+      }
+    }
+
     const endpointKey = "/api/videos";
     const requestHash = sha256Hex(JSON.stringify({ name, webhookUrl }));
 
@@ -93,6 +109,7 @@ export async function videoRoutes(app: FastifyInstance) {
     const videoId = req.params.id;
     const result = await query<{
       id: string;
+      name: string;
       processing_phase: string;
       processing_progress: number;
       result_key: string | null;
@@ -116,6 +133,7 @@ export async function videoRoutes(app: FastifyInstance) {
       env.DATABASE_URL,
       `SELECT
          v.id,
+         v.name,
          v.processing_phase,
          v.processing_progress,
          v.result_key,
@@ -170,6 +188,7 @@ export async function videoRoutes(app: FastifyInstance) {
     const keyPoints = keyPointsFromChapters(row.ai_chapters_json);
     return reply.send({
       videoId: row.id,
+      name: row.name,
       processingPhase: row.processing_phase,
       processingProgress: row.processing_progress,
       resultKey: row.result_key,
@@ -293,12 +312,18 @@ export async function videoRoutes(app: FastifyInstance) {
       let speakerLabelsUpdated = false;
 
       if (titleProvided) {
-        const aiLookup = await client.query<{ video_id: string }>(`SELECT video_id FROM ai_outputs WHERE video_id = $1::uuid`, [videoId]);
-        if ((aiLookup.rowCount ?? 0) > 0) {
+        const titleResult = await client.query<{ video_id: string }>(
+          `UPDATE ai_outputs
+           SET title = $2, updated_at = now()
+           WHERE video_id = $1::uuid
+           RETURNING video_id`,
+          [videoId, title && title.length > 0 ? title : null]
+        );
+        if ((titleResult.rowCount ?? 0) > 0) {
+          titleUpdated = true;
+        } else {
           await client.query(
-            `UPDATE ai_outputs
-             SET title = $2, updated_at = now()
-             WHERE video_id = $1::uuid`,
+            `UPDATE videos SET name = $2, updated_at = now() WHERE id = $1::uuid`,
             [videoId, title && title.length > 0 ? title : null]
           );
           titleUpdated = true;
