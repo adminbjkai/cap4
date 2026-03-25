@@ -5,7 +5,10 @@
   "version": "0.1.0",
   "packageManager": "pnpm@9.12.3",
   "scripts": {
+    "build:internal": "pnpm --filter @cap/config --filter @cap/db --filter @cap/logger build",
     "build": "pnpm --filter '*' build",
+    "pretypecheck": "pnpm build:internal",
+    "pretest": "pnpm build:internal",
     "test": "pnpm --filter '*' test",
     "lint": "pnpm --filter '*' lint",
     "lint:fix": "pnpm --filter '*' lint:fix",
