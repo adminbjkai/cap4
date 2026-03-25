@@ -6,7 +6,7 @@ description: "High-level synthesis of the project, its current state, and its hi
 # cap4 — Master Plan
 
 **Status:** Current-state synthesis for the repo
-**Last reviewed:** 2026-03-23
+**Last reviewed:** 2026-03-24
 **Purpose:** Keep one concise high-level document that explains what cap4 is,
 how it got here, and what is currently true.
 
@@ -21,7 +21,7 @@ This document is not a feature backlog. For current technical contracts, use:
 
 ---
 
-## Current Verified State
+## Current State
 
 cap4 is a single-tenant video processing platform with:
 
@@ -36,19 +36,21 @@ Current repo state:
 
 - upload -> process -> transcript -> AI summary flow is implemented
 - recordings auto-upload after capture; file selections remain explicit upload actions
-- custom video controls, transcript search, confidence review, command palette, and speaker diarization are shipped
+- custom video controls, transcript search, confidence review, command palette, speaker diarization, editable speaker labels, and summary enrichments are shipped
 - the checked-in Docker Compose stack is self-bootstrapping via the `migrate` service
+- GitHub Actions is consolidated into one authoritative workflow at `.github/workflows/test.yml`
 - the repo has no end-user authentication layer; auth is out of scope for the current state
 
-Host verification completed on 2026-03-23:
+Current validation command set used in this repo:
 
+- `pnpm lint`
 - `pnpm typecheck`
 - `pnpm build`
-- `docker compose up -d --build`
-- `GET /health`
-- `GET /ready`
-- `pnpm test:integration` (`18/18`)
-- `make smoke`
+- `pnpm test`
+- `pnpm --filter @cap/web test:e2e`
+- `pnpm --filter @cap/web-api test:e2e`
+- `pnpm db:migrate`
+- `make smoke` against a running stack
 
 ---
 
@@ -83,7 +85,7 @@ For the detailed contract, do not rely on this file. Use [architecture.md](archi
 ### Phase 4
 
 - integration suite for the real upload -> transcode -> transcribe -> AI flow
-- host-verified `18/18` integration tests as of 2026-03-23
+- API contract coverage for uploads, videos, jobs, library, and webhooks
 
 ### Phase 4.5
 
@@ -99,6 +101,7 @@ For the detailed contract, do not rely on this file. Use [architecture.md](archi
 - speaker diarization UI
 - confidence review flow
 - transcript full-text search
+- summary enrichments for entities, action items, and quotes
 
 ---
 

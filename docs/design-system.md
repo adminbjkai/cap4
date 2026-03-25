@@ -2,7 +2,7 @@
 
 Component library, token reference, and UI patterns.
 
-> **Last updated:** 2026-03-19 (Post-audit — fullscreen fix, auto-upload, diarization)
+> **Last updated:** 2026-03-24 (current UI token and interaction reference)
 
 ---
 
@@ -141,7 +141,7 @@ All defined in `apps/web/src/index.css` under `@layer components`.
 .notes-textarea    transparent textarea for Notes tab
 ```
 
-### Speaker Diarization
+### Speaker Labels And Filters
 ```
 .speaker-badge           per-speaker color badge
 .speaker-badge-editing   editable label input state

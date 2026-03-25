@@ -5,7 +5,7 @@ description: "Current project status and completed milestone summary"
 
 # Tasks — cap4
 
-**Last updated:** 2026-03-23
+**Last updated:** 2026-03-24
 
 This file is a current status snapshot, not a speculative roadmap.
 
@@ -14,19 +14,19 @@ This file is a current status snapshot, not a speculative roadmap.
 ## Current Status
 
 - Full audit phases A-F are complete
-- Host runtime verification passed on 2026-03-23
-- Documentation has been aligned to the checked-in code and verified runtime behavior
+- Documentation is aligned to the checked-in code paths and current scripts/workflows
 - The repo is in a single-tenant, no-auth state by design
 
 Current verification baseline:
 
+- `pnpm lint`
 - `pnpm typecheck`
 - `pnpm build`
-- `docker compose up -d --build`
-- `GET /health`
-- `GET /ready`
-- `pnpm test:integration` (`18/18`)
-- `make smoke`
+- `pnpm test`
+- `pnpm --filter @cap/web test:e2e`
+- `pnpm --filter @cap/web-api test:e2e`
+- `pnpm db:migrate`
+- `make smoke` against a running stack
 
 ---
 
@@ -35,7 +35,7 @@ Current verification baseline:
 ### Phase 4.7 — UI and Workflow Sprint
 
 - BJK-9 through BJK-18 shipped
-- custom controls, transcript search, confidence review, speaker diarization, command palette, and theme refresh are in the repo
+- custom controls, transcript search, confidence review, speaker diarization, editable speaker labels, summary enrichments, command palette, and theme refresh are in the repo
 
 ### Phase 4.5 — Docker and Config Audit
 
@@ -47,7 +47,7 @@ Current verification baseline:
 
 - end-to-end upload -> process -> transcript -> AI integration coverage added
 - API contract coverage for uploads, videos, jobs, library, webhooks, and health endpoints
-- verified `18/18` integration tests as of 2026-03-23
+- dedicated web and API Playwright E2E paths are part of the current CI workflow
 
 ### Phase 3 — Hardening
 

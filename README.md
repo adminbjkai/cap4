@@ -6,9 +6,9 @@ Single-tenant video processing platform with a React watch app, Fastify API, Pos
 
 - Upload -> process -> transcript -> AI summary flow is implemented.
 - In-browser screen recording with auto-upload (recordings upload immediately after capture; file selections require manual upload).
-- Web app includes custom video controls, command palette, keyboard shortcuts, transcript review, speaker diarization, and a dark/light theme.
-- Host verification on 2026-03-23 passed: `pnpm typecheck`, `pnpm build`, `docker compose up -d --build`, `GET /health`, `GET /ready`, `pnpm test:integration` (18/18), and `make smoke`.
-- Full audit complete (phases A-F) — see [audit-plan.md](docs/archive/audit-plan.md).
+- Web app includes custom video controls, command palette, keyboard shortcuts, transcript review, speaker diarization, editable speaker labels, summary enrichments, and dark/light theme support.
+- The checked-in CI workflow runs lint, typecheck, unit tests, web E2E, API E2E, workspace build, and Docker build from a single workflow file at `.github/workflows/test.yml`.
+- Common local validation commands include `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm --filter @cap/web test:e2e`, and `pnpm --filter @cap/web-api test:e2e`.
 - The current repo runs without end-user authentication. Auth is intentionally out of scope for the current state.
 
 ## Services
@@ -99,8 +99,12 @@ make reset-db
 make smoke
 
 pnpm build
+pnpm lint
+pnpm typecheck
 pnpm test
 pnpm test:integration
+pnpm --filter @cap/web test:e2e
+pnpm --filter @cap/web-api test:e2e
 pnpm dev:web
 pnpm dev:web-api
 pnpm dev:worker
@@ -121,11 +125,11 @@ pnpm dev:media-server
 - [AI agents](docs/agents.md) — agent roles and conventions
 - [Master plan](docs/master-plan.md) — authoritative project roadmap
 - [Tasks](docs/tasks.md) — current and completed work
-- [QA: speaker diarization](docs/qa.md) — test plan
+- [QA: transcript workspace](docs/qa.md) — regression checklist for transcript and watch-page review UX
 - [Audit plan](docs/archive/audit-plan.md) — completed audit tracker
 
 ## Known Issues
 
 - No end-user authentication in the current repo state.
 - Accessibility (aria-labels on icon buttons) is deferred.
-- See [audit-plan.md](docs/archive/audit-plan.md) for the full audit history.
+- Historical audit notes live in [audit-plan.md](docs/archive/audit-plan.md).

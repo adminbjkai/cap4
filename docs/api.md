@@ -14,6 +14,7 @@ Current HTTP contract for the Fastify API in `apps/web-api`.
 - Most POST/PATCH mutation routes require `Idempotency-Key`; the webhook route uses HMAC headers instead
 - Most validation errors return `{"ok": false, "error": "..." }`
 - Responses are route-specific JSON objects; there is no global `{ success, data }` envelope
+- The authoritative CI workflow that exercises this contract lives at `.github/workflows/test.yml`
 
 ## Upload Lifecycle
 
@@ -96,7 +97,23 @@ Response shape:
     "model": "llama-3.3-70b-versatile",
     "title": "Weekly review",
     "summary": "Summary text",
-    "keyPoints": ["Point 1", "Point 2"]
+    "keyPoints": ["Point 1", "Point 2"],
+    "chapters": [
+      { "title": "Kickoff", "seconds": 0 },
+      { "title": "Action items", "seconds": 84 }
+    ],
+    "entities": {
+      "people": ["Murry"],
+      "organizations": ["Cap4"],
+      "locations": [],
+      "dates": []
+    },
+    "actionItems": [
+      { "task": "Review the staging deploy", "assignee": "Murry", "deadline": "2026-03-31" }
+    ],
+    "quotes": [
+      { "text": "Keep the queue monotonic.", "timestamp": 118 }
+    ]
   }
 }
 ```
@@ -138,7 +155,9 @@ Important:
 - `name` is the persisted video name and is the UI fallback when no AI title exists.
 - `transcript` is `null` until a transcript row with `vttKey` exists.
 - `aiOutput` is `null` until AI output exists.
-- The database stores enrichment fields such as `entities_json`, `action_items_json`, and `quotes_json`, but `GET /api/videos/:id/status` does not currently expose them.
+- `aiOutput.chapters`, `aiOutput.entities`, `aiOutput.actionItems`, and `aiOutput.quotes` are optional and are omitted when no validated enrichment data exists.
+- `keyPoints` remains for summary copy, but the watch page should prefer `chapters` over heuristic timestamp reconstruction when structured chapter timing is available.
+- The current watch page consumes `entities`, `actionItems`, and `quotes` directly in the summary UI and uses chapter timing for jump actions when available.
 
 ### `PATCH /api/videos/:id/watch-edits`
 
