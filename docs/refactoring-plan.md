@@ -54,7 +54,7 @@ API types are defined independently in both the frontend (`apps/web/src/lib/api.
 
 ### Proposed Solution
 
-Create a new workspace package `packages/types` (or `packages/api-types`) that exports:
+Create a new workspace package `packages/api-types` (`@cap/api-types`) that exports:
 
 1. **Zod schemas** for all API request/response shapes
 2. **Inferred TypeScript types** via `z.infer<typeof Schema>`
@@ -759,6 +759,9 @@ worker:
   healthcheck:
     test: ["CMD", "curl", "-f", "http://localhost:3200/health"]
     interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 15s
 ```
 
 #### 9c. Structured Metrics (Lightweight)
@@ -831,7 +834,7 @@ pnpm lint-staged
 
 #### 10b. Unified Dev Script
 
-Add to `scripts/dev-local.sh` or create a `Makefile` target:
+Add to root `Makefile` (note: Makefile recipes require hard tab indentation):
 
 ```makefile
 dev:
