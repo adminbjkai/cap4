@@ -230,7 +230,8 @@ export function AppShell({ children, overlays }: AppShellProps) {
 
       {/* Mobile Menu Content */}
       <aside
-        className={`lg:hidden fixed left-0 top-0 z-50 flex h-full w-64 flex-col transform transition-transform duration-300 ease-in-out p-6 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        aria-hidden={!isMobileMenuOpen}
+        className={`lg:hidden fixed left-0 top-0 z-50 flex h-full w-64 flex-col transform transition-transform duration-300 ease-in-out p-6 ${isMobileMenuOpen ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none'}`}
         style={{ background: 'var(--bg-surface)', borderRight: '1px solid var(--border-default)' }}
       >
         <div className="mb-8 font-bold text-xl" style={{ color: 'var(--text-primary)' }}>
