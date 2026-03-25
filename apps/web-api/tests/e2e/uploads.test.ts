@@ -13,6 +13,27 @@ import { randomUUID } from 'crypto';
 
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 
+async function putToPresignedUrl(url: string, body: string, headers: Record<string, string> = {}) {
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers,
+    body,
+  });
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    etag: response.headers.get('etag') ?? response.headers.get('ETag'),
+  };
+}
+
+test.use({
+  extraHTTPHeaders: {
+    Accept: 'application/json',
+    'x-real-ip': '10.20.0.13',
+  },
+});
+
 test.describe('Uploads API - Singlepart', () => {
   let videoId: string;
 
@@ -105,6 +126,29 @@ test.describe('Uploads API - Singlepart', () => {
   });
 
   test('POST /api/uploads/complete - should mark upload as complete', async ({ request }) => {
+    const signedResponse = await request.post(`${BASE_URL}/api/uploads/signed`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
+      },
+      data: {
+        videoId,
+        contentType: 'video/mp4',
+      },
+    });
+
+    expect(signedResponse.status()).toBe(200);
+    const signedBody = await signedResponse.json();
+
+    const uploadResult = await putToPresignedUrl(
+      signedBody.putUrl,
+      'cap4-singlepart-upload',
+      signedBody.headers
+    );
+
+    expect(uploadResult.ok).toBe(true);
+    expect(uploadResult.status).toBe(200);
+
     const response = await request.post(`${BASE_URL}/api/uploads/complete`, {
       headers: {
         'Content-Type': 'application/json',
@@ -345,7 +389,29 @@ test.describe('Uploads API - Multipart', () => {
       },
     });
 
-    // Complete with mock parts (in real scenario, you'd upload parts first)
+    const presignResponse = await request.post(`${BASE_URL}/api/uploads/multipart/presign-part`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
+      },
+      data: {
+        videoId,
+        partNumber: 1,
+      },
+    });
+
+    expect(presignResponse.status()).toBe(200);
+    const presignBody = await presignResponse.json();
+
+    const uploadResult = await putToPresignedUrl(
+      presignBody.putUrl,
+      'cap4-multipart-upload-part-1'
+    );
+
+    expect(uploadResult.ok).toBe(true);
+    expect(uploadResult.status).toBe(200);
+    expect(uploadResult.etag).toBeTruthy();
+
     const response = await request.post(`${BASE_URL}/api/uploads/multipart/complete`, {
       headers: {
         'Content-Type': 'application/json',
@@ -354,15 +420,16 @@ test.describe('Uploads API - Multipart', () => {
       data: {
         videoId,
         parts: [
-          { ETag: '"mock-etag-1"', PartNumber: 1 },
+          { ETag: uploadResult.etag, PartNumber: 1 },
         ],
       },
     });
 
-    // Note: This may fail with S3 error if parts weren't actually uploaded,
-    // but we're testing the API contract here
-    // In a real test environment with S3, you'd upload actual parts
-    expect([200, 500]).toContain(response.status());
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.ok).toBe(true);
+    expect(body.videoId).toBe(videoId);
+    expect(body).toHaveProperty('jobId');
   });
 
   test('POST /api/uploads/multipart/complete - should reject without idempotency key', async ({ request }) => {
