@@ -155,7 +155,7 @@ export function CustomVideoControls({
         video.removeEventListener("leavepictureinpicture", onPipLeave);
       }
     };
-  }, [videoRef]);
+  }, [containerRef, videoRef]);
 
   useEffect(() => {
     return () => clearHideTimer();
