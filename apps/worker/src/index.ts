@@ -7,7 +7,7 @@ import { transcribeWithDeepgram, type TranscriptSegment } from "./providers/deep
 import { summarizeWithGroq } from "./providers/groq.js";
 import { extractAudio } from "./lib/ffmpeg.js";
 
-type JobType = "process_video" | "transcribe_video" | "generate_ai" | "cleanup_artifacts";
+type JobType = "process_video" | "transcribe_video" | "generate_ai" | "cleanup_artifacts" | "deliver_webhook";
 
 type JobPayload = Record<string, unknown>;
 

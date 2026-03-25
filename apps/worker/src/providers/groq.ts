@@ -447,8 +447,9 @@ ${chunks[i]}`;
           quotes: quotes.length > 0 ? quotes : undefined
         });
       }
-    } catch (err: any) {
-      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: err.message }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: message }));
       failedChunks++;
     }
   }
