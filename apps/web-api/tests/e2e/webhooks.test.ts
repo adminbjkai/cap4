@@ -11,6 +11,13 @@ import { createHmac } from 'crypto';
 
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 
+test.use({
+  extraHTTPHeaders: {
+    Accept: 'application/json',
+    'x-real-ip': '10.20.0.15',
+  },
+});
+
 // This should match MEDIA_SERVER_WEBHOOK_SECRET from your env
 // In a real test environment, you'd load this from the same source as the API
 const WEBHOOK_SECRET =
@@ -290,6 +297,33 @@ test.describe('Webhooks API', () => {
     const body = await response.json();
     expect(body.ok).toBe(false);
     expect(body.error).toContain('Invalid phase');
+  });
+
+  test('POST /api/webhooks/media-server/progress - should reject malformed authenticated payloads before processing', async ({ request }) => {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const deliveryId = randomUUID();
+    const payload = {
+      videoId,
+      phase: 'processing',
+      progress: 50,
+    };
+    const payloadString = JSON.stringify(payload);
+    const signature = generateWebhookSignature(payloadString, timestamp);
+
+    const response = await request.post(`${BASE_URL}/api/webhooks/media-server/progress`, {
+      headers: {
+        'Content-Type': 'application/cap4-webhook+json',
+        'x-cap-timestamp': timestamp,
+        'x-cap-signature': signature,
+        'x-cap-delivery-id': deliveryId,
+      },
+      data: payloadString,
+    });
+
+    expect(response.status()).toBe(400);
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.error).toContain('jobId');
   });
 
   test('POST /api/webhooks/media-server/progress - should be idempotent with same delivery-id', async ({ request }) => {

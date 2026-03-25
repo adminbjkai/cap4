@@ -18,7 +18,11 @@ import {
   idempotencyFinish,
   transcriptTextFromSegments,
   keyPointsFromChapters,
-  normalizeEditableTranscriptSegments
+  normalizeEditableTranscriptSegments,
+  structuredActionItemsFromJson,
+  structuredChaptersFromJson,
+  structuredEntitiesFromJson,
+  structuredQuotesFromJson
 } from "../lib/shared.js";
 
 const env = getEnv();
@@ -127,6 +131,9 @@ export async function videoRoutes(app: FastifyInstance) {
       ai_title: string | null;
       ai_summary: string | null;
       ai_chapters_json: unknown;
+      ai_entities_json: unknown;
+      ai_action_items_json: unknown;
+      ai_quotes_json: unknown;
       transcription_dead_error: string | null;
       ai_dead_error: string | null;
     }>(
@@ -151,6 +158,9 @@ export async function videoRoutes(app: FastifyInstance) {
          ao.title AS ai_title,
          ao.summary AS ai_summary,
          ao.chapters_json AS ai_chapters_json,
+         ao.entities_json AS ai_entities_json,
+         ao.action_items_json AS ai_action_items_json,
+         ao.quotes_json AS ai_quotes_json,
          tj.last_error AS transcription_dead_error,
          aj.last_error AS ai_dead_error
        FROM videos v
@@ -185,7 +195,11 @@ export async function videoRoutes(app: FastifyInstance) {
 
     const row = result.rows[0]!;
     const transcriptText = transcriptTextFromSegments(row.transcript_segments_json);
+    const chapters = structuredChaptersFromJson(row.ai_chapters_json);
     const keyPoints = keyPointsFromChapters(row.ai_chapters_json);
+    const entities = structuredEntitiesFromJson(row.ai_entities_json);
+    const actionItems = structuredActionItemsFromJson(row.ai_action_items_json);
+    const quotes = structuredQuotesFromJson(row.ai_quotes_json);
     return reply.send({
       videoId: row.id,
       name: row.name,
@@ -209,13 +223,25 @@ export async function videoRoutes(app: FastifyInstance) {
         }
         : null,
       aiOutput:
-        row.ai_provider || row.ai_model || row.ai_title || row.ai_summary || keyPoints.length > 0
+        row.ai_provider ||
+        row.ai_model ||
+        row.ai_title ||
+        row.ai_summary ||
+        keyPoints.length > 0 ||
+        chapters.length > 0 ||
+        Boolean(entities) ||
+        actionItems.length > 0 ||
+        quotes.length > 0
           ? {
             provider: row.ai_provider,
             model: row.ai_model,
             title: row.ai_title,
             summary: row.ai_summary,
-            keyPoints
+            keyPoints,
+            chapters,
+            entities,
+            actionItems,
+            quotes
           }
           : null
     });

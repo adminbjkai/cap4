@@ -17,6 +17,22 @@ import {
 } from "../lib/shared.js";
 
 const env = getEnv();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type ValidatedWebhookPayload = {
+  jobId: string;
+  videoId: string;
+  phase: WebhookPayload["phase"];
+  progress: number;
+  message?: string;
+  error?: string;
+  metadata?: {
+    duration?: number;
+    width?: number;
+    height?: number;
+    fps?: number;
+  };
+};
 
 function log(app: FastifyInstance, fields: Record<string, unknown>) {
   if (app.serviceLogger) {
@@ -24,6 +40,66 @@ function log(app: FastifyInstance, fields: Record<string, unknown>) {
   } else {
     console.log(JSON.stringify({ service: "web-api", ...fields }));
   }
+}
+
+function toOptionalFiniteNumber(value: unknown): number | undefined {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+export function validateWebhookPayload(input: unknown): { payload?: ValidatedWebhookPayload; error?: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { error: "Invalid webhook payload" };
+  }
+
+  const record = input as Record<string, unknown>;
+  const rawJobId = record.jobId;
+  if (!(typeof rawJobId === "string" || typeof rawJobId === "number")) {
+    return { error: "Missing or invalid jobId" };
+  }
+  const jobId = String(rawJobId).trim();
+  if (!jobId) {
+    return { error: "Missing or invalid jobId" };
+  }
+
+  const rawVideoId = typeof record.videoId === "string" ? record.videoId.trim() : "";
+  if (!rawVideoId || !UUID_RE.test(rawVideoId)) {
+    return { error: "Missing or invalid videoId" };
+  }
+
+  const rawPhase = typeof record.phase === "string" ? record.phase : "";
+  if (!rawPhase) {
+    return { error: "Missing or invalid phase" };
+  }
+  const rank = phaseRank(rawPhase);
+  if (rank === null) {
+    return { error: "Invalid phase" };
+  }
+
+  const metadataRecord =
+    record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+      ? (record.metadata as Record<string, unknown>)
+      : null;
+  const metadata = metadataRecord
+    ? {
+        duration: toOptionalFiniteNumber(metadataRecord.duration),
+        width: toOptionalFiniteNumber(metadataRecord.width),
+        height: toOptionalFiniteNumber(metadataRecord.height),
+        fps: toOptionalFiniteNumber(metadataRecord.fps)
+      }
+    : undefined;
+
+  return {
+    payload: {
+      jobId,
+      videoId: rawVideoId,
+      phase: rawPhase as WebhookPayload["phase"],
+      progress: Number(record.progress ?? 0),
+      message: typeof record.message === "string" ? record.message : undefined,
+      error: typeof record.error === "string" ? record.error : undefined,
+      metadata
+    }
+  };
 }
 
 export async function webhookRoutes(app: FastifyInstance) {
@@ -62,17 +138,21 @@ export async function webhookRoutes(app: FastifyInstance) {
         return reply.code(401).send(badRequest("Invalid signature"));
       }
 
-      let payload: WebhookPayload;
+      let parsedPayload: WebhookPayload;
       try {
-        payload = JSON.parse(raw) as WebhookPayload;
+        parsedPayload = JSON.parse(raw) as WebhookPayload;
       } catch {
         return reply.code(400).send(badRequest("Invalid JSON payload"));
       }
 
-      const rank = phaseRank(payload.phase);
-      if (rank === null) {
-        return reply.code(400).send(badRequest("Invalid phase"));
+      const validation = validateWebhookPayload(parsedPayload);
+      if (!validation.payload) {
+        return reply.code(400).send(badRequest(validation.error ?? "Invalid webhook payload"));
       }
+      const payload = validation.payload;
+
+      const rank = phaseRank(payload.phase);
+      if (rank === null) return reply.code(400).send(badRequest("Invalid phase"));
 
       const progress = Math.max(0, Math.min(100, Math.floor(Number(payload.progress ?? 0))));
 
@@ -96,8 +176,13 @@ export async function webhookRoutes(app: FastifyInstance) {
 
             duplicate = inserted.rowCount === 0;
             insertedId = inserted.rows[0]?.id;
-          } catch (err: any) {
-            if (err.code === '23505') {
+          } catch (err: unknown) {
+            if (
+              typeof err === "object" &&
+              err !== null &&
+              "code" in err &&
+              (err as { code?: unknown }).code === "23505"
+            ) {
               duplicate = true;
             } else {
               throw err;

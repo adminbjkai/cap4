@@ -9,7 +9,8 @@ import { query } from "@cap/db";
 import {
   badRequest,
   encodeLibraryCursor,
-  decodeLibraryCursor
+  decodeLibraryCursor,
+  normalizeCursorTimestamp
 } from "../lib/shared.js";
 
 const env = getEnv();
@@ -37,7 +38,7 @@ export async function libraryRoutes(app: FastifyInstance) {
       processing_phase: string;
       transcription_status: string;
       ai_status: string;
-      created_at: string;
+      created_at: string | Date;
       duration_seconds: string | number | null;
     }>(
       env.DATABASE_URL,
@@ -79,6 +80,11 @@ export async function libraryRoutes(app: FastifyInstance) {
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
     const next = rows.at(-1);
 
+    const nextCursor = hasMore && next ? normalizeCursorTimestamp(next.created_at) : null;
+    if (hasMore && next && !nextCursor) {
+      throw new Error(`Unable to encode library cursor for video ${next.id}`);
+    }
+
     return reply.send({
       items: rows.map((row) => ({
         videoId: row.id,
@@ -94,7 +100,7 @@ export async function libraryRoutes(app: FastifyInstance) {
       })),
       sort,
       limit,
-      nextCursor: hasMore && next ? encodeLibraryCursor(next.created_at, next.id) : null
+      nextCursor: nextCursor && next ? encodeLibraryCursor(nextCursor, next.id) : null
     });
   });
 }
