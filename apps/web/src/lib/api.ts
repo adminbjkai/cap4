@@ -72,6 +72,26 @@ export type VideoStatusResponse = {
     title: string | null;
     summary: string | null;
     keyPoints: string[];
+    chapters: Array<{
+      title: string;
+      seconds: number;
+      sentiment?: "positive" | "neutral" | "negative";
+    }>;
+    entities: {
+      people: string[];
+      organizations: string[];
+      locations: string[];
+      dates: string[];
+    } | null;
+    actionItems: Array<{
+      task: string;
+      assignee?: string;
+      deadline?: string;
+    }>;
+    quotes: Array<{
+      text: string;
+      timestamp: number;
+    }>;
   } | null;
 };
 
