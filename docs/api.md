@@ -36,7 +36,7 @@ Request:
 curl -X POST http://localhost:3000/api/videos \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: create-video-1" \
-  -d '{"name":"Demo upload","webhookUrl":"https://example.com/hook"}'
+  -d '{"name":"Demo upload","webhookUrl":"https://example.com/hook","originalFileCreatedAt":"2024-01-15T10:30:00.000Z"}'
 ```
 
 Response:
@@ -54,6 +54,12 @@ Notes:
 - `Idempotency-Key` is required.
 - `name` is optional; default is `"Untitled Video"`.
 - `webhookUrl` is optional and stored on `videos.webhook_url`.
+- `originalFileCreatedAt` is optional (ISO 8601). For file uploads the web client
+  sends the source file's `File.lastModified`; it is stored on
+  `videos.original_file_created_at` and distinguishes the file's own creation time
+  from when it was uploaded into cap4 (`videos.created_at`). Values that are
+  unparseable, before 1990, or more than ~1 day in the future are ignored
+  (stored as `NULL`). Screen recordings omit it.
 
 ### `GET /api/videos/:id/status`
 
@@ -68,6 +74,7 @@ Response shape:
 ```json
 {
   "videoId": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Demo upload",
   "processingPhase": "complete",
   "processingProgress": 100,
   "resultKey": "videos/.../result.mp4",
@@ -172,7 +179,8 @@ Notes:
 
 ### `POST /api/videos/:id/retry`
 
-Requeue failed transcription and/or AI jobs.
+Requeue failed/stuck jobs. Depending on state this can reset the `process_video`,
+`transcribe_video`, and/or `generate_ai` jobs; `jobsReset` lists what was re-queued.
 
 ```bash
 curl -X POST http://localhost:3000/api/videos/550e8400-e29b-41d4-a716-446655440000/retry \
@@ -185,7 +193,7 @@ Response:
 {
   "ok": true,
   "videoId": "550e8400-e29b-41d4-a716-446655440000",
-  "jobsReset": ["transcribe_video", "generate_ai"]
+  "jobsReset": ["process_video", "transcribe_video", "generate_ai"]
 }
 ```
 
@@ -380,6 +388,7 @@ Response:
       "transcriptionStatus": "complete",
       "aiStatus": "complete",
       "createdAt": "2026-03-09T20:10:00.000Z",
+      "originalFileCreatedAt": "2024-01-15T10:30:00.000Z",
       "durationSeconds": 123.456
     }
   ],
@@ -388,6 +397,20 @@ Response:
   "nextCursor": null
 }
 ```
+
+Notes:
+
+- `createdAt` is when the video was uploaded into cap4. `originalFileCreatedAt`
+  is the source file's own timestamp (`File.lastModified`) and is `null` for
+  screen recordings and for videos uploaded before migration `0007`.
+- The web client renders this list as either a card **grid** (default) or a
+  **list/table** view (toggle persisted in `localStorage` under `cap4:libraryView`).
+  The table adds show/hide + drag-reorder columns (persisted under
+  `cap4:libraryColumns`), per-column + global filtering with clear-all, click-to-sort
+  headers, EST date/time rendering of `createdAt` and `originalFileCreatedAt`, and an
+  inline per-row note stored client-side under `cap4:notes:<videoId>`. Sorting and
+  filtering are applied **client-side over the loaded page(s)** (the server only sorts
+  by `created_asc`/`created_desc`), so with pagination they reorder loaded rows only.
 
 ### `GET /api/jobs/:id`
 

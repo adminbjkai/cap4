@@ -24,6 +24,31 @@ export function formatEta(seconds: number | null): string {
   return `${mins}m ${secs}s`;
 }
 
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+// Date + time rendered in US Eastern time (EST/EDT, DST-aware), e.g.
+// "Jan 15, 2024, 10:30 AM EST". Returns "—" for missing/invalid values.
+export function formatDateTimeEST(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(date);
+}
+
 export function buildPublicObjectUrl(key: string): string {
   const endpoint = (import.meta.env.VITE_S3_PUBLIC_ENDPOINT as string | undefined);
   const bucket = (import.meta.env.VITE_S3_BUCKET as string | undefined) ?? "cap4";

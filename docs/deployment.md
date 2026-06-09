@@ -128,7 +128,7 @@ docker compose pull
 docker compose up -d
 
 # Run migrations
-docker compose exec web-api pnpm migrate
+docker compose run --rm migrate
 
 # Verify health
 curl http://localhost:3000/health
@@ -145,7 +145,8 @@ curl http://localhost:3000/health
 
 ### Option 2: Kubernetes
 
-See `k8s/` directory for Kubernetes manifests (if included).
+Kubernetes manifests are **not** included in this repository. The `kubectl`
+snippets below are illustrative only — supply your own manifests/registry images.
 
 ```bash
 # Apply Kubernetes config
@@ -187,15 +188,16 @@ Run migrations before starting services:
 
 ```bash
 # Using Docker Compose
-docker compose exec web-api pnpm migrate
+docker compose run --rm migrate
 
-# Using kubectl (Kubernetes)
-kubectl run migration --image=yourregistry/cap4:latest \
-  -- pnpm migrate
-
-# Using raw command
-DATABASE_URL="postgresql://user:pass@host:5432/cap4" pnpm migrate
+# Using raw command (the runner applies all pending db/migrations/*.sql and
+# tracks them in the schema_migrations table)
+DATABASE_URL="postgresql://user:pass@host:5432/cap4" sh docker/postgres/run-migrations.sh
 ```
+
+Migrations also run automatically on every `docker compose up` via the `migrate`
+service (see `docker/postgres/run-migrations.sh`), so the manual step above is only
+needed for non-Compose environments.
 
 ### Note on Migrations
 

@@ -159,6 +159,39 @@ All defined in `apps/web/src/index.css` under `@layer components`.
 .chapter-row-active  active chapter in sidebar (replaces non-functional bg-primary/10)
 ```
 
+### Library Views (HomePage)
+```
+.library-view-toggle / .library-view-button / .library-view-button-active
+                     grid ⇄ list segmented toggle (choice persisted in localStorage `cap4:libraryView`)
+.lib-controls / .lib-control-active   list-view control bar (Columns, Filters, Clear all)
+.lib-col-menu-wrap / .lib-col-menu / .lib-col-menu-title / .lib-col-menu-item / .lib-menu-backdrop
+                     column show/hide dropdown
+.lib-table-wrap      horizontally-scrollable bordered table container
+.lib-table / .lib-th / .lib-td        list/table cells
+.lib-th-inner / .lib-grip / .lib-th-dragover   draggable column header (reorder) + drag affordance
+.lib-th-button / .lib-th-active / .lib-th-static / .lib-sort-caret
+                     clickable sortable column header + active-sort caret
+.lib-filter-row / .lib-filter-cell / .lib-filter-input   per-column filter row
+.lib-row             clickable table row (opens the video; hover highlight)
+.lib-thumb / .lib-thumb-empty / .lib-title-text          row thumbnail + ellipsised title
+.lib-td-note / .lib-note-input        inline-editable per-row note cell
+```
+The library renders as a card **grid** (default) or a configurable **list/table**. The
+table supports:
+
+- **Columns**: show/hide any column and **drag headers to reorder**. The layout
+  (order + hidden set) persists in `localStorage` under `cap4:libraryColumns`.
+- **Sorting**: click any column header (toggles asc/desc); kept in sync with the
+  toolbar sort dropdown.
+- **Filtering**: a global title search + status dropdown, plus a toggleable
+  **per-column filter row** (substring match on the displayed value). Multiple
+  column filters combine (AND); **Clear all filters** resets everything.
+- **Dates** render in US Eastern (`formatDateTimeEST`): **Uploaded (EST)**
+  (`createdAt`, cap4 upload time) and **File created (EST)** (`originalFileCreatedAt`,
+  the source file's own date — blank `—` for recordings / pre-`0007` rows).
+- **Note**: an inline-editable per-row note, persisted in `localStorage` under
+  `cap4:notes:<videoId>` — the **same** store as the video page's Notes tab, so they stay in sync.
+
 ---
 
 ## Right Rail — 3-Tab System
@@ -247,6 +280,7 @@ Grid: `lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)]`
 |---|---|
 | `apps/web/src/index.css` | CSS tokens + all component classes |
 | `apps/web/tailwind.config.cjs` | Tailwind color/shadow/font extensions |
+| `apps/web/src/pages/HomePage.tsx` | Library grid + sortable list/table view, view toggle |
 | `apps/web/src/pages/VideoPage.tsx` | Layout, 3-tab rail, NotesPanel |
 | `apps/web/src/components/PlayerCard.tsx` | Video + timeline + seeker preview |
 | `apps/web/src/components/TranscriptCard.tsx` | Transcript display + edit |

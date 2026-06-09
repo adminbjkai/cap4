@@ -61,6 +61,14 @@ Full audit performed 2026-03-19 by Claude Opus 4.6 + Codex (independent reviews,
 
 ## Recently Completed
 
+### Phase 4.8 — Library list/table view + original file date (✓ Complete — 2026-06-05; host-verified & live)
+- [x] Fix right-rail tab crossfade leaving a stuck overlay under `prefers-reduced-motion` (VideoPage effect timer race + reduced-motion CSS)
+- [x] Add `original_file_created_at` to `videos` (migration `0007`); capture `File.lastModified` on upload (RecordPage → `POST /api/videos`)
+- [x] Return `originalFileCreatedAt` from `GET /api/library/videos`
+- [x] Add a grid/list view toggle on the homepage; list view is a sortable, searchable table with **File created** (original) vs **Uploaded** (cap4 upload) date columns; choice persisted in `localStorage` (`cap4:libraryView`)
+- [x] List view v2: EST date+time columns; show/hide + drag-reorder columns (persisted `cap4:libraryColumns`); per-column + global filtering with clear-all; inline-editable per-row **Note** (persisted `cap4:notes:<videoId>`, shared with the video page Notes tab)
+- [x] Regression tests: rail-tab crossfade + library list view (column hide, per-column filter/clear, note edit) — web suite 30/30
+
 ### Phase 4.7 — Agent Sprint (BJK-9 through BJK-18) (✓ Complete)
 - [x] **BJK-9** — Add micro-animations and transitions system
 - [x] **BJK-10** — Redesign color system with gradient accents and enhanced dark mode

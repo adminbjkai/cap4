@@ -191,8 +191,9 @@ export function keyPointsFromChapters(chapters: unknown): string[] {
     .filter((point) => point.length > 0);
 }
 
-export function encodeLibraryCursor(createdAtIso: string, id: string): string {
-  return Buffer.from(`${createdAtIso}|${id}`, "utf8").toString("base64url");
+export function encodeLibraryCursor(createdAt: string | Date, id: string): string {
+  const iso = new Date(createdAt as string).toISOString();
+  return Buffer.from(`${iso}|${id}`, "utf8").toString("base64url");
 }
 
 export function decodeLibraryCursor(cursor: string): { createdAtIso: string; id: string } | null {

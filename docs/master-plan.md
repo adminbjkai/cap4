@@ -81,7 +81,7 @@ v3 completed what v2 started. The full implementation is here:
 v4 = v3 + Kimi's security hardening:
 - Webhook timestamp validation (replay attack prevention)
 - HMAC signature verification with timing-safe comparison
-- Delivery ID deduplication in webhook_deliveries table
+- Delivery ID deduplication in the webhook_events table
 - `TranscriptParagraph` component (paragraph view for transcript)
 - `ChapterList` component (left sidebar navigation)
 - `RecordPage` placeholder (future recording feature)
@@ -115,8 +115,8 @@ No changes from what's working in v4. The stack is proven.
 | Framework | React | 18.3.1 |
 | Build Tool | Vite | 5+ |
 | Language | TypeScript | strict mode |
-| Styling | CSS Modules / vanilla CSS | — |
-| Video Player | Native HTML5 `<video>` | — |
+| Styling | Tailwind CSS + CSS custom properties | — |
+| Video Player | Custom controls over HTML5 `<video>` (`CustomVideoControls`) | — |
 
 ### Infrastructure
 | Component | Technology |
@@ -130,69 +130,38 @@ No changes from what's working in v4. The stack is proven.
 
 ## Database Schema — Authoritative State
 
-The schema across 4 migrations is stable. Here's the full picture:
+The schema spans **7 migrations** (`0001`–`0007`). The authoritative, column-level
+reference is **[database.md](database.md)** — the overview below intentionally does
+not duplicate it.
 
-### Core Tables
+The schema is **normalized**: `videos` holds core state and lifecycle, while upload,
+transcript, AI-output, and webhook data live in their own tables keyed by `video_id`.
 
-**videos** — Central entity. Owns all state.
-```sql
-id                  TEXT PRIMARY KEY        -- UUID v4
-name                TEXT                    -- Filename or user-provided title
-upload_mode         upload_mode             -- 'singlepart' | 'multipart'
-upload_phase        upload_phase            -- 'pending' → 'uploaded'
-source_key          TEXT                    -- S3 key of original file
-result_key          TEXT                    -- S3 key of processed file
-thumbnail_key       TEXT                    -- S3 key of thumbnail
-processing_phase    processing_phase        -- State machine (see below)
-processing_phase_rank INT                   -- Monotonic rank (enforces forward-only)
-transcription_status transcription_status  -- Separate from processing
-ai_status           ai_status               -- Separate from transcription
-transcript_text     TEXT                    -- Raw transcript from Deepgram
-title               TEXT                    -- AI-generated title
-summary             TEXT                    -- AI-generated summary
-chapters            JSONB                   -- AI-generated chapters [{timestamp,title,startMs}]
-metadata            JSONB                   -- duration, width, height, fps, hasAudio
-webhook_url         TEXT                    -- Optional: notify this URL when complete
-deleted_at          TIMESTAMP               -- Soft delete (migration 0002)
-created_at          TIMESTAMP DEFAULT NOW()
-updated_at          TIMESTAMP DEFAULT NOW()
-```
+### Core Tables (overview)
 
-**jobs** — Work queue. One row per unit of work.
-```sql
-id            TEXT PRIMARY KEY
-video_id      TEXT REFERENCES videos(id)
-type          job_type                  -- 'process_video' | 'transcribe_video' | 'generate_ai' | 'cleanup_artifacts'
-status        job_status                -- 'queued' → 'leased' → 'running' → 'succeeded' | 'dead'
-lease_expires_at TIMESTAMP             -- Lease timeout (crash recovery)
-heartbeat_at  TIMESTAMP                -- Worker liveness
-retry_count   INT DEFAULT 0
-max_retries   INT DEFAULT 5
-error_message TEXT
-created_at    TIMESTAMP DEFAULT NOW()
-leased_at     TIMESTAMP
-completed_at  TIMESTAMP
-```
-
-**webhook_deliveries** — Idempotency for incoming webhooks.
-```sql
-delivery_id   TEXT PRIMARY KEY          -- x-cap-delivery-id header
-video_id      TEXT REFERENCES videos(id)
-phase         processing_phase
-progress_bucket INT                     -- Dedup: only one update per 10% bucket
-payload       JSONB
-received_at   TIMESTAMP DEFAULT NOW()
-```
-
-**uploads** — Multipart upload tracking.
-```sql
-id            TEXT PRIMARY KEY          -- Our internal upload ID
-video_id      TEXT REFERENCES videos(id)
-minio_upload_id TEXT                    -- MinIO multipart ID
-parts         JSONB                     -- [{PartNumber, ETag}]
-status        upload_phase
-created_at    TIMESTAMP
-```
+- **videos** — central entity (`id UUID` PK). Processing state
+  (`processing_phase` + monotonic `processing_phase_rank`, `transcription_status`,
+  `ai_status`), media metadata (`duration_seconds`, `width`, `height`, `fps`),
+  `result_key` / `thumbnail_key`, `name`, `webhook_url` (migration `0003`),
+  `deleted_at` soft-delete (migration `0002`), and `original_file_created_at`
+  (migration `0007`).
+- **uploads** — one row per video (`video_id` PK); `mode` (`singlepart` | `multipart`),
+  `phase`, `multipart_upload_id`, `raw_key`, byte counters, `etag_manifest`.
+- **job_queue** — work queue (`id BIGSERIAL` PK); `job_type`
+  (`process_video` | `transcribe_video` | `generate_ai` | `cleanup_artifacts` | `deliver_webhook`),
+  `status` (`queued` → `leased` → `running` → `succeeded` | `cancelled` | `dead`),
+  `attempts` / `max_attempts`, `run_after`, `locked_by` / `locked_until` / `lease_token`,
+  `last_error`, `finished_at`. A partial unique index allows one active job per
+  `(video_id, job_type)`.
+- **transcripts** — one row per video; `provider`, `language`, `vtt_key`,
+  `segments_json`, `speaker_labels_json` (migration `0006`).
+- **ai_outputs** — one row per video; `provider`, `model`, `title`, `summary`,
+  `chapters_json`, plus `entities_json` / `action_items_json` / `quotes_json` (migration `0005`).
+- **webhook_events** — inbound progress-webhook log + dedup; `delivery_id`, `job_id`,
+  `phase` / `phase_rank`, `progress` / `progress_bucket`, `signature`,
+  `accepted` / `reject_reason`. Unique on `(source, delivery_id)` and
+  `(source, job_id, phase, progress_bucket)`.
+- **idempotency_keys** — request idempotency cache keyed by `(endpoint, idempotency_key)`.
 
 ### State Machine Phases (processing_phase)
 
@@ -241,7 +210,7 @@ Browser (React)
                            │     (port 9000)
                            │
                            └─── [media-server] FFmpeg
-                                 (port 3001 internal)
+                                 (port 3100 internal)
                                  └── Emits HMAC webhooks
                                      back to web-api
 
@@ -258,7 +227,7 @@ Browser (React)
 1. **Monotonic state** — `processing_phase_rank` enforced on every UPDATE
 2. **Atomic job claiming** — `FOR UPDATE SKIP LOCKED` prevents thundering herd
 3. **Crash recovery** — `lease_expires_at` allows reclaim after worker crash
-4. **Idempotent mutations** — Delivery ID dedup in `webhook_deliveries`
+4. **Idempotent mutations** — Delivery ID dedup in `webhook_events`
 5. **Webhook security** — HMAC-SHA256 + timestamp skew check (±5 min)
 6. **No data loss** — Database is the single source of truth; S3 holds blobs
 
@@ -590,8 +559,8 @@ Lessons from the 4-version evolution:
 |--------|-------|
 | Source code | ~3,500 lines (TypeScript) |
 | Documentation | 11 markdown files |
-| Services | 7 Docker containers |
-| DB migrations | 4 SQL files |
+| Services | 9 Docker Compose services |
+| DB migrations | 7 SQL files |
 | API endpoints | ~15 routes |
 | Dependencies | ~30 packages |
 | Repo size | ~5MB (no audit artifacts) |

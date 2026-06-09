@@ -1,13 +1,42 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-03-23 (Cross-validated review: Claude Opus + Codex + Gemini; all fixes applied)
+**Last updated:** 2026-06-05 (Phase 4.8: library list/table view + original file date; rail-tab crossfade fix — live)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
 
+> **Deploy note (2026-06-05):** the live stack's containers have no outbound
+> network, so images cannot be rebuilt with `docker compose build`. Frontend is
+> built on the host (`pnpm --filter @cap/web build`) and copied into the
+> `cap4_web_dist` volume (then `nginx -s reload` on `cap4-web-internal-1`).
+> Backend route changes are compiled on the host and hot-swapped into
+> `cap4-web-api-1` via `docker cp` + `docker restart`. See the
+> `frontend-deploy-mechanism` memory.
+
 ---
 
 ## Current State
+
+### 2026-06-05 — Phase 4.8 (live)
+- **Rail-tab crossfade fix** — VideoPage tab transition no longer leaves the previous
+  panel stuck as an absolute overlay under `prefers-reduced-motion` (effect timer race
+  fixed + reduced-motion CSS hides `.rail-tab-panel-exit`).
+- **Original file date** — `videos.original_file_created_at` (migration `0007`), captured
+  from the browser `File.lastModified` on upload, surfaced as `originalFileCreatedAt` in
+  `POST /api/videos` and `GET /api/library/videos`. Distinct from `created_at` (cap4 upload time).
+- **Library list/table view** — homepage has a grid⇄list toggle (persisted in
+  `localStorage:cap4:libraryView`). List view: EST date+time columns
+  (**Uploaded (EST)** = `createdAt`, **File created (EST)** = `originalFileCreatedAt`),
+  show/hide + drag-reorder columns (persisted `cap4:libraryColumns`), global + per-column
+  filtering with clear-all, click-to-sort headers, and an inline-editable per-row **Note**
+  (persisted `cap4:notes:<videoId>`, shared with the video page Notes tab). Frontend-only
+  (no backend changes). Note: `File created` is blank for screen recordings / pre-`0007`
+  rows — only file uploads populate it (from `File.lastModified`).
+- Web test suite 30/30 (rail-tab + library-list: column hide, per-column filter/clear,
+  note edit). Migration 0007 applied to live DB; web-api hot-swapped; frontend redeployed
+  (twice); verified end-to-end.
+
+
 
 Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independent reviews, cross-validated). 15 security/correctness bugs fixed, 19 doc alignment issues corrected across two passes. Documentation re-scanned and verified against code. Host runtime verification also completed on 2026-03-23: `pnpm typecheck`, `pnpm build`, `docker compose up -d --build`, `GET /health`, `GET /ready`, `pnpm test:integration` (18/18), and `make smoke` all passed.
 
@@ -104,6 +133,8 @@ Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independe
 | `apps/web/src/hooks/useKeyboardShortcuts.ts` | Shared keyboard shortcut registration logic |
 | `db/migrations/0005_add_ai_enrichment_fields.sql` | Adds AI enrichment columns: entities/action items/quotes |
 | `db/migrations/0006_add_transcript_speaker_labels.sql` | Adds transcript speaker label storage column |
+| `db/migrations/0007_add_original_file_created_at.sql` | Adds `videos.original_file_created_at` (source file's own date) |
+| `apps/web/src/pages/HomePage.tsx` | Library grid + sortable/searchable list/table view + view toggle |
 | `docker/postgres/run-migrations.sh` | Migration runner script |
 | `scripts/dev-local.sh` | Run all services without Docker |
 | `apps/web-api/src/index.ts` | Fastify entry — rate limiting + route modules |
@@ -154,7 +185,7 @@ Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independe
 | schema_migrations | Table tracking which SQL migrations have been applied |
 | migrate service | Docker Compose service that auto-runs migrations on startup |
 | progress_bucket | Webhook dedup column — prevents duplicate 10%-bucket updates |
-| delivery_id | Webhook idempotency key stored in webhook_deliveries table |
+| delivery_id | Webhook idempotency key stored in the webhook_events table |
 | phase_rank | Integer enforcing monotonic state transitions |
 | SKIP LOCKED | PostgreSQL clause for lock-free concurrent job claiming |
 | audit-plan.md | Completed audit doc at `docs/archive/audit-plan.md` (6 phases A-F) |

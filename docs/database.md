@@ -5,7 +5,7 @@ description: "Tables, enums, migrations, and operational notes"
 
 # Database Schema
 
-Current schema reference for cap4, based on `db/migrations/0001_init.sql` through `0006_add_transcript_speaker_labels.sql`.
+Current schema reference for cap4, based on `db/migrations/0001_init.sql` through `0007_add_original_file_created_at.sql`.
 
 ## Overview
 
@@ -102,6 +102,9 @@ Important columns:
 - `error_message text`
 - `webhook_url text` added by migration `0003`
 - `deleted_at timestamptz` added by migration `0002`
+- `original_file_created_at timestamptz` added by migration `0007` — the source
+  file's own timestamp (`File.lastModified`), distinct from `created_at` (the
+  cap4 upload time); `NULL` for recordings and pre-`0007` rows
 - `created_at`, `updated_at`, `completed_at`
 
 Indexes:
@@ -165,7 +168,7 @@ Important columns:
 - `video_id uuid primary key references videos(id)`
 - `provider text default 'deepgram'`
 - `language text not null default 'en'`
-- `vtt_key text`
+- `vtt_key text not null`
 - `segments_json jsonb`
 - `speaker_labels_json jsonb not null default '{}'::jsonb` added by migration `0006`
 - `created_at`, `updated_at`
@@ -283,6 +286,7 @@ One-to-many by `video_id`:
 0004_fix_transcript_language.sql
 0005_add_ai_enrichment_fields.sql
 0006_add_transcript_speaker_labels.sql
+0007_add_original_file_created_at.sql
 ```
 
 ## Operational Notes

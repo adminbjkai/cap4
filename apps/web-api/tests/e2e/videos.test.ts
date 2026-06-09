@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
+import { getEnv } from '@cap/config';
+import { query } from '@cap/db';
 
 /**
  * E2E tests for videos.ts routes:
@@ -11,6 +13,7 @@ import { randomUUID } from 'crypto';
  */
 
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
+const env = getEnv();
 
 test.describe('Videos API', () => {
   test('POST /api/videos - should create a new video', async ({ request }) => {
@@ -363,6 +366,57 @@ test.describe('Videos API', () => {
     expect(body.videoId).toBe(videoId);
     expect(body).toHaveProperty('jobsReset');
     expect(Array.isArray(body.jobsReset)).toBe(true);
+  });
+
+  test('POST /api/videos/:id/retry - should requeue failed processing jobs', async ({ request }) => {
+    const createResponse = await request.post(`${BASE_URL}/api/videos`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': randomUUID(),
+      },
+      data: {
+        name: 'Retry Process Failure',
+      },
+    });
+
+    expect(createResponse.status()).toBe(200);
+    const { videoId } = await createResponse.json();
+
+    await query(
+      env.DATABASE_URL,
+      `UPDATE videos
+       SET processing_phase = 'failed',
+           processing_phase_rank = 80,
+           processing_progress = 100,
+           error_message = 'fetch failed',
+           updated_at = now()
+       WHERE id = $1::uuid`,
+      [videoId]
+    );
+
+    await query(
+      env.DATABASE_URL,
+      `INSERT INTO job_queue (video_id, job_type, status, priority, payload, max_attempts, attempts, last_error)
+       VALUES ($1::uuid, 'process_video', 'dead', 100, '{}'::jsonb, 6, 6, 'fetch failed')`,
+      [videoId]
+    );
+
+    const response = await request.post(`${BASE_URL}/api/videos/${videoId}/retry`, {
+      headers: {
+        'Idempotency-Key': randomUUID(),
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.ok).toBe(true);
+    expect(body.jobsReset).toContain('process_video');
+
+    const statusResponse = await request.get(`${BASE_URL}/api/videos/${videoId}/status`);
+    expect(statusResponse.status()).toBe(200);
+    const statusBody = await statusResponse.json();
+    expect(statusBody.processingPhase).toBe('queued');
+    expect(statusBody.errorMessage).toBeNull();
   });
 
   test('POST /api/videos/:id/retry - should reject without idempotency key', async ({ request }) => {

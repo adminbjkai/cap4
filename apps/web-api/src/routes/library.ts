@@ -38,6 +38,7 @@ export async function libraryRoutes(app: FastifyInstance) {
       transcription_status: string;
       ai_status: string;
       created_at: string;
+      original_file_created_at: string | null;
       duration_seconds: string | number | null;
     }>(
       env.DATABASE_URL,
@@ -55,6 +56,7 @@ export async function libraryRoutes(app: FastifyInstance) {
          v.transcription_status,
          v.ai_status,
          v.created_at,
+         v.original_file_created_at,
          v.duration_seconds
        FROM videos v
        LEFT JOIN ai_outputs ao ON ao.video_id = v.id
@@ -90,6 +92,7 @@ export async function libraryRoutes(app: FastifyInstance) {
         transcriptionStatus: row.transcription_status,
         aiStatus: row.ai_status,
         createdAt: row.created_at,
+        originalFileCreatedAt: row.original_file_created_at,
         durationSeconds: row.duration_seconds === null ? null : Number(row.duration_seconds)
       })),
       sort,
