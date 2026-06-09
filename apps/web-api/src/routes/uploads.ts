@@ -180,6 +180,23 @@ export async function uploadRoutes(app: FastifyInstance) {
         [videoId, env.WORKER_MAX_ATTEMPTS]
       );
 
+      // Enqueue transcription in parallel with the transcode: it reads the
+      // raw upload's audio, which is identical to the transcoded result's.
+      await client.query(
+        `UPDATE videos
+         SET transcription_status = 'queued', updated_at = now()
+         WHERE id = $1::uuid
+           AND transcription_status = 'not_started'`,
+        [videoId]
+      );
+      await client.query(
+        `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+         VALUES ($1::uuid, 'transcribe_video', 'queued', 95, now(), '{}'::jsonb, $2)
+         ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
+         DO UPDATE SET updated_at = now()`,
+        [videoId, env.WORKER_MAX_ATTEMPTS]
+      );
+
       const body = {
         videoId,
         rawKey,
@@ -358,6 +375,22 @@ export async function uploadRoutes(app: FastifyInstance) {
          ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
          DO UPDATE SET updated_at = now()
          RETURNING id`,
+        [videoId, env.WORKER_MAX_ATTEMPTS]
+      );
+
+      // Enqueue transcription in parallel with the transcode (reads raw upload).
+      await client.query(
+        `UPDATE videos
+         SET transcription_status = 'queued', updated_at = now()
+         WHERE id = $1::uuid
+           AND transcription_status = 'not_started'`,
+        [videoId]
+      );
+      await client.query(
+        `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+         VALUES ($1::uuid, 'transcribe_video', 'queued', 95, now(), '{}'::jsonb, $2)
+         ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
+         DO UPDATE SET updated_at = now()`,
         [videoId, env.WORKER_MAX_ATTEMPTS]
       );
 

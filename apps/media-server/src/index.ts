@@ -20,6 +20,9 @@ type ProbeResult = {
   height: number;
   fps: number | null;
   hasAudio: boolean;
+  videoCodec: string | null;
+  pixFmt: string | null;
+  audioCodec: string | null;
 };
 
 function log(event: string, fields: Record<string, unknown>) {
@@ -149,12 +152,20 @@ async function probeVideo(filePath: string): Promise<ProbeResult> {
     "-show_format",
     filePath
   ])) as {
-    streams?: Array<{ codec_type?: string; width?: number; height?: number; r_frame_rate?: string }>;
+    streams?: Array<{
+      codec_type?: string;
+      codec_name?: string;
+      pix_fmt?: string;
+      width?: number;
+      height?: number;
+      r_frame_rate?: string;
+    }>;
     format?: { duration?: string };
   };
 
   const videoStream = (parsed.streams ?? []).find((stream) => stream.codec_type === "video");
-  const hasAudio = (parsed.streams ?? []).some((stream) => stream.codec_type === "audio");
+  const audioStream = (parsed.streams ?? []).find((stream) => stream.codec_type === "audio");
+  const hasAudio = Boolean(audioStream);
   const duration = Number(parsed.format?.duration ?? "0");
 
   return {
@@ -162,8 +173,22 @@ async function probeVideo(filePath: string): Promise<ProbeResult> {
     width: Number(videoStream?.width ?? 0),
     height: Number(videoStream?.height ?? 0),
     fps: parseFps(videoStream?.r_frame_rate),
-    hasAudio
+    hasAudio,
+    videoCodec: videoStream?.codec_name ?? null,
+    pixFmt: videoStream?.pix_fmt ?? null,
+    audioCodec: audioStream?.codec_name ?? null
   };
+}
+
+/**
+ * A source can be remuxed (stream-copied) into a web-playable mp4 — skipping the
+ * expensive re-encode entirely — when its codecs are already browser-compatible.
+ */
+function canRemux(probe: ProbeResult): boolean {
+  if (probe.videoCodec !== "h264") return false;
+  if (probe.pixFmt !== "yuv420p") return false;
+  if (probe.hasAudio && probe.audioCodec !== "aac") return false;
+  return true;
 }
 
 app.get("/health", async () => ({ ok: true }));
@@ -194,47 +219,82 @@ app.post<{ Body: ProcessRequest }>("/process", async (req, reply) => {
     log("process.download.start", { videoId, rawKey });
     await downloadObjectToFile(client, bucket, rawKey, inputPath);
 
-    log("process.ffmpeg.transcode.start", { videoId });
-    await runCommand("ffmpeg", [
+    // Probe the INPUT first: decides remux vs transcode and gives a seek point
+    // for the thumbnail (which runs concurrently, straight off the source).
+    const inputProbe = await probeVideo(inputPath);
+    const remux = canRemux(inputProbe);
+
+    const transcodeArgs = remux
+      ? [
+        "-y",
+        "-i",
+        inputPath,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0?",
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        resultPath
+      ]
+      : [
+        "-y",
+        "-i",
+        inputPath,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        resultPath
+      ];
+
+    // Thumbnail from the source via a cheap seek (decode ~1 frame, not the
+    // whole file), in parallel with the transcode/remux.
+    const thumbSeekSeconds =
+      inputProbe.durationSeconds > 2 ? Math.min(1, inputProbe.durationSeconds / 2) : 0;
+    const thumbnailArgs = [
       "-y",
+      "-ss",
+      String(thumbSeekSeconds),
       "-i",
       inputPath,
-      "-map",
-      "0:v:0",
-      "-map",
-      "0:a:0?",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-pix_fmt",
-      "yuv420p",
-      "-movflags",
-      "+faststart",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "128k",
-      resultPath
-    ]);
-
-    log("process.ffmpeg.thumbnail.start", { videoId });
-    await runCommand("ffmpeg", [
-      "-y",
-      "-i",
-      resultPath,
-      "-vf",
-      "thumbnail",
       "-frames:v",
       "1",
       thumbPath
+    ];
+
+    log(remux ? "process.ffmpeg.remux.start" : "process.ffmpeg.transcode.start", {
+      videoId,
+      videoCodec: inputProbe.videoCodec,
+      audioCodec: inputProbe.audioCodec,
+      pixFmt: inputProbe.pixFmt
+    });
+    await Promise.all([
+      runCommand("ffmpeg", transcodeArgs),
+      runCommand("ffmpeg", thumbnailArgs)
     ]);
 
     const metadata = await probeVideo(resultPath);
 
-    log("process.upload.start", { videoId, resultKey, thumbnailKey });
-    await uploadFile(client, bucket, resultKey, resultPath, "video/mp4");
-    await uploadFile(client, bucket, thumbnailKey, thumbPath, "image/jpeg");
+    log("process.upload.start", { videoId, resultKey, thumbnailKey, remux });
+    await Promise.all([
+      uploadFile(client, bucket, resultKey, resultPath, "video/mp4"),
+      uploadFile(client, bucket, thumbnailKey, thumbPath, "image/jpeg")
+    ]);
 
     await fs.rm(workDir, { recursive: true, force: true });
 

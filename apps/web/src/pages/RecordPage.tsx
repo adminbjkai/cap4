@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { completeUpload, createVideo, requestSignedUpload, uploadMultipart, uploadToSignedUrl, type UploadProgress } from "../lib/api";
+import { completeUpload, createVideo, LiveMultipartUploader, requestSignedUpload, uploadMultipart, uploadToSignedUrl, type UploadProgress } from "../lib/api";
 import { formatBytes, formatDuration, formatEta } from "../lib/format";
 import { upsertRecentSession } from "../lib/sessions";
 
@@ -78,6 +78,9 @@ export function RecordPage() {
   const micAnalyserDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const micMeterAnimationRef = useRef<number | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Live streaming upload: parts ship to S3 while the recording is in progress
+  const liveUploaderRef = useRef<LiveMultipartUploader | null>(null);
+  const liveFedCountRef = useRef(0);
   const timerRef = useRef<number | null>(null);
   const startedAtMsRef = useRef<number | null>(null);
   const finalizedRef = useRef(false);
@@ -126,6 +129,10 @@ export function RecordPage() {
   }, []);
 
   const resetLocalPreview = useCallback(() => {
+    const staleUploader = liveUploaderRef.current;
+    liveUploaderRef.current = null;
+    liveFedCountRef.current = 0;
+    if (staleUploader) void staleUploader.abort();
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -180,6 +187,9 @@ export function RecordPage() {
 
       const blob = new Blob(chunksRef.current, { type: recorderMimeType || "video/webm" });
       if (blob.size === 0) {
+        const uploader = liveUploaderRef.current;
+        liveUploaderRef.current = null;
+        if (uploader) void uploader.abort();
         setState("error");
         setErrorMessage(
           "Recording stopped before data was captured. Try again and share a tab/window for at least a moment."
@@ -191,11 +201,47 @@ export function RecordPage() {
       setRecordedBlob(blob);
       setPreviewUrl(nextPreviewUrl);
       setSourceLabel("Screen recording");
-      setState("preview");
       setErrorMessage(null);
       setRetryAvailable(false);
+
+      // Fast path: parts were streamed during recording — only the final part
+      // and the complete call remain.
+      const uploader = liveUploaderRef.current;
+      if (uploader && !uploader.failed) {
+        liveUploaderRef.current = null;
+        setVideoId(uploader.videoId);
+        setState("uploading");
+        void (async () => {
+          try {
+            const nextJobId = await uploader.finish();
+            setState("processing");
+            setJobId(nextJobId);
+            upsertRecentSession({
+              videoId: uploader.videoId,
+              jobId: nextJobId ?? undefined,
+              createdAt: new Date().toISOString(),
+              processingPhase: "queued",
+              processingProgress: 5
+            });
+            setState("complete");
+            navigate(nextJobId ? `/video/${uploader.videoId}?jobId=${nextJobId}` : `/video/${uploader.videoId}`);
+          } catch {
+            // Fall back to the classic whole-blob upload (reuses the videoId).
+            void uploader.abort();
+            setState("preview");
+          }
+        })();
+        return;
+      }
+
+      // No usable live uploader (init failed, never attached, or a part
+      // failed mid-recording): classic post-stop upload.
+      const stale = liveUploaderRef.current;
+      liveUploaderRef.current = null;
+      if (stale) void stale.abort();
+      setState("preview");
     },
-    [cleanupRecordingResources]
+    [cleanupRecordingResources, navigate]
   );
 
   useEffect(() => {
@@ -334,6 +380,11 @@ export function RecordPage() {
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data);
+          const uploader = liveUploaderRef.current;
+          if (uploader && !uploader.failed) {
+            uploader.addChunk(event.data);
+            liveFedCountRef.current = chunksRef.current.length;
+          }
         }
       };
 
@@ -391,6 +442,31 @@ export function RecordPage() {
 
       recorder.start(250);
       setState("recording");
+
+      // Kick off the streaming upload session in the background. If anything
+      // here fails we silently fall back to the classic post-stop upload.
+      liveUploaderRef.current = null;
+      liveFedCountRef.current = 0;
+      void (async () => {
+        try {
+          const created = await createVideo();
+          const uploader = new LiveMultipartUploader(created.videoId, recorder.mimeType || "video/webm");
+          await uploader.start();
+          // Attach only if this recording session is still the active one.
+          if (mediaRecorderRef.current === recorder && !finalizedRef.current) {
+            setUploadContext({ videoId: created.videoId });
+            // Feed chunks captured before init completed, then go live.
+            const pending = chunksRef.current;
+            for (const chunk of pending) uploader.addChunk(chunk);
+            liveFedCountRef.current = pending.length;
+            liveUploaderRef.current = uploader;
+          } else {
+            void uploader.abort();
+          }
+        } catch {
+          // createVideo/initiate failed — post-stop upload path will handle it.
+        }
+      })();
     } catch (error) {
       cleanupRecordingResources();
       setState("error");
@@ -422,7 +498,13 @@ export function RecordPage() {
     try {
       let activeVideoId = uploadContext?.videoId ?? null;
       if (!activeVideoId) {
-        const created = await createVideo();
+        // For selected files, capture the source file's original timestamp
+        // (File.lastModified). Recordings are plain Blobs and have no such date.
+        const originalFileCreatedAt =
+          recordedBlob instanceof File && Number.isFinite(recordedBlob.lastModified) && recordedBlob.lastModified > 0
+            ? new Date(recordedBlob.lastModified).toISOString()
+            : undefined;
+        const created = await createVideo(undefined, originalFileCreatedAt);
         activeVideoId = created.videoId;
         setUploadContext({ videoId: activeVideoId });
       }

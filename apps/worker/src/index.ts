@@ -91,6 +91,30 @@ function parseTranscriptTextFromSegments(raw: unknown): string {
     .trim();
 }
 
+function formatFetchError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause = error.cause;
+  if (!cause || typeof cause !== "object") return error.message;
+
+  const details: string[] = [];
+  const code = "code" in cause ? cause.code : undefined;
+  const errno = "errno" in cause ? cause.errno : undefined;
+  const syscall = "syscall" in cause ? cause.syscall : undefined;
+  const address = "address" in cause ? cause.address : undefined;
+  const port = "port" in cause ? cause.port : undefined;
+
+  if (typeof code === "string" && code) details.push(code);
+  if (typeof errno === "number") details.push(`errno=${errno}`);
+  if (typeof syscall === "string" && syscall) details.push(`syscall=${syscall}`);
+  if (typeof address === "string" && address) details.push(`address=${address}`);
+  if (typeof port === "number") details.push(`port=${port}`);
+
+  const causeMessage = "message" in cause && typeof cause.message === "string" ? cause.message : "";
+  if (causeMessage && causeMessage !== error.message) details.push(causeMessage);
+
+  return details.length > 0 ? `${error.message} (${details.join(", ")})` : error.message;
+}
+
 async function waitForDatabaseReady(): Promise<void> {
   while (true) {
     try {
@@ -474,14 +498,22 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
     return;
   }
 
-  const mediaRes = await fetch(`${env.MEDIA_SERVER_BASE_URL}/process`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      videoId: job.video_id,
-      rawKey: preProcess.rawKey
-    })
-  });
+  let mediaRes: Response;
+  try {
+    mediaRes = await fetch(`${env.MEDIA_SERVER_BASE_URL}/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(env.PROVIDER_TIMEOUT_MS),
+      body: JSON.stringify({
+        videoId: job.video_id,
+        rawKey: preProcess.rawKey
+      })
+    });
+  } catch (error) {
+    throw new Error(
+      `media-server /process request failed for ${env.MEDIA_SERVER_BASE_URL}: ${formatFetchError(error)}`
+    );
+  }
 
   if (!mediaRes.ok) {
     const text = await mediaRes.text();
@@ -588,11 +620,19 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
         [job.video_id]
       );
 
-      // If no dead job was reset, insert a new one
+      // If no dead job was reset, insert one — but only when NO transcribe job
+      // exists at all for this video. Transcription is normally enqueued at
+      // upload-complete (parallel to the transcode); this is a legacy/safety
+      // net, and the NOT EXISTS guard prevents re-transcribing a video whose
+      // early transcription already succeeded.
       if ((resetResult.rowCount ?? 0) === 0) {
         await client.query(
           `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
-           VALUES ($1::uuid, 'transcribe_video', 'queued', 95, now(), '{}'::jsonb, $2)
+           SELECT $1::uuid, 'transcribe_video', 'queued', 95, now(), '{}'::jsonb, $2
+           WHERE NOT EXISTS (
+             SELECT 1 FROM job_queue
+             WHERE video_id = $1::uuid AND job_type = 'transcribe_video'
+           )
            ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
            DO UPDATE SET updated_at = now()`,
           [job.video_id, env.WORKER_MAX_ATTEMPTS]
@@ -638,11 +678,17 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
   const deepgramModel = payloadString(job.payload, "deepgramModel") ?? env.DEEPGRAM_MODEL;
 
   const prepared = await withTransaction(env.DATABASE_URL, async (client) => {
-    const result = await client.query<{ result_key: string | null; transcription_status: string; deleted_at: string | null }>(
-      `SELECT result_key, transcription_status, deleted_at
-       FROM videos
-       WHERE id = $1::uuid
-       FOR UPDATE`,
+    const result = await client.query<{
+      result_key: string | null;
+      raw_key: string | null;
+      transcription_status: string;
+      deleted_at: string | null;
+    }>(
+      `SELECT v.result_key, u.raw_key, v.transcription_status, v.deleted_at
+       FROM videos v
+       LEFT JOIN uploads u ON u.video_id = v.id
+       WHERE v.id = $1::uuid
+       FOR UPDATE OF v`,
       [job.video_id]
     );
 
@@ -661,8 +707,12 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
       return { skip: true as const, resultKey: "", reason: `status_${status}` };
     }
 
-    if (!row.result_key) {
-      throw new Error(`result_key missing for video ${job.video_id}`);
+    // Prefer the raw upload: its audio is identical to the transcoded result,
+    // and it is available immediately — transcription no longer waits for the
+    // transcode. result_key remains as a fallback for legacy rows.
+    const mediaKey = row.raw_key ?? row.result_key;
+    if (!mediaKey) {
+      throw new Error(`no media key (raw or result) for video ${job.video_id}`);
     }
 
     await client.query(
@@ -675,7 +725,7 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
       [job.video_id]
     );
 
-    return { skip: false as const, resultKey: row.result_key, reason: "" };
+    return { skip: false as const, resultKey: mediaKey, reason: "" };
   });
 
   if (prepared.skip) {
@@ -706,7 +756,7 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
     model: deepgramModel,
     timeoutMs: env.PROVIDER_TIMEOUT_MS,
     mediaBuffer: audioBuffer,
-    mediaContentType: audioBuffer === mediaBuffer ? "video/mp4" : "audio/mpeg"
+    mediaContentType: audioBuffer === mediaBuffer ? "application/octet-stream" : "audio/mpeg"
   });
 
   if (!transcription.transcriptText.trim()) {
@@ -1277,27 +1327,80 @@ async function main(): Promise<void> {
     });
   }, 1000 * 60 * 60); // Run once per hour
 
+  // Two concurrent job slots so transcription (network-bound, reads the raw
+  // upload) can overlap the transcode (media-server HTTP call) for the same
+  // or different videos. ffmpeg-heavy process_video jobs stay capped at 1.
+  const MAX_CONCURRENT_JOBS = 2;
+  const inFlight = new Set<Promise<void>>();
+  let inFlightProcessVideo = 0;
+
+  // Cache the media-server health probe — previously an HTTP round-trip on
+  // every poll tick, even when idle.
+  let healthCachedAt = 0;
+  let healthCachedValue = true;
+  const HEALTH_CACHE_MS = 10_000;
+  const checkMediaHealthy = async (): Promise<boolean> => {
+    const now = Date.now();
+    if (now - healthCachedAt < HEALTH_CACHE_MS) return healthCachedValue;
+    healthCachedValue = await isMediaServerHealthy();
+    healthCachedAt = now;
+    return healthCachedValue;
+  };
+
   while (true) {
-    let excludeTypes: JobType[] = [];
-    const mediaHealthy = await isMediaServerHealthy();
-    if (!mediaHealthy) {
-      excludeTypes = ["process_video"];
-      log("worker.health.degraded", { reason: "media_server_unhealthy", skipping: excludeTypes });
+    let claimed = false;
+
+    if (inFlight.size < MAX_CONCURRENT_JOBS) {
+      const excludeTypes: JobType[] = [];
+      if (inFlightProcessVideo >= 1) {
+        excludeTypes.push("process_video");
+      } else {
+        const mediaHealthy = await checkMediaHealthy();
+        if (!mediaHealthy) {
+          excludeTypes.push("process_video");
+          log("worker.health.degraded", { reason: "media_server_unhealthy", skipping: excludeTypes });
+        }
+      }
+
+      const job = await claimOne(excludeTypes);
+      if (job) {
+        claimed = true;
+        log("job.claimed", {
+          job_id: job.id,
+          video_id: job.video_id,
+          job_type: job.job_type,
+          attempts: job.attempts,
+          max_attempts: job.max_attempts,
+          in_flight: inFlight.size + 1
+        });
+        if (job.job_type === "process_video") inFlightProcessVideo += 1;
+        const task: Promise<void> = processJob(job)
+          .catch((error) => {
+            log("job.unhandled_error", { job_id: job.id, job_type: job.job_type, error: String(error) });
+          })
+          .finally(() => {
+            inFlight.delete(task);
+            if (job.job_type === "process_video") inFlightProcessVideo -= 1;
+          });
+        inFlight.add(task);
+      }
     }
 
-    const job = await claimOne(excludeTypes);
-    if (job) {
-      log("job.claimed", {
-        job_id: job.id,
-        video_id: job.video_id,
-        job_type: job.job_type,
-        attempts: job.attempts,
-        max_attempts: job.max_attempts
-      });
-      await processJob(job);
+    if (claimed) {
+      // A job was just claimed (and the one before it may have enqueued a
+      // follow-up) — try to claim again immediately instead of sleeping.
+      continue;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, env.WORKER_POLL_MS));
+    // Idle or slots full: wait for the poll interval OR a slot to free up.
+    if (inFlight.size > 0) {
+      await Promise.race([
+        Promise.race(inFlight),
+        new Promise((resolve) => setTimeout(resolve, env.WORKER_POLL_MS))
+      ]);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, env.WORKER_POLL_MS));
+    }
   }
 }
 
