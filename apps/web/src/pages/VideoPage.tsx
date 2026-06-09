@@ -194,6 +194,7 @@ export function VideoPage() {
   const [railTab, setRailTab] = useState<RailTab>("transcript");
   const [renderedRailTab, setRenderedRailTab] = useState<RailTab>("transcript");
   const [outgoingRailTab, setOutgoingRailTab] = useState<RailTab | null>(null);
+  const railTransitionTimer = useRef<number | null>(null);
 
   /* ── Derived values ──────────────────────────────────────────────────── */
   const shareableResultUrl = status?.resultKey ? buildPublicObjectUrl(status.resultKey) : null;
@@ -214,16 +215,31 @@ export function VideoPage() {
 
   const showRetryButton = useMemo(() => {
     if (!status) return false;
-    return status.transcriptionStatus === "failed" || status.aiStatus === "failed";
+    return (
+      status.processingPhase === "failed" ||
+      status.transcriptionStatus === "failed" ||
+      status.aiStatus === "failed"
+    );
   }, [status]);
 
   useEffect(() => {
     if (railTab === renderedRailTab) return;
     setOutgoingRailTab(renderedRailTab);
     setRenderedRailTab(railTab);
-    const timeout = window.setTimeout(() => setOutgoingRailTab(null), 180);
-    return () => window.clearTimeout(timeout);
+    // Drive the crossfade timer through a ref, not the effect cleanup.
+    // setRenderedRailTab() above mutates this effect's deps, so React would run
+    // the cleanup (cancelling the timer) before it fires — leaving the outgoing
+    // panel mounted as a stuck absolute overlay (visible under reduced motion).
+    if (railTransitionTimer.current) window.clearTimeout(railTransitionTimer.current);
+    railTransitionTimer.current = window.setTimeout(() => {
+      setOutgoingRailTab(null);
+      railTransitionTimer.current = null;
+    }, 180);
   }, [railTab, renderedRailTab]);
+
+  useEffect(() => () => {
+    if (railTransitionTimer.current) window.clearTimeout(railTransitionTimer.current);
+  }, []);
 
   useEffect(() => {
     setIsSummaryExpanded(false);
@@ -397,6 +413,8 @@ export function VideoPage() {
         onSeekToSeconds={requestSeek}
         onSaveTranscript={saveTranscript}
         onSaveSpeakerLabels={saveSpeakerLabels}
+        videoTitle={status?.aiOutput?.title ?? status?.name}
+        videoCreatedAt={status?.originalFileCreatedAt ?? status?.createdAt}
         compact
       />
     );

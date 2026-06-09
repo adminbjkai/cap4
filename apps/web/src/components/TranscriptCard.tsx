@@ -10,6 +10,10 @@ type TranscriptCardProps = {
   onSeekToSeconds: (seconds: number) => void;
   onSaveTranscript: (text: string) => Promise<boolean>;
   onSaveSpeakerLabels: (labels: Record<string, string>) => Promise<boolean>;
+  /** Used to build the downloaded transcript filename / description. */
+  videoTitle?: string | null;
+  /** Source date (ISO) used for the mmddyy filename prefix. */
+  videoCreatedAt?: string | null;
   /** When true, omits the outer card wrapper — for embedding in the right rail */
   compact?: boolean;
 };
@@ -76,6 +80,8 @@ export function TranscriptCard({
   onSeekToSeconds,
   onSaveTranscript,
   onSaveSpeakerLabels,
+  videoTitle,
+  videoCreatedAt,
   compact = false,
 }: TranscriptCardProps) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -521,6 +527,71 @@ export function TranscriptCard({
     window.setTimeout(() => setCopyFeedback(null), 1800);
   };
 
+  const buildDownloadContent = (): string => {
+    const lines: string[] = [];
+    if (speakerIds.length > 0) {
+      lines.push('Speakers:');
+      for (const speaker of speakerIds) {
+        lines.push(getSpeakerLabel(speaker) ?? defaultSpeakerLabel(speaker));
+      }
+      lines.push('');
+    }
+    for (const line of transcriptLines) {
+      const ts = formatTimestamp(line.startSeconds);
+      const label = getSpeakerLabel(line.speaker);
+      lines.push(label ? `${ts} -- ${label} : ${line.text}` : `${ts} : ${line.text}`);
+    }
+    return lines.join('\n');
+  };
+
+  const buildDownloadFilename = (): string => {
+    const dateSource = videoCreatedAt ? new Date(videoCreatedAt) : new Date();
+    const d = Number.isNaN(dateSource.getTime()) ? new Date() : dateSource;
+    const mmddyy =
+      String(d.getMonth() + 1).padStart(2, '0') +
+      String(d.getDate()).padStart(2, '0') +
+      String(d.getFullYear() % 100).padStart(2, '0');
+
+    const slug = (value: string): string =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const titlePart = slug(videoTitle?.trim() || 'transcript');
+    const uniqueNames = Array.from(
+      new Set(
+        speakerIds
+          .map(speaker => slug(getSpeakerLabel(speaker) ?? defaultSpeakerLabel(speaker)))
+          .filter(Boolean)
+      )
+    );
+    const names = uniqueNames.join('_');
+
+    const description = [titlePart, names].filter(Boolean).join('_').slice(0, 120) || 'transcript';
+    return `${mmddyy}_${description}.txt`;
+  };
+
+  const downloadTranscript = () => {
+    const content = buildDownloadContent();
+    if (!content.trim()) return;
+    try {
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = buildDownloadFilename();
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      setSaveFeedback('Transcript downloaded.');
+    } catch {
+      setCopyFeedback('Unable to download transcript.');
+      window.setTimeout(() => setCopyFeedback(null), 1800);
+    }
+  };
+
   const submitEdit = async () => {
     const normalized = draftText.trim();
     if (!normalized) {
@@ -719,6 +790,14 @@ export function TranscriptCard({
               className="btn-secondary text-[11px] px-2 py-0.5"
             >
               Copy
+            </button>
+            <button
+              type="button"
+              onClick={downloadTranscript}
+              className="btn-secondary text-[11px] px-2 py-0.5"
+              title="Download transcript as a .txt file"
+            >
+              Download transcript
             </button>
             {!isEditing && (
               <button
