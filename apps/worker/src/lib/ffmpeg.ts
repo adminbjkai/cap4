@@ -1,24 +1,19 @@
 import { spawn } from "node:child_process";
 import { Buffer } from "node:buffer";
-import { randomUUID } from "node:crypto";
-import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 /**
- * Extracts the audio track as mp3.
+ * Extracts the audio track as mp3 (128k) — a fraction of the video's size,
+ * which is all the transcription provider needs.
  *
- * The input is written to a temp file rather than piped via stdin: mp4 files
+ * The input is a seekable file on disk rather than a stdin pipe: mp4 files
  * whose moov atom sits at the end (i.e. anything not written with +faststart,
  * which raw uploads typically are) cannot be demuxed from an unseekable pipe —
  * ffmpeg then exits 0 with an EMPTY output, which used to poison the
- * downstream transcription call.
+ * downstream transcription call. Callers stream large media to a temp file
+ * first instead of holding the whole video in memory.
  */
-export async function extractAudio(videoBuffer: Buffer): Promise<Buffer> {
-  const inputPath = join(tmpdir(), `cap4-audio-${randomUUID()}`);
-  await fs.writeFile(inputPath, videoBuffer);
-
-  try {
+export async function extractAudioFromFile(inputPath: string): Promise<Buffer> {
+  {
     const audio = await new Promise<Buffer>((resolve, reject) => {
       const ffmpeg = spawn("ffmpeg", [
         "-i", inputPath,
@@ -59,7 +54,5 @@ export async function extractAudio(videoBuffer: Buffer): Promise<Buffer> {
     }
 
     return audio;
-  } finally {
-    await fs.rm(inputPath, { force: true }).catch(() => undefined);
   }
 }

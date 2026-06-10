@@ -199,8 +199,18 @@ export async function completeUpload(videoId: string): Promise<CompleteUploadRes
   );
 }
 
+export type VideoStatusSummary = Omit<VideoStatusResponse, "transcript" | "aiOutput">;
+
 export async function getVideoStatus(videoId: string): Promise<VideoStatusResponse> {
   return parseJson<VideoStatusResponse>(await fetch(`/api/videos/${encodeURIComponent(videoId)}/status`));
+}
+
+/** Lightweight poll: same status fields, but without the (large, rarely
+ * changing) transcript and AI output payloads. */
+export async function getVideoStatusSummary(videoId: string): Promise<VideoStatusSummary> {
+  return parseJson<VideoStatusSummary>(
+    await fetch(`/api/videos/${encodeURIComponent(videoId)}/status?view=summary`)
+  );
 }
 
 export async function getJobStatus(jobId: number): Promise<JobStatusResponse> {

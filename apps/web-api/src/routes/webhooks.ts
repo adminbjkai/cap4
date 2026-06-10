@@ -131,8 +131,16 @@ export async function webhookRoutes(app: FastifyInstance) {
                    width = COALESCE($6::int, v.width),
                    height = COALESCE($7::int, v.height),
                    fps = COALESCE($8::numeric, v.fps),
+                   result_key = COALESCE($9, v.result_key),
+                   thumbnail_key = COALESCE($10, v.thumbnail_key),
+                   error_message = CASE
+                     WHEN $2::processing_phase = 'failed' THEN COALESCE($11, 'processing failed')
+                     WHEN $2::processing_phase = 'complete' THEN NULL
+                     ELSE v.error_message
+                   END,
                    updated_at = now()
                WHERE v.id = $1::uuid
+                 AND v.deleted_at IS NULL
                  AND (
                    $3::smallint > v.processing_phase_rank
                    OR ($3::smallint = v.processing_phase_rank AND $4::int >= v.processing_progress)
@@ -146,11 +154,79 @@ export async function webhookRoutes(app: FastifyInstance) {
                 payload.metadata?.duration ?? null,
                 payload.metadata?.width ?? null,
                 payload.metadata?.height ?? null,
-                payload.metadata?.fps ?? null
+                payload.metadata?.fps ?? null,
+                payload.resultKey ?? null,
+                payload.thumbnailKey ?? null,
+                payload.error ?? null
               ]
             );
 
             applied = (update.rowCount ?? 0) > 0;
+
+            // Completion owns the downstream orchestration that used to live
+            // in the worker's synchronous finalize: queue transcription when
+            // the result has audio, or short-circuit transcription/AI when
+            // it doesn't.
+            if (applied && payload.phase === "complete") {
+              if (payload.hasAudio === false) {
+                await client.query(
+                  `UPDATE videos
+                   SET transcription_status = CASE
+                         WHEN transcription_status IN ('not_started', 'queued', 'processing') THEN 'no_audio'
+                         ELSE transcription_status
+                       END,
+                       ai_status = CASE
+                         WHEN ai_status IN ('not_started', 'queued') THEN 'skipped'
+                         ELSE ai_status
+                       END,
+                       updated_at = now()
+                   WHERE id = $1::uuid
+                     AND deleted_at IS NULL`,
+                  [payload.videoId]
+                );
+              } else {
+                await client.query(
+                  `UPDATE videos
+                   SET transcription_status = 'queued',
+                       updated_at = now()
+                   WHERE id = $1::uuid
+                     AND deleted_at IS NULL
+                     AND transcription_status IN ('not_started', 'queued')`,
+                  [payload.videoId]
+                );
+
+                const resetResult = await client.query(
+                  `UPDATE job_queue
+                   SET status = 'queued',
+                       attempts = 0,
+                       run_after = now(),
+                       last_error = NULL,
+                       updated_at = now()
+                   WHERE video_id = $1::uuid
+                     AND job_type = 'transcribe_video'
+                     AND status = 'dead'
+                   RETURNING id`,
+                  [payload.videoId]
+                );
+
+                // Transcription is normally enqueued at upload-complete; this
+                // is the safety net for legacy/retried rows. NOT EXISTS keeps
+                // an already-succeeded transcription from re-running.
+                if ((resetResult.rowCount ?? 0) === 0) {
+                  await client.query(
+                    `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+                     SELECT $1::uuid, 'transcribe_video', 'queued', 95, now(), '{}'::jsonb, 6
+                     WHERE NOT EXISTS (
+                       SELECT 1 FROM job_queue
+                       WHERE video_id = $1::uuid AND job_type = 'transcribe_video'
+                     )
+                     ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
+                     DO UPDATE SET updated_at = now()`,
+                    [payload.videoId]
+                  );
+                }
+              }
+            }
 
             await client.query(
               `UPDATE webhook_events

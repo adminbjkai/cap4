@@ -43,9 +43,10 @@ worker
 
 media-server
   -> exposes /health and /process endpoints
-  -> worker calls POST /process (synchronous RPC)
-  -> processes video: downloads, runs ffmpeg, uploads outputs
-  -> returns completion status to worker
+  -> worker calls POST /process; media-server replies 202 (accepted) immediately
+  -> processes video in the background: downloads, runs ffmpeg, uploads outputs
+  -> reports phases, completion (result/thumbnail keys + metadata), or failure
+     via signed webhooks to web-api's /api/webhooks/media-server/progress
 ```
 
 ## Source Of Truth
@@ -145,7 +146,9 @@ Incoming webhook requests are HMAC-signed, timestamp-validated, deduplicated by 
 
 Current checked-in runtime note:
 
-- The main worker path calls `POST /process` on `apps/media-server` and waits for a synchronous result.
+- The main worker path calls `POST /process` on `apps/media-server`, which replies `202` immediately; the worker acks its `process_video` job on acceptance ("handoff"). The media-server then drives the video to `complete` or `failed` through the signed progress webhook, which also owns the downstream orchestration (queueing transcription, or marking `no_audio`/`skipped` when the result has no audio track).
+- A worker maintenance watchdog marks videos `failed` if they sit in a mid-processing phase (rank 20–60) longer than `MEDIA_PROCESS_TIMEOUT_MS` with no active `process_video` job — covering a media-server crash or lost webhooks.
+- Transcription runs from the raw upload in parallel with the transcode, but defers itself (requeue without consuming an attempt) while a transcode for the same video is active, so ffmpeg doesn't starve the Deepgram upload. Only the extracted audio track (mp3 128k) is sent to Deepgram, not the full video.
 - The checked-in `apps/media-server/src/index.ts` implementation shown in this repo does not itself emit signed progress callbacks during that mainline path.
 - `deliver_webhook` is unrelated to the internal media progress route; it sends outbound user webhooks stored in `videos.webhook_url`.
 

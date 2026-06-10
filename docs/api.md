@@ -466,7 +466,7 @@ Current webhook contract for media-server progress updates handled by `apps/web-
 - Auth: HMAC verification plus timestamp skew validation
 - Rate limit: excluded from the global API limiter
 - Content type: `application/cap4-webhook+json`
-- Flow note: this route exists for signed progress updates and is covered by the API contract plus test/debug tooling. The checked-in main worker path still calls media-server `/process` synchronously, and the `apps/media-server` implementation shown in this repo does not itself emit these callbacks during that path.
+- Flow note: this route is the mainline completion path. The worker's `POST /process` call returns `202` immediately and the media-server emits these signed callbacks as it works: phase transitions (`probing`, `processing`, `uploading`), then `complete` (carrying `resultKey`, `thumbnailKey`, `hasAudio`, and `metadata`) or `failed` (carrying `error`).
 
 ### What This Route Does
 
@@ -476,7 +476,7 @@ When a signed progress update is posted to this route, the API:
 2. Verifies the HMAC signature against the raw request body.
 3. Rejects stale timestamps outside `WEBHOOK_MAX_SKEW_SECONDS`.
 4. Deduplicates deliveries by `source + delivery_id`.
-5. Applies the update only if it moves the video state forward or increases progress at the same rank.
+5. Applies the update only if it moves the video state forward or increases progress at the same rank. On `complete` it also persists `result_key`/`thumbnail_key`, clears `error_message`, and either queues transcription (when `hasAudio` is not `false`) or marks transcription `no_audio` and AI `skipped`. On `failed` it stores the error message.
 6. Optionally enqueues an outbound `deliver_webhook` job when the video has a user-configured `webhook_url`.
 
 ### Required Headers
@@ -517,7 +517,10 @@ Fields:
 - `phase`: processing phase accepted by the API state machine
 - `progress`: integer percentage, clamped to `0..100`
 - `message`: optional status detail
-- `error`: optional error text
+- `error`: optional error text (persisted to `videos.error_message` on `phase: "failed"`)
+- `resultKey`: optional S3 key of the processed result (sent with `phase: "complete"`)
+- `thumbnailKey`: optional S3 key of the thumbnail (sent with `phase: "complete"`)
+- `hasAudio`: optional boolean; `false` short-circuits transcription/AI to `no_audio`/`skipped`
 - `metadata`: optional duration/size/fps values to persist
 
 ### Accepted Processing Phases

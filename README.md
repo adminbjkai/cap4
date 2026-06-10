@@ -14,7 +14,7 @@ Single-tenant video processing platform with a React watch app, Fastify API, Pos
 - `apps/web` — React/Vite frontend
 - `apps/web-api` — Fastify API
 - `apps/worker` — queue worker for processing, transcription, and AI jobs
-- `apps/media-server` — FFmpeg wrapper invoked synchronously by the worker via POST /process
+- `apps/media-server` — FFmpeg wrapper; the worker POSTs /process, it replies 202 and reports completion via signed webhooks to the API
 - `packages/db` / `db/migrations` — PostgreSQL access and schema
 - `packages/logger`, `packages/config` — shared packages
 

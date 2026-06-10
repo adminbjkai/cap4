@@ -119,8 +119,71 @@ export async function videoRoutes(app: FastifyInstance) {
   // GET /api/videos/:id/status
   // ------------------------------------------------------------------
 
-  app.get<{ Params: { id: string } }>("/api/videos/:id/status", async (req, reply) => {
+  // ?view=summary returns the lightweight polling shape: everything except the
+  // transcript segments and AI output, which are large and change rarely.
+  app.get<{ Params: { id: string }; Querystring: { view?: string } }>("/api/videos/:id/status", async (req, reply) => {
     const videoId = req.params.id;
+    const summaryOnly = req.query?.view === "summary";
+
+    if (summaryOnly) {
+      const summary = await query<{
+        id: string;
+        name: string;
+        processing_phase: string;
+        processing_progress: number;
+        result_key: string | null;
+        thumbnail_key: string | null;
+        error_message: string | null;
+        transcription_status: string;
+        ai_status: string;
+        transcription_dead_error: string | null;
+        ai_dead_error: string | null;
+        created_at: string;
+        original_file_created_at: string | null;
+      }>(
+        env.DATABASE_URL,
+        `SELECT
+           v.id, v.name, v.processing_phase, v.processing_progress,
+           v.result_key, v.thumbnail_key, v.error_message,
+           v.transcription_status, v.ai_status,
+           tj.last_error AS transcription_dead_error,
+           aj.last_error AS ai_dead_error,
+           v.created_at, v.original_file_created_at
+         FROM videos v
+         LEFT JOIN LATERAL (
+           SELECT last_error FROM job_queue
+           WHERE video_id = v.id AND job_type = 'transcribe_video' AND status = 'dead'
+           ORDER BY id DESC LIMIT 1
+         ) tj ON true
+         LEFT JOIN LATERAL (
+           SELECT last_error FROM job_queue
+           WHERE video_id = v.id AND job_type = 'generate_ai' AND status = 'dead'
+           ORDER BY id DESC LIMIT 1
+         ) aj ON true
+         WHERE v.id = $1::uuid AND v.deleted_at IS NULL`,
+        [videoId]
+      );
+
+      if (summary.rowCount === 0) {
+        return reply.code(404).send({ ok: false, error: "Video not found" });
+      }
+      const s = summary.rows[0]!;
+      return reply.send({
+        videoId: s.id,
+        name: s.name,
+        processingPhase: s.processing_phase,
+        processingProgress: s.processing_progress,
+        resultKey: s.result_key,
+        thumbnailKey: s.thumbnail_key,
+        errorMessage: s.error_message,
+        transcriptionStatus: s.transcription_status,
+        aiStatus: s.ai_status,
+        transcriptErrorMessage: s.transcription_dead_error,
+        aiErrorMessage: s.ai_dead_error,
+        createdAt: s.created_at,
+        originalFileCreatedAt: s.original_file_created_at
+      });
+    }
     const result = await query<{
       id: string;
       name: string;

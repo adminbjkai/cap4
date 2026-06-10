@@ -12,9 +12,17 @@ const BaseEnv = z.object({
   DEEPGRAM_BASE_URL: z.string().url().default("https://api.deepgram.com"),
   GROQ_BASE_URL: z.string().url().default("https://api.groq.com/openai/v1"),
   PROVIDER_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
+  // Transcoding long videos takes far longer than provider API calls — give
+  // media-server /process its own generous budget (default 30 minutes).
+  MEDIA_PROCESS_TIMEOUT_MS: z.coerce.number().int().positive().default(1_800_000),
+  // Deepgram uploads the whole media file in one request — duration scales
+  // with video length, so it gets its own budget too (default 10 minutes).
+  TRANSCRIBE_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
   WEB_API_PORT: z.coerce.number().int().positive().default(3000),
   MEDIA_SERVER_PORT: z.coerce.number().int().positive().default(3100),
   MEDIA_SERVER_BASE_URL: z.string().url().default("http://media-server:3100"),
+  // Where media-server posts its signed progress/completion webhooks.
+  WEB_API_BASE_URL: z.string().url().default("http://web-api:3000"),
   WORKER_ID: z.string().default("worker-1"),
   WORKER_CLAIM_BATCH_SIZE: z.coerce.number().int().positive().default(5),
   WORKER_LEASE_SECONDS: z.coerce.number().int().positive().default(60),

@@ -134,7 +134,9 @@ but not from your browser or local machine.
 
 `MEDIA_SERVER_BASE_URL` is used by the main worker flow and the debug/system route to call `POST /process` on the media-server.
 
-Note: `WEB_API_BASE_URL` has been removed from the config schema. It was previously used only in the debug/system route to construct a webhook callback URL that was passed to the media-server — but the media-server never consumed it. The dead field has been cleaned up from both the request body and the config.
+| `WEB_API_BASE_URL` | `http://web-api:3000` | `http://localhost:3000` |
+
+`MEDIA_SERVER_BASE_URL` is used by the main worker flow and the debug/system route to call `POST /process` on the media-server. `WEB_API_BASE_URL` is used by the media-server to post its signed progress/completion webhooks back to web-api.
 
 ---
 
@@ -157,7 +159,9 @@ Note: `WEB_API_BASE_URL` has been removed from the config schema. It was previou
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq language model. |
 | `DEEPGRAM_BASE_URL` | `https://api.deepgram.com` | Deepgram API base URL. Override only for testing. |
 | `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | Groq API base URL. Override only for testing. |
-| `PROVIDER_TIMEOUT_MS` | `45000` | Timeout in ms for AI provider HTTP calls. |
+| `PROVIDER_TIMEOUT_MS` | `45000` | Timeout in ms for quick provider HTTP calls (Groq, media-server handoff). |
+| `TRANSCRIBE_TIMEOUT_MS` | `600000` | Timeout in ms for the Deepgram transcription request (uploads the extracted audio of the whole video — scales with duration). |
+| `MEDIA_PROCESS_TIMEOUT_MS` | `1800000` | Transcode budget in ms: the maintenance watchdog fails videos stuck mid-processing past this with no active `process_video` job. |
 
 ---
 

@@ -12,6 +12,7 @@ import {
   deleteVideo,
   getJobStatus,
   getVideoStatus,
+  getVideoStatusSummary,
   saveWatchEdits,
   retryVideo,
   type JobStatusResponse,
@@ -165,6 +166,8 @@ export function VideoPage() {
 
   /* ── Core state ──────────────────────────────────────────────────────── */
   const [status,                 setStatus]                = useState<VideoStatusResponse | null>(null);
+  const statusRef = useRef<VideoStatusResponse | null>(null);
+  useEffect(() => { statusRef.current = status; }, [status]);
   const [jobStatus,              setJobStatus]             = useState<JobStatusResponse | null>(null);
   const [loading,                setLoading]               = useState(false);
   const [errorMessage,           setErrorMessage]          = useState<string | null>(null);
@@ -265,7 +268,21 @@ export function VideoPage() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const nextStatus = await getVideoStatus(videoId);
+      // Poll the lightweight summary; only refetch the full payload (which
+      // carries the whole transcript + AI output) when those statuses change.
+      let nextStatus: VideoStatusResponse;
+      const current = statusRef.current;
+      if (!current) {
+        nextStatus = await getVideoStatus(videoId);
+      } else {
+        const summary = await getVideoStatusSummary(videoId);
+        const heavyChanged =
+          summary.transcriptionStatus !== current.transcriptionStatus ||
+          summary.aiStatus !== current.aiStatus;
+        nextStatus = heavyChanged
+          ? await getVideoStatus(videoId)
+          : { ...current, ...summary };
+      }
       setStatus(nextStatus);
       setLastUpdatedAt(new Date().toISOString());
       setConsecutivePollFailures(0);
@@ -296,13 +313,37 @@ export function VideoPage() {
 
   useEffect(() => { if (videoId) void refresh(); }, [videoId, refresh]);
 
+  // Tracks when polling started so the cadence can back off for long jobs.
+  const pollStartedAtRef = useRef<number | null>(null);
+
   useEffect(() => {
-    if (!videoId || isDeleted || isDeleting || hasReachedTerminalState(status)) return;
+    if (!videoId || isDeleted || isDeleting || hasReachedTerminalState(status)) {
+      pollStartedAtRef.current = null;
+      return;
+    }
+    if (pollStartedAtRef.current === null) pollStartedAtRef.current = Date.now();
+    const elapsedMs = Date.now() - pollStartedAtRef.current;
+    // Snappy while a job is likely to finish quickly, then back off:
+    // 2s for the first 30s, 5s up to 2min, 10s up to 10min, then 20s.
+    const baseDelayMs =
+      elapsedMs < 30_000 ? 2000 :
+      elapsedMs < 120_000 ? 5000 :
+      elapsedMs < 600_000 ? 10_000 :
+      20_000;
     const delayMs = consecutivePollFailures === 0
-      ? 2000
-      : Math.min(15000, 2000 * 2 ** consecutivePollFailures);
-    const timeout = window.setTimeout(() => void refresh(), delayMs);
-    return () => window.clearTimeout(timeout);
+      ? baseDelayMs
+      : Math.min(30_000, Math.max(baseDelayMs, 2000 * 2 ** consecutivePollFailures));
+    // Don't poll while the tab is hidden; refresh immediately when it becomes
+    // visible again (the visibilitychange handler below).
+    const timeout = window.setTimeout(() => {
+      if (!document.hidden) void refresh();
+    }, delayMs);
+    const onVisible = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearTimeout(timeout);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [videoId, status, refresh, consecutivePollFailures, isDeleted, isDeleting]);
 
   /* ── Retry ───────────────────────────────────────────────────────────── */

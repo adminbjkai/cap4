@@ -17,6 +17,40 @@
 
 ## Current State
 
+### 2026-06-10 — Transcode timeout fix + lightweight status polling (live)
+- **Transcode timeout fixed** — worker's media-server `POST /process` call now uses new
+  `MEDIA_PROCESS_TIMEOUT_MS` config (default 30 min) instead of `PROVIDER_TIMEOUT_MS`
+  (45 s), which aborted any long non-remuxable transcode (a 1h49m VP9 upload was stuck
+  "downloading 20%" with transcript complete). Media-server work dir is now per-attempt
+  (`/tmp/cap4-media/<videoId>-<uuid>`) so overlapping retries can't delete each other's
+  files. Closes the "worker transcode timeout" open audit finding.
+- **Transcription hardened** — new `TRANSCRIBE_TIMEOUT_MS` (default 10 min) for the
+  Deepgram call (was the shared 45 s `PROVIDER_TIMEOUT_MS`, which aborted ~2 h files).
+  `transcribe_video` now defers (new `snooze()` — requeue without consuming an attempt)
+  while a `process_video` job for the same video is active, so the ffmpeg transcode no
+  longer starves the Deepgram upload of CPU/bandwidth.
+- **Compact transcription uploads** — worker streams the source to a temp file (never
+  buffers GBs in RAM) and sends only the extracted mp3 audio track to Deepgram
+  (~20-50x smaller upload); falls back to the original media if ffmpeg extraction fails.
+- **Async media-server** — `POST /process` replies 202 immediately; the pipeline runs in
+  the background and reports `probing`/`processing`/`uploading`/`complete`/`failed` via
+  signed webhooks to web-api's `/api/webhooks/media-server/progress`, which now also
+  persists `result_key`/`thumbnail_key`/`error_message` and owns downstream orchestration
+  (queue transcription, or `no_audio`/`skipped`). The worker acks `process_video` at
+  handoff; a maintenance watchdog fails videos stuck at rank 20-60 past
+  `MEDIA_PROCESS_TIMEOUT_MS` with no active process job. Real per-phase progress now
+  reaches the UI during transcode. Media-server retries the whole pipeline internally
+  (3 attempts) before sending `failed`, replacing the queue-level retries the sync flow
+  had. `/debug/smoke` updated to poll for terminal phase instead of expecting a sync
+  result. E2E-verified live: happy path (VP9 upload → complete, all jobs attempt 1,
+  full webhook trail) and failure path (missing S3 key → terminal `failed` + Retry works).
+- **Status polling slimmed** — `GET /api/videos/:id/status?view=summary` returns the
+  status fields without transcript segments / AI output (~0.5 KB vs ~292 KB). VideoPage
+  polls the summary and refetches the full payload only when `transcriptionStatus` /
+  `aiStatus` change. Polling still stops at terminal state.
+- Deployed via hot-swap (worker, media-server, web-api videos route) + frontend volume
+  copy; stuck video d1b084cd reprocessed successfully end-to-end. Web tests 30/30.
+
 ### 2026-06-05 — Phase 4.8 (live)
 - **Rail-tab crossfade fix** — VideoPage tab transition no longer leaves the previous
   panel stuck as an absolute overlay under `prefers-reduced-motion` (effect timer race
@@ -148,7 +182,7 @@ Full-app review completed 2026-03-23 (Claude Opus 4.6 + Codex GPT-5.4, independe
 - **Migrations:** `migrate` service uses `schema_migrations` table to track applied migrations; runs on every `docker compose up`
 - **Job queue:** PostgreSQL `FOR UPDATE SKIP LOCKED` — no Redis
 - **State machine:** Monotonic `processing_phase_rank`, terminal states: `complete`, `failed`, `cancelled`
-- **Webhooks:** inbound progress webhook route exists for signed callbacks; mainline worker flow currently calls media-server synchronously via `POST /process`
+- **Webhooks:** mainline flow — worker POSTs `/process`, media-server replies 202 and reports phases/completion/failure via signed webhooks to web-api, which owns finalize (result keys, queue transcription, no_audio). Worker watchdog fails videos stuck mid-processing past `MEDIA_PROCESS_TIMEOUT_MS`
 - **AI:** Deepgram (transcription) + Groq (title/summary/chapters)
 - **URL routing:** Frontend uses relative `/cap4/...` paths → nginx proxies to MinIO (Docker); Vite dev server proxies to `localhost:9000` (local dev)
 

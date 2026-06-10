@@ -385,12 +385,15 @@ export async function systemRoutes(app: FastifyInstance) {
           [created.videoId]
         );
 
+        // Async handoff: media-server replies 202 and finalizes the video via
+        // its signed progress webhooks; poll the row until terminal.
         const processRes = await fetch(`${env.MEDIA_SERVER_BASE_URL}/process`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             videoId: created.videoId,
-            rawKey: created.rawKey
+            rawKey: created.rawKey,
+            jobId: String(created.jobId)
           })
         });
 
@@ -401,35 +404,26 @@ export async function systemRoutes(app: FastifyInstance) {
 
         const mediaJson = (await processRes.json()) as ProcessResponse;
 
-        // Finalize processing state with rank-based monotonic guard.
-        await withTransaction(env.DATABASE_URL, async (client) => {
-          await client.query(
-            `UPDATE videos
-             SET processing_phase = 'complete',
-                 processing_phase_rank = 70,
-                 processing_progress = 100,
-                 result_key = $2,
-                 thumbnail_key = $3,
-                 duration_seconds = $4,
-                 width = $5,
-                 height = $6,
-                 fps = COALESCE($7, fps),
-                 error_message = NULL,
-                 completed_at = COALESCE(completed_at, now()),
-                 updated_at = now()
-             WHERE id = $1::uuid
-               AND processing_phase_rank < 70`,
-            [
-              created.videoId,
-              mediaJson.resultKey,
-              mediaJson.thumbnailKey,
-              mediaJson.durationSeconds ?? null,
-              mediaJson.width ?? null,
-              mediaJson.height ?? null,
-              mediaJson.fps ?? null
-            ]
+        const deadline = Date.now() + 60_000;
+        let terminal = false;
+        while (Date.now() < deadline) {
+          const row = await query<{ processing_phase_rank: number }>(
+            env.DATABASE_URL,
+            `SELECT processing_phase_rank FROM videos WHERE id = $1::uuid`,
+            [created.videoId]
           );
+          const rank = Number(row.rows[0]?.processing_phase_rank ?? 0);
+          if (rank >= 70) {
+            terminal = true;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        if (!terminal) {
+          return reply.code(500).send({ ok: false, error: "smoke video did not reach a terminal phase within 60s" });
+        }
 
+        await withTransaction(env.DATABASE_URL, async (client) => {
           // This debug path bypasses the worker; mark the synthetic job row as terminal for operator clarity.
           await client.query(
             `UPDATE job_queue

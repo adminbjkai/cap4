@@ -2,10 +2,14 @@ import { getEnv } from "@cap/config";
 import { withTransaction } from "@cap/db";
 import type { PoolClient } from "pg";
 import { buildWebVtt } from "./lib/transcript.js";
-import { getObjectBuffer, getS3ClientAndBucket, putObjectBuffer, deleteObjects } from "./lib/s3.js";
+import { downloadObjectToFile, getS3ClientAndBucket, putObjectBuffer, deleteObjects } from "./lib/s3.js";
 import { transcribeWithDeepgram, type TranscriptSegment } from "./providers/deepgram.js";
 import { summarizeWithGroq } from "./providers/groq.js";
-import { extractAudio } from "./lib/ffmpeg.js";
+import { extractAudioFromFile } from "./lib/ffmpeg.js";
+import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 type JobType = "process_video" | "transcribe_video" | "generate_ai" | "cleanup_artifacts";
 
@@ -24,16 +28,6 @@ type JobRow = {
 type FailResult = {
   id: number;
   status: "queued" | "dead";
-};
-
-type ProcessResponse = {
-  resultKey: string;
-  thumbnailKey: string;
-  durationSeconds?: number;
-  width?: number;
-  height?: number;
-  fps?: number;
-  hasAudio?: boolean;
 };
 
 const PROCESSING_PHASE_META = {
@@ -200,6 +194,31 @@ async function ack(client: PoolClient, job: JobRow): Promise<void> {
   }
 }
 
+// Releases a leased/running job back to the queue to run later WITHOUT
+// consuming a retry attempt (claiming incremented attempts; undo that).
+const SNOOZE_SQL = `
+UPDATE job_queue
+SET status = 'queued',
+    run_after = now() + make_interval(secs => $4),
+    attempts = GREATEST(0, attempts - 1),
+    locked_by = NULL,
+    locked_until = NULL,
+    lease_token = NULL,
+    updated_at = now()
+WHERE id = $1
+  AND locked_by = $2
+  AND lease_token = $3
+  AND status IN ('leased', 'running')
+RETURNING id;
+`;
+
+async function snooze(client: PoolClient, job: JobRow, delaySeconds: number): Promise<void> {
+  const result = await client.query(SNOOZE_SQL, [job.id, env.WORKER_ID, job.lease_token, delaySeconds]);
+  if (result.rowCount === 0) {
+    throw new Error(`unable to snooze job ${job.id}: row not found or lease lost`);
+  }
+}
+
 const FAIL_SQL = `
 UPDATE job_queue
 SET status = (CASE WHEN $5 = true OR attempts >= max_attempts THEN 'dead' ELSE 'queued' END)::job_status,
@@ -343,6 +362,34 @@ async function isMediaServerHealthy(): Promise<boolean> {
 async function runMaintenance(): Promise<void> {
   await withTransaction(env.DATABASE_URL, async (client) => {
     await client.query(CLEANUP_MAINTENANCE_SQL);
+
+    // Watchdog for the async transcode handoff: if media-server accepted a
+    // job but never reported completion or failure (crash, lost webhooks),
+    // the video would sit at rank 20-60 forever. Past the transcode budget,
+    // with no process_video job left in the queue, mark it failed so the UI
+    // reaches a terminal state and the Retry button works.
+    const stuck = await client.query<{ id: string }>(
+      `UPDATE videos v
+       SET processing_phase = 'failed',
+           processing_phase_rank = 80,
+           processing_progress = 100,
+           error_message = 'video processing timed out (no completion report from media-server)',
+           updated_at = now()
+       WHERE v.deleted_at IS NULL
+         AND v.processing_phase_rank BETWEEN 20 AND 60
+         AND v.updated_at < now() - make_interval(secs => $1)
+         AND NOT EXISTS (
+           SELECT 1 FROM job_queue j
+           WHERE j.video_id = v.id
+             AND j.job_type = 'process_video'
+             AND j.status IN ('queued', 'leased', 'running')
+         )
+       RETURNING v.id`,
+      [Math.ceil(env.MEDIA_PROCESS_TIMEOUT_MS / 1000)]
+    );
+    for (const row of stuck.rows) {
+      log("maintenance.transcode_watchdog_failed_video", { video_id: row.id });
+    }
   });
 }
 
@@ -498,6 +545,11 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
     return;
   }
 
+  // Hand off to the media-server: it replies 202 immediately and reports
+  // phases / completion / failure via signed webhooks to web-api, which owns
+  // the finalize logic (result keys, downstream transcription, no-audio).
+  // The 202 means the job is accepted, so the queue job is done here; the
+  // worker maintenance watchdog catches handoffs that never report back.
   let mediaRes: Response;
   try {
     mediaRes = await fetch(`${env.MEDIA_SERVER_BASE_URL}/process`, {
@@ -506,7 +558,8 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
       signal: AbortSignal.timeout(env.PROVIDER_TIMEOUT_MS),
       body: JSON.stringify({
         videoId: job.video_id,
-        rawKey: preProcess.rawKey
+        rawKey: preProcess.rawKey,
+        jobId: String(job.id)
       })
     });
   } catch (error) {
@@ -520,156 +573,9 @@ async function handleProcessVideo(job: JobRow): Promise<void> {
     throw new Error(`media-server /process failed: ${mediaRes.status} ${text}`);
   }
 
-  const mediaJson = (await mediaRes.json()) as ProcessResponse;
-  const hasAudio = mediaJson.hasAudio !== false;
+  log("job.process.handoff", { job_id: job.id, video_id: job.video_id });
 
   await withTransaction(env.DATABASE_URL, async (client) => {
-    const current = await client.query<{ transcription_status: string; ai_status: string; deleted_at: string | null }>(
-      `SELECT transcription_status, ai_status, deleted_at
-       FROM videos
-       WHERE id = $1::uuid
-       FOR UPDATE`,
-      [job.video_id]
-    );
-
-    if (current.rowCount === 0) {
-      throw new Error(`video ${job.video_id} not found during process finalize`);
-    }
-
-    if (current.rows[0]!.deleted_at) {
-      log("job.process.skip", { job_id: job.id, video_id: job.video_id, reason: "deleted_during_finalize" });
-      await ack(client, job);
-      return;
-    }
-
-    await updateProcessingPhase(client, job, "probing");
-    await updateProcessingPhase(client, job, "processing");
-    await updateProcessingPhase(client, job, "uploading");
-    await updateProcessingPhase(client, job, "generating_thumbnail");
-
-    await client.query(
-      `UPDATE videos
-       SET processing_phase = 'complete',
-           processing_phase_rank = 70,
-           processing_progress = GREATEST(processing_progress, 100),
-           result_key = $2,
-           thumbnail_key = $3,
-           duration_seconds = $4,
-           width = $5,
-           height = $6,
-           fps = COALESCE($7, fps),
-           error_message = NULL,
-           completed_at = COALESCE(completed_at, now()),
-           updated_at = now()
-       WHERE id = $1::uuid
-         AND deleted_at IS NULL
-         AND (
-           processing_phase_rank < 70
-           OR (processing_phase_rank = 70 AND processing_progress < 100)
-         )`,
-      [
-        job.video_id,
-        mediaJson.resultKey,
-        mediaJson.thumbnailKey,
-        mediaJson.durationSeconds ?? null,
-        mediaJson.width ?? null,
-        mediaJson.height ?? null,
-        mediaJson.fps ?? null
-      ]
-    );
-
-    log("job.process.phase_transition", {
-      job_id: job.id,
-      video_id: job.video_id,
-      phase: "complete",
-      phase_rank: PROCESSING_PHASE_META.complete.rank,
-      progress: PROCESSING_PHASE_META.complete.progress
-    });
-
-    const transcriptionStatus = String(current.rows[0]!.transcription_status);
-
-    if (hasAudio) {
-      const shouldQueueTranscription = transcriptionStatus === "not_started" || transcriptionStatus === "queued";
-      if (!shouldQueueTranscription) {
-        await ack(client, job);
-        return;
-      }
-
-      await client.query(
-        `UPDATE videos
-         SET transcription_status = 'queued',
-             updated_at = now()
-         WHERE id = $1::uuid
-           AND deleted_at IS NULL
-           AND transcription_status IN ('not_started', 'queued')`,
-        [job.video_id]
-      );
-
-      // First try to reset any existing dead job
-      const resetResult = await client.query(
-        `UPDATE job_queue
-         SET status = 'queued',
-             attempts = 0,
-             run_after = now(),
-             last_error = NULL,
-             updated_at = now()
-         WHERE video_id = $1::uuid
-           AND job_type = 'transcribe_video'
-           AND status = 'dead'
-         RETURNING id`,
-        [job.video_id]
-      );
-
-      // If no dead job was reset, insert one — but only when NO transcribe job
-      // exists at all for this video. Transcription is normally enqueued at
-      // upload-complete (parallel to the transcode); this is a legacy/safety
-      // net, and the NOT EXISTS guard prevents re-transcribing a video whose
-      // early transcription already succeeded.
-      if ((resetResult.rowCount ?? 0) === 0) {
-        await client.query(
-          `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
-           SELECT $1::uuid, 'transcribe_video', 'queued', 95, now(), '{}'::jsonb, $2
-           WHERE NOT EXISTS (
-             SELECT 1 FROM job_queue
-             WHERE video_id = $1::uuid AND job_type = 'transcribe_video'
-           )
-           ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
-           DO UPDATE SET updated_at = now()`,
-          [job.video_id, env.WORKER_MAX_ATTEMPTS]
-        );
-      }
-
-      log("job.process.downstream_enqueued", {
-        job_id: job.id,
-        video_id: job.video_id,
-        downstream_job_type: "transcribe_video"
-      });
-
-      await ack(client, job);
-      return;
-    }
-
-    await client.query(
-      `UPDATE videos
-       SET transcription_status = CASE
-             WHEN transcription_status IN ('not_started', 'queued', 'processing') THEN 'no_audio'
-             ELSE transcription_status
-           END,
-           ai_status = CASE
-             WHEN ai_status IN ('not_started', 'queued') THEN 'skipped'
-             ELSE ai_status
-           END,
-           updated_at = now()
-       WHERE id = $1::uuid
-         AND deleted_at IS NULL`,
-      [job.video_id]
-    );
-
-    log("job.process.no_audio", {
-      job_id: job.id,
-      video_id: job.video_id
-    });
-
     await ack(client, job);
   });
 }
@@ -682,9 +588,10 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
       result_key: string | null;
       raw_key: string | null;
       transcription_status: string;
+      processing_phase_rank: number;
       deleted_at: string | null;
     }>(
-      `SELECT v.result_key, u.raw_key, v.transcription_status, v.deleted_at
+      `SELECT v.result_key, u.raw_key, v.transcription_status, v.processing_phase_rank, v.deleted_at
        FROM videos v
        LEFT JOIN uploads u ON u.video_id = v.id
        WHERE v.id = $1::uuid
@@ -715,6 +622,25 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
       throw new Error(`no media key (raw or result) for video ${job.video_id}`);
     }
 
+    // While the same video is being transcoded, ffmpeg saturates CPU and
+    // bandwidth and the Deepgram upload crawls — defer (no attempt consumed)
+    // instead of racing it. Two signals: a process_video job still queued
+    // (pre-handoff), or a phase rank of 20-60 (media-server is working on it
+    // after the async handoff). A lost transcode can't defer us forever: the
+    // maintenance watchdog fails stuck videos past MEDIA_PROCESS_TIMEOUT_MS.
+    const phaseRank = Number(row.processing_phase_rank ?? 0);
+    const transcodeActive = await client.query(
+      `SELECT 1 FROM job_queue
+       WHERE video_id = $1::uuid
+         AND job_type = 'process_video'
+         AND status IN ('queued', 'leased', 'running')
+       LIMIT 1`,
+      [job.video_id]
+    );
+    if ((transcodeActive.rowCount ?? 0) > 0 || (phaseRank >= 20 && phaseRank <= 60)) {
+      return { skip: false as const, defer: true as const, resultKey: "", reason: "transcode_in_progress" };
+    }
+
     await client.query(
       `UPDATE videos
        SET transcription_status = 'processing',
@@ -740,23 +666,53 @@ async function handleTranscribeVideo(job: JobRow): Promise<void> {
     return;
   }
 
+  if ("defer" in prepared && prepared.defer) {
+    log("job.transcribe.deferred", {
+      job_id: job.id,
+      video_id: job.video_id,
+      reason: prepared.reason
+    });
+    await withTransaction(env.DATABASE_URL, async (client) => {
+      await snooze(client, job, 15);
+    });
+    return;
+  }
+
   if (!env.DEEPGRAM_API_KEY) {
     throw new Error("Missing DEEPGRAM_API_KEY in worker environment");
   }
 
-  const mediaBuffer = await getObjectBuffer(s3Client, s3Bucket, prepared.resultKey);
-  const audioBuffer = await extractAudio(mediaBuffer).catch((err) => {
-    log("job.transcribe.audio_extraction_failed", { video_id: job.video_id, error: err.message });
-    return mediaBuffer; // Fallback to original buffer if extraction fails
-  });
+  // Stream the source to disk (it can be GBs — never buffer it in memory),
+  // then extract a compact mp3: Deepgram only needs the audio track, so the
+  // upload shrinks ~20-50x versus sending the whole video.
+  const mediaPath = join(tmpdir(), `cap4-transcribe-${randomUUID()}`);
+  let audioBuffer: Buffer;
+  let extractedAudio = true;
+  try {
+    await downloadObjectToFile(s3Client, s3Bucket, prepared.resultKey, mediaPath);
+    try {
+      audioBuffer = await extractAudioFromFile(mediaPath);
+    } catch (err) {
+      log("job.transcribe.audio_extraction_failed", {
+        video_id: job.video_id,
+        error: err instanceof Error ? err.message : String(err)
+      });
+      // Fallback: send the original media so an ffmpeg hiccup can't kill
+      // transcription outright. Deepgram accepts video containers too.
+      audioBuffer = await fs.readFile(mediaPath);
+      extractedAudio = false;
+    }
+  } finally {
+    await fs.rm(mediaPath, { force: true }).catch(() => undefined);
+  }
 
   const transcription = await transcribeWithDeepgram({
     apiKey: env.DEEPGRAM_API_KEY,
     baseUrl: env.DEEPGRAM_BASE_URL,
     model: deepgramModel,
-    timeoutMs: env.PROVIDER_TIMEOUT_MS,
+    timeoutMs: env.TRANSCRIBE_TIMEOUT_MS,
     mediaBuffer: audioBuffer,
-    mediaContentType: audioBuffer === mediaBuffer ? "application/octet-stream" : "audio/mpeg"
+    mediaContentType: extractedAudio ? "audio/mpeg" : "application/octet-stream"
   });
 
   if (!transcription.transcriptText.trim()) {
