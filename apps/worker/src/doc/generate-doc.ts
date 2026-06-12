@@ -24,7 +24,7 @@ import {
 import { triageFrames } from "./stage-b.js";
 import { generateDoc, type DocTranscriptSegment } from "./stage-c.js";
 import { PROMPT_VERSION } from "./stage-c.js";
-import { cropFrame, findInvalidFrameRefs, renderMarkdown, stripInvalidFrameRefs } from "./stage-d.js";
+import { cropFrame, dedupeStepImages, findInvalidFrameRefs, renderMarkdown, stripInvalidFrameRefs } from "./stage-d.js";
 import type { DocOutput, ManifestFrame } from "./schema.js";
 
 type LogFn = (event: string, fields: Record<string, unknown>) => void;
@@ -189,6 +189,7 @@ export async function runDocPipeline(opts: {
     invalid = findInvalidFrameRefs(doc, manifestIds);
   }
   doc = stripInvalidFrameRefs(doc, invalid);
+  doc = dedupeStepImages(doc);
 
   // Stage D — crops + markdown
   const framesByLabel = new Map(frames.map((f) => [f.frameId, f]));

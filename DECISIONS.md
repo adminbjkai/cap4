@@ -74,6 +74,14 @@ Ambiguity calls made during the autonomous session, simplest-option-first.
     'complete'`** and returns 409 otherwise. A doc without a transcript
     contradicts the Stage C contract; `no_audio` videos can't have docs.
 
+15a. **Screenshot-spam hardening (owner feedback, 2026-06-12, prompt v2).**
+    The first live 43-min doc used 3 frames for 18 of 25 step screenshots,
+    sliced into ~5%-height row strips. Fixes: deterministic Stage D guard
+    (max 2 image uses per frame, no duplicate frame+crop, slivers widened to
+    ≥12%), prompt v2 (screenshots only when informative, no row-slicing),
+    ≤40 images per model call, SSIM dedup tightened to 0.92. PROMPT_VERSION
+    bumped to v2 so caches invalidate correctly.
+
 15. **Additive-only guarantee (owner request, mid-session).** Nothing in the
     existing pipeline was changed: Groq still does title/summary/chapters/
     enrichment on its own API key, Deepgram still does transcription +

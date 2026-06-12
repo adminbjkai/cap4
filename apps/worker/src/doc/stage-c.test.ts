@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GenerateStructuredParams, DocModelClient } from "./model-client.js";
 import type { DocOutput, ManifestFrame } from "./schema.js";
-import { buildDocCacheKey, concatChapterDocs, formatTranscript, generateDoc } from "./stage-c.js";
+import { buildDocCacheKey, concatChapterDocs, formatTranscript, generateDoc, thinFrames } from "./stage-c.js";
 
 const noop = () => undefined;
 
@@ -139,6 +139,21 @@ describe("generateDoc", () => {
     });
     expect(result.sections.length).toBe(2);
     expect(result.confidence_notes).toContain("chapter outputs were concatenated without a merge pass");
+  });
+});
+
+describe("thinFrames", () => {
+  it("returns short lists unchanged", () => {
+    const frames = [1, 2, 3];
+    expect(thinFrames(frames, 40)).toBe(frames);
+  });
+
+  it("thins long lists evenly, preserving order", () => {
+    const frames = Array.from({ length: 100 }, (_, i) => i);
+    const thinned = thinFrames(frames, 40);
+    expect(thinned.length).toBe(40);
+    expect(thinned[0]).toBe(0);
+    expect([...thinned].sort((a, b) => a - b)).toEqual(thinned);
   });
 });
 

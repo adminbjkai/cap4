@@ -8,7 +8,9 @@ const SCENE_THRESHOLD = 0.10;
 const CAPTURE_OFFSET_S = 0.5; // capture at scene-change end + 500ms
 const MIN_FRAMES = 50;
 const MAX_FRAMES = 150;
-const SSIM_DUP_THRESHOLD = 0.95;
+// Screen recordings change little between near-identical states (cursor,
+// caret); 0.92 trims those at the source so fewer images reach the model.
+const SSIM_DUP_THRESHOLD = 0.92;
 const SILENCE_GAP_S = 3;
 const SCENE_CLUSTER_WINDOW_S = 2;
 

@@ -3,7 +3,20 @@ import type { DocModelClient } from "./model-client.js";
 import { DocOutputSchema, type DocOutput, type ManifestFrame } from "./schema.js";
 import { splitIntoChapters, type Chapter } from "./stage-a.js";
 
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
+
+// Vision tokens dominate the cost of a doc call — cap how many frame images
+// any single call sees (evenly thinned across the chapter's timeline).
+const MAX_FRAMES_PER_DOC_CALL = 40;
+
+export function thinFrames<T>(frames: T[], max = MAX_FRAMES_PER_DOC_CALL): T[] {
+  if (frames.length <= max) return frames;
+  const out: T[] = [];
+  for (let i = 0; i < max; i++) {
+    out.push(frames[Math.floor((i * frames.length) / max)]!);
+  }
+  return out;
+}
 
 export type DocTranscriptSegment = {
   startSeconds: number;
@@ -18,9 +31,14 @@ const DOC_SYSTEM_PROMPT =
   `{"title":"...","doc_type":"runbook|tutorial|sop","sections":[{"heading":"...","body_md":"...",` +
   `"steps":[{"text":"...","frame_id":"f_087","crop":{"x":0.6,"y":0.1,"w":0.35,"h":0.3},"alt":"...","callout":"..."}],` +
   `"source_span":{"start_s":261,"end_s":318}}],"unused_frames":[],"confidence_notes":[]}\n` +
-  "Rules: frame_id MUST be one of the manifest ids (omit it rather than guess); crop is an optional fractional " +
-  "box highlighting the relevant region; source_span gives the transcript seconds the section came from; " +
-  "list manifest frames you did not use in unused_frames; put any uncertainty into confidence_notes.";
+  "Rules: frame_id MUST be one of the manifest ids (omit it rather than guess). " +
+  "Attach a screenshot ONLY when it shows something the step text cannot convey (a specific screen, dialog, " +
+  "error, or setting) — most steps should have NO frame_id. Never attach the same frame to more than 2 steps " +
+  "and never repeat the same frame+crop. Do not slice one frame into multiple thin strips: if several steps " +
+  "refer to rows or fields visible in one frame, attach that frame once, on the most important step, with a " +
+  "single crop covering the whole relevant region. A crop is optional and must cover a meaningful region " +
+  "(at least 15% of the frame's width and height). source_span gives the transcript seconds the section came " +
+  "from; list manifest frames you did not use in unused_frames; put any uncertainty into confidence_notes.";
 
 function formatTimestamp(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -139,7 +157,7 @@ export async function generateDoc(opts: {
       client: opts.client,
       model: opts.strongModel,
       segments: opts.segments,
-      frames: opts.manifest,
+      frames: thinFrames(opts.manifest),
       workdir: opts.workdir,
       videoId: opts.videoId,
       chapterLabel: "full",
@@ -153,7 +171,7 @@ export async function generateDoc(opts: {
     const segments = opts.segments.filter(
       (s) => s.startSeconds >= chapter.start && s.startSeconds < chapter.end
     );
-    const frames = opts.manifest.filter((f) => f.ts >= chapter.start && f.ts < chapter.end);
+    const frames = thinFrames(opts.manifest.filter((f) => f.ts >= chapter.start && f.ts < chapter.end));
     chapterDocs.push(
       await docCall({
         client: opts.client,

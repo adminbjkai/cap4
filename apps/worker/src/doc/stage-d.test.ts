@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DocOutput } from "./schema.js";
-import { findInvalidFrameRefs, renderMarkdown, stripInvalidFrameRefs } from "./stage-d.js";
+import type { DocOutput, DocStep } from "./schema.js";
+import { dedupeStepImages, findInvalidFrameRefs, renderMarkdown, stripInvalidFrameRefs } from "./stage-d.js";
 
 const baseDoc: DocOutput = {
   title: "Deploy the service",
@@ -44,6 +44,66 @@ describe("stripInvalidFrameRefs", () => {
 
   it("is a no-op for an empty invalid list", () => {
     expect(stripInvalidFrameRefs(baseDoc, [])).toBe(baseDoc);
+  });
+});
+
+describe("dedupeStepImages", () => {
+  const docWith = (steps: DocStep[]): DocOutput => ({
+    title: "T",
+    doc_type: "runbook",
+    sections: [{ heading: "S", body_md: "", steps, source_span: null }],
+    unused_frames: [],
+    confidence_notes: []
+  });
+
+  it("caps a frame at 2 step images and records one summary note", () => {
+    const result = dedupeStepImages(
+      docWith([
+        { text: "a", frame_id: "f_0001", crop: { x: 0, y: 0.1, w: 0.5, h: 0.2 } },
+        { text: "b", frame_id: "f_0001", crop: { x: 0, y: 0.4, w: 0.5, h: 0.2 } },
+        { text: "c", frame_id: "f_0001", crop: { x: 0, y: 0.7, w: 0.5, h: 0.2 } }
+      ])
+    );
+    const steps = result.sections[0]!.steps;
+    expect(steps[0]!.frame_id).toBe("f_0001");
+    expect(steps[1]!.frame_id).toBe("f_0001");
+    expect(steps[2]!.frame_id).toBeNull();
+    expect(steps[2]!.text).toBe("c"); // text survives
+    expect(result.confidence_notes).toEqual([
+      "removed 1 repetitive screenshot (same frame reused across steps)"
+    ]);
+  });
+
+  it("drops an exact frame+crop duplicate", () => {
+    const crop = { x: 0, y: 0.5, w: 0.6, h: 0.2 };
+    const result = dedupeStepImages(
+      docWith([
+        { text: "a", frame_id: "f_0001", crop },
+        { text: "b", frame_id: "f_0001", crop: { ...crop } }
+      ])
+    );
+    expect(result.sections[0]!.steps[1]!.frame_id).toBeNull();
+  });
+
+  it("widens sliver crops to a usable centered region", () => {
+    const result = dedupeStepImages(
+      docWith([{ text: "a", frame_id: "f_0001", crop: { x: 0, y: 0.5, w: 0.62, h: 0.05 } }])
+    );
+    const crop = result.sections[0]!.steps[0]!.crop!;
+    expect(crop.h).toBeCloseTo(0.12);
+    expect(crop.y).toBeCloseTo(0.465); // centered on the original strip
+    expect(crop.w).toBeCloseTo(0.62); // already large enough — unchanged
+  });
+
+  it("is a no-op (no note) on a clean doc", () => {
+    const result = dedupeStepImages(
+      docWith([
+        { text: "a", frame_id: "f_0001" },
+        { text: "b", frame_id: "f_0002" }
+      ])
+    );
+    expect(result.confidence_notes).toEqual([]);
+    expect(result.sections[0]!.steps.map((s) => s.frame_id)).toEqual(["f_0001", "f_0002"]);
   });
 });
 

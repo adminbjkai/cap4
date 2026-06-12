@@ -118,6 +118,10 @@ images readable from the working directory. Output is strict JSON:
 runs a triage-model **merge pass** (P1) unifies headings and dedupes
 intro/outro across chapter outputs.
 
+Token bounds: at most 40 frame images are attached to any single model call
+(`thinFrames`, even time-spacing), and SSIM dedup at extraction runs at 0.92
+to trim near-identical screen states before they cost vision tokens.
+
 Results are cached by SHA-256(transcript hash + manifest hash + prompt
 version + model), so retries and re-renders cost zero credits.
 
@@ -130,6 +134,13 @@ job (not a new service).
    manifest. On hallucinated refs the Stage C call is retried once with the
    invalid ids listed; refs still invalid after that are dropped from their
    steps and recorded in `confidence_notes` — never rendered silently.
+1b. **Screenshot dedup guard** (`dedupeStepImages`, prompt v2): a frame may
+   illustrate at most 2 steps per document, an identical frame+crop never
+   renders twice, and sliver crops (<12% of the frame) are widened to a
+   usable centered region. The prompt also instructs the model that most
+   steps need no screenshot and that one frame must never be sliced into
+   multiple thin row-crops. Removed repeats are summarized in one
+   confidence note.
 2. **Crops**: frames pulled from MinIO; fractional `crop` boxes applied with
    ffmpeg's `crop` filter (not sharp — DECISIONS.md #3), written to
    `videos/{id}/doc/{frame_id}_crop.jpg`.

@@ -39,6 +39,64 @@ export function stripInvalidFrameRefs(doc: DocOutput, invalid: string[]): DocOut
   };
 }
 
+const MAX_IMAGE_USES_PER_FRAME = 2;
+const MIN_CROP_FRACTION = 0.12;
+
+/**
+ * Deterministic guard against screenshot spam (the model slicing one frame
+ * into many thin row-crops, or attaching the same frame to every step):
+ * - a frame may illustrate at most 2 steps per document
+ * - an identical frame+crop never renders twice
+ * - sliver crops are widened to a usable region (≥12% of the frame, centered
+ *   on the original box)
+ * Steps keep their text; only the image is dropped. One summary confidence
+ * note records how many were removed.
+ */
+export function dedupeStepImages(doc: DocOutput): DocOutput {
+  const usesPerFrame = new Map<string, number>();
+  const seenFrameCrops = new Set<string>();
+  let removed = 0;
+
+  const widen = (value: number, size: number): { value: number; size: number } => {
+    if (size >= MIN_CROP_FRACTION) return { value, size };
+    const grown = MIN_CROP_FRACTION;
+    const shifted = value - (grown - size) / 2;
+    return { value: Math.min(Math.max(shifted, 0), 1 - grown), size: grown };
+  };
+
+  const sections = doc.sections.map((section) => ({
+    ...section,
+    steps: section.steps.map((step) => {
+      if (!step.frame_id) return step;
+      let crop = step.crop ?? null;
+      if (crop) {
+        const x = widen(crop.x, crop.w);
+        const y = widen(crop.y, crop.h);
+        crop = { x: x.value, w: x.size, y: y.value, h: y.size };
+      }
+      const cropKey = crop ? [crop.x, crop.y, crop.w, crop.h].map((v) => v.toFixed(2)).join(",") : "full";
+      const uses = usesPerFrame.get(step.frame_id) ?? 0;
+      if (uses >= MAX_IMAGE_USES_PER_FRAME || seenFrameCrops.has(`${step.frame_id}:${cropKey}`)) {
+        removed += 1;
+        return { ...step, frame_id: null, crop: null };
+      }
+      usesPerFrame.set(step.frame_id, uses + 1);
+      seenFrameCrops.add(`${step.frame_id}:${cropKey}`);
+      return { ...step, crop };
+    })
+  }));
+
+  if (removed === 0) return { ...doc, sections };
+  return {
+    ...doc,
+    sections,
+    confidence_notes: [
+      ...doc.confidence_notes,
+      `removed ${removed} repetitive screenshot${removed === 1 ? "" : "s"} (same frame reused across steps)`
+    ]
+  };
+}
+
 /** Applies a fractional crop box to a frame JPEG with ffmpeg. */
 export async function cropFrame(
   inputPath: string,
