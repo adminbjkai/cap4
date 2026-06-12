@@ -6,12 +6,13 @@ import { downloadObjectToFile, getS3ClientAndBucket, putObjectBuffer, deleteObje
 import { transcribeWithDeepgram, type TranscriptSegment } from "./providers/deepgram.js";
 import { summarizeWithGroq } from "./providers/groq.js";
 import { extractAudioFromFile } from "./lib/ffmpeg.js";
+import { handleGenerateDocJob } from "./doc/generate-doc.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-type JobType = "process_video" | "transcribe_video" | "generate_ai" | "cleanup_artifacts";
+type JobType = "process_video" | "transcribe_video" | "generate_ai" | "cleanup_artifacts" | "deliver_webhook" | "generate_doc";
 
 type JobPayload = Record<string, unknown>;
 
@@ -1074,6 +1075,20 @@ async function handleJob(job: JobRow): Promise<void> {
 
   if (job.job_type === "deliver_webhook") {
     await handleDeliverWebhook(job);
+    return;
+  }
+
+  if (job.job_type === "generate_doc") {
+    await handleGenerateDocJob(job, {
+      env,
+      s3Client,
+      s3Bucket,
+      ackJob: () =>
+        withTransaction(env.DATABASE_URL, async (client) => {
+          await ack(client, job);
+        }),
+      log
+    });
     return;
   }
 

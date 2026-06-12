@@ -29,7 +29,15 @@ const BaseEnv = z.object({
   WORKER_MAX_ATTEMPTS: z.coerce.number().int().positive().default(6),
   WORKER_POLL_MS: z.coerce.number().int().positive().default(2000),
   WORKER_HEARTBEAT_MS: z.coerce.number().int().positive().default(15000),
-  WORKER_RECLAIM_MS: z.coerce.number().int().positive().default(10000)
+  WORKER_RECLAIM_MS: z.coerce.number().int().positive().default(10000),
+  // Doc pipeline (PIPELINE_V2). Model IDs deliberately have no defaults —
+  // they are configured in .env, never hardcoded.
+  DOC_MODEL_BACKEND: z.enum(["claude-cli", "anthropic-api"]).default("claude-cli"),
+  DOC_MODEL_STRONG: z.string().optional(),
+  DOC_MODEL_TRIAGE: z.string().optional(),
+  DOC_MODEL_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
+  DOC_MAX_MODEL_CALLS_PER_JOB: z.coerce.number().int().positive().default(6),
+  DOC_MAX_MODEL_CALLS_PER_DAY: z.coerce.number().int().positive().default(60)
 });
 
 export type AppEnv = z.infer<typeof BaseEnv>;
