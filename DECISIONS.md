@@ -74,6 +74,15 @@ Ambiguity calls made during the autonomous session, simplest-option-first.
     'complete'`** and returns 409 otherwise. A doc without a transcript
     contradicts the Stage C contract; `no_audio` videos can't have docs.
 
+15b. **Radical simplification (owner request, 2026-06-12, prompt v3).**
+    "A few screenshots, cheap calls, no complexity, faster jobs": the doc
+    pass is now ONE model call per recording regardless of length — triage
+    (stage-b.ts, moved to .trash/), chaptering, and the merge pass are gone,
+    along with DOC_MODEL_TRIAGE. At most 16 images sent per call; extraction
+    band lowered to 12–40 frames; deterministic budget of 6 screenshots per
+    doc (2 per frame, no duplicates). A 43-min video went from 5 calls /
+    ~6 min to 1 call / ~2 min.
+
 15a. **Screenshot-spam hardening (owner feedback, 2026-06-12, prompt v2).**
     The first live 43-min doc used 3 frames for 18 of 25 step screenshots,
     sliced into ~5%-height row strips. Fixes: deterministic Stage D guard

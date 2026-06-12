@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runProcess } from "./exec.js";
 import type { DocModelClient, GenerateStructuredParams } from "./model-client.js";
-import type { DocOutput, TriageOutput } from "./schema.js";
+import type { DocOutput } from "./schema.js";
 import { runDocPipeline, type DocPipelineResult } from "./generate-doc.js";
 
 const VIDEO_ID = "11111111-2222-3333-4444-555555555555";
@@ -63,17 +63,6 @@ describe("doc pipeline (mocked model)", () => {
     async generateStructured(params) {
       modelCalls.push(params as GenerateStructuredParams<unknown>);
       const ids = manifestIdsFrom(params.userPrompt);
-      if (params.purpose === "triage") {
-        const triage: TriageOutput = {
-          frames: ids.map((id, index) => ({
-            frame_id: id,
-            caption: index === 0 ? "A solid red screen" : "A solid blue screen",
-            classification: "content"
-          }))
-        };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return triage as any;
-      }
       const isCorrective = params.userPrompt.includes("IMPORTANT CORRECTION");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return fixtureDoc(ids, !isCorrective) as any;
@@ -108,7 +97,6 @@ describe("doc pipeline (mocked model)", () => {
       ],
       client: mockedClient,
       strongModel: "mock-strong",
-      triageModel: "mock-triage",
       uploadObject: async (key, body) => {
         uploads.set(key, body);
       },
@@ -126,16 +114,14 @@ describe("doc pipeline (mocked model)", () => {
     for (const frame of result.frames) {
       expect(uploads.has(frame.s3Key)).toBe(true);
       expect(frame.s3Key).toBe(`videos/${VIDEO_ID}/frames/${frame.frameId}.jpg`);
-      expect(frame.caption).toBeTruthy(); // triage captions applied
-      expect(frame.classification).toBe("content");
     }
   });
 
-  it("retries once on the hallucinated frame ref", () => {
-    const docCalls = modelCalls.filter((c) => c.purpose.startsWith("doc:"));
-    expect(docCalls.length).toBe(2);
-    expect(docCalls[1]!.userPrompt).toContain("f_9999");
-    expect(docCalls[1]!.userPrompt).toContain("IMPORTANT CORRECTION");
+  it("makes one doc call plus one corrective retry on the hallucinated ref", () => {
+    expect(modelCalls.length).toBe(2);
+    expect(modelCalls.every((c) => c.purpose === "doc")).toBe(true);
+    expect(modelCalls[1]!.userPrompt).toContain("f_9999");
+    expect(modelCalls[1]!.userPrompt).toContain("IMPORTANT CORRECTION");
   });
 
   it("emits a doc with ≥1 valid frame per step and zero unvalidated refs", () => {

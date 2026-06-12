@@ -15,13 +15,11 @@ import {
 } from "./model-client.js";
 import {
   chooseCaptureTimes,
-  computeChapterBoundaries,
   dedupeFrames,
   detectScenes,
   extractFrame,
   type ExtractedFrame
 } from "./stage-a.js";
-import { triageFrames } from "./stage-b.js";
 import { generateDoc, type DocTranscriptSegment } from "./stage-c.js";
 import { PROMPT_VERSION } from "./stage-c.js";
 import { cropFrame, dedupeStepImages, findInvalidFrameRefs, renderMarkdown, stripInvalidFrameRefs } from "./stage-d.js";
@@ -111,7 +109,6 @@ export async function runDocPipeline(opts: {
   segments: DocTranscriptSegment[];
   client: DocModelClient;
   strongModel: string;
-  triageModel: string | undefined;
   uploadObject: (key: string, body: Buffer, contentType: string) => Promise<void>;
   publicUrlFor: (key: string) => string;
   log: LogFn;
@@ -146,33 +143,14 @@ export async function runDocPipeline(opts: {
     manifestAll.push({ frameId, ts: deduped[i]!.ts, caption: "", fileName });
   }
 
-  // Stage B — triage (pass-through on any failure)
-  const triage = await triageFrames({
-    client: opts.client,
-    model: opts.triageModel,
-    frames: manifestAll,
-    workdir: opts.workdir,
-    videoId: opts.videoId,
-    log: opts.log
-  });
-  for (const frame of frames) {
-    const manifestEntry = triage.manifest.find((m) => m.frameId === frame.frameId);
-    frame.caption = manifestEntry?.caption || null;
-    frame.classification = triage.classifications.get(frame.frameId) ?? null;
-  }
-
-  // Stage C — strong-model doc pass (chaptered when >25 min), with one
-  // corrective retry on hallucinated frame refs (Stage D validation).
-  const boundaries = computeChapterBoundaries(opts.segments, scenes);
-  const manifestIds = new Set(triage.manifest.map((m) => m.frameId));
+  // Stage C — ONE strong-model call, with one corrective retry on
+  // hallucinated frame refs (Stage D validation).
+  const manifestIds = new Set(manifestAll.map((m) => m.frameId));
   const stageCParams = {
     client: opts.client,
     strongModel: opts.strongModel,
-    triageModel: opts.triageModel,
     segments: opts.segments,
-    manifest: triage.manifest,
-    durationSeconds: duration,
-    chapterBoundaries: boundaries,
+    manifest: manifestAll,
     workdir: opts.workdir,
     videoId: opts.videoId,
     log: opts.log
@@ -319,7 +297,6 @@ export async function handleGenerateDocJob(
       segments,
       client,
       strongModel,
-      triageModel: env.DOC_MODEL_TRIAGE,
       uploadObject: (key, body, contentType) => putObjectBuffer(s3Client, s3Bucket, key, body, contentType),
       publicUrlFor: (key) => `/${s3Bucket}/${key}`,
       log

@@ -39,13 +39,15 @@ export function stripInvalidFrameRefs(doc: DocOutput, invalid: string[]): DocOut
   };
 }
 
+const MAX_IMAGES_PER_DOC = 6;
 const MAX_IMAGE_USES_PER_FRAME = 2;
 const MIN_CROP_FRACTION = 0.12;
 
 /**
  * Deterministic guard against screenshot spam (the model slicing one frame
  * into many thin row-crops, or attaching the same frame to every step):
- * - a frame may illustrate at most 2 steps per document
+ * - at most 6 screenshots in the whole document
+ * - a frame may illustrate at most 2 steps
  * - an identical frame+crop never renders twice
  * - sliver crops are widened to a usable region (≥12% of the frame, centered
  *   on the original box)
@@ -55,6 +57,7 @@ const MIN_CROP_FRACTION = 0.12;
 export function dedupeStepImages(doc: DocOutput): DocOutput {
   const usesPerFrame = new Map<string, number>();
   const seenFrameCrops = new Set<string>();
+  let total = 0;
   let removed = 0;
 
   const widen = (value: number, size: number): { value: number; size: number } => {
@@ -76,10 +79,15 @@ export function dedupeStepImages(doc: DocOutput): DocOutput {
       }
       const cropKey = crop ? [crop.x, crop.y, crop.w, crop.h].map((v) => v.toFixed(2)).join(",") : "full";
       const uses = usesPerFrame.get(step.frame_id) ?? 0;
-      if (uses >= MAX_IMAGE_USES_PER_FRAME || seenFrameCrops.has(`${step.frame_id}:${cropKey}`)) {
+      if (
+        total >= MAX_IMAGES_PER_DOC ||
+        uses >= MAX_IMAGE_USES_PER_FRAME ||
+        seenFrameCrops.has(`${step.frame_id}:${cropKey}`)
+      ) {
         removed += 1;
         return { ...step, frame_id: null, crop: null };
       }
+      total += 1;
       usesPerFrame.set(step.frame_id, uses + 1);
       seenFrameCrops.add(`${step.frame_id}:${cropKey}`);
       return { ...step, crop };
@@ -92,7 +100,7 @@ export function dedupeStepImages(doc: DocOutput): DocOutput {
     sections,
     confidence_notes: [
       ...doc.confidence_notes,
-      `removed ${removed} repetitive screenshot${removed === 1 ? "" : "s"} (same frame reused across steps)`
+      `removed ${removed} extra screenshot${removed === 1 ? "" : "s"} (budget: ${MAX_IMAGES_PER_DOC} per doc, ${MAX_IMAGE_USES_PER_FRAME} per frame, no duplicates)`
     ]
   };
 }

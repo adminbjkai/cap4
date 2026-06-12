@@ -70,7 +70,7 @@ describe("dedupeStepImages", () => {
     expect(steps[2]!.frame_id).toBeNull();
     expect(steps[2]!.text).toBe("c"); // text survives
     expect(result.confidence_notes).toEqual([
-      "removed 1 repetitive screenshot (same frame reused across steps)"
+      "removed 1 extra screenshot (budget: 6 per doc, 2 per frame, no duplicates)"
     ]);
   });
 
@@ -93,6 +93,22 @@ describe("dedupeStepImages", () => {
     expect(crop.h).toBeCloseTo(0.12);
     expect(crop.y).toBeCloseTo(0.465); // centered on the original strip
     expect(crop.w).toBeCloseTo(0.62); // already large enough — unchanged
+  });
+
+  it("caps the whole document at 6 screenshots", () => {
+    const result = dedupeStepImages(
+      docWith(
+        Array.from({ length: 8 }, (_, i) => ({
+          text: `step ${i}`,
+          frame_id: `f_${String(i + 1).padStart(4, "0")}`
+        }))
+      )
+    );
+    const withImages = result.sections[0]!.steps.filter((s) => s.frame_id).length;
+    expect(withImages).toBe(6);
+    expect(result.confidence_notes).toEqual([
+      "removed 2 extra screenshots (budget: 6 per doc, 2 per frame, no duplicates)"
+    ]);
   });
 
   it("is a no-op (no note) on a clean doc", () => {

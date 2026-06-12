@@ -6,13 +6,13 @@ export type SceneChange = { ts: number; score: number };
 
 const SCENE_THRESHOLD = 0.10;
 const CAPTURE_OFFSET_S = 0.5; // capture at scene-change end + 500ms
-const MIN_FRAMES = 50;
-const MAX_FRAMES = 150;
+// Docs only ever render a handful of screenshots, so extract modestly:
+// fewer ffmpeg seeks, fewer SSIM compares, fewer images to upload.
+const MIN_FRAMES = 12;
+const MAX_FRAMES = 40;
 // Screen recordings change little between near-identical states (cursor,
 // caret); 0.92 trims those at the source so fewer images reach the model.
 const SSIM_DUP_THRESHOLD = 0.92;
-const SILENCE_GAP_S = 3;
-const SCENE_CLUSTER_WINDOW_S = 2;
 
 /**
  * Parses ffmpeg `metadata=print:file=…` output: a `frame:` line carrying
@@ -142,67 +142,3 @@ export async function dedupeFrames(frames: ExtractedFrame[]): Promise<ExtractedF
   return kept;
 }
 
-export type TranscriptSpan = { startSeconds: number; endSeconds: number };
-
-/**
- * Chapter boundaries: a transcript silence gap (≥3s) that coincides with a
- * scene change (±2s) marks a topic shift. Returns boundary timestamps.
- */
-export function computeChapterBoundaries(segments: TranscriptSpan[], scenes: SceneChange[]): number[] {
-  const boundaries: number[] = [];
-  for (let i = 1; i < segments.length; i++) {
-    const gapStart = segments[i - 1]!.endSeconds;
-    const gapEnd = segments[i]!.startSeconds;
-    if (gapEnd - gapStart < SILENCE_GAP_S) continue;
-    const hasScene = scenes.some(
-      (s) => s.ts >= gapStart - SCENE_CLUSTER_WINDOW_S && s.ts <= gapEnd + SCENE_CLUSTER_WINDOW_S
-    );
-    if (hasScene) boundaries.push(gapEnd);
-  }
-  return boundaries;
-}
-
-export type Chapter = { start: number; end: number };
-
-/**
- * Splits a recording into chapters no longer than maxChapterSeconds, cutting
- * preferentially at boundaries; spans with no usable boundary split evenly.
- * Recordings within the limit stay a single chapter.
- */
-export function splitIntoChapters(
-  durationSeconds: number,
-  boundaries: number[],
-  maxChapterSeconds = 25 * 60
-): Chapter[] {
-  if (durationSeconds <= maxChapterSeconds) {
-    return [{ start: 0, end: durationSeconds }];
-  }
-
-  const points = [0, ...boundaries.filter((b) => b > 0 && b < durationSeconds).sort((a, b) => a - b), durationSeconds];
-  const merged: Chapter[] = [];
-  let start = points[0]!;
-  for (let i = 1; i < points.length; i++) {
-    const isLast = i === points.length - 1;
-    if (isLast || points[i + 1]! - start > maxChapterSeconds) {
-      merged.push({ start, end: points[i]! });
-      start = points[i]!;
-    }
-  }
-
-  const result: Chapter[] = [];
-  for (const chapter of merged) {
-    const length = chapter.end - chapter.start;
-    if (length <= maxChapterSeconds) {
-      result.push(chapter);
-      continue;
-    }
-    const parts = Math.ceil(length / maxChapterSeconds);
-    for (let p = 0; p < parts; p++) {
-      result.push({
-        start: chapter.start + (p * length) / parts,
-        end: chapter.start + ((p + 1) * length) / parts
-      });
-    }
-  }
-  return result;
-}

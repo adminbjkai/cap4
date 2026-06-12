@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { GenerateStructuredParams, DocModelClient } from "./model-client.js";
 import type { DocOutput, ManifestFrame } from "./schema.js";
-import { buildDocCacheKey, concatChapterDocs, formatTranscript, generateDoc, thinFrames } from "./stage-c.js";
+import { buildDocCacheKey, formatTranscript, generateDoc, thinFrames } from "./stage-c.js";
 
 const noop = () => undefined;
 
-function doc(title: string, frameId?: string): DocOutput {
+function doc(title: string): DocOutput {
   return {
     title,
     doc_type: "runbook",
@@ -13,7 +13,7 @@ function doc(title: string, frameId?: string): DocOutput {
       {
         heading: `${title} section`,
         body_md: "",
-        steps: frameId ? [{ text: "do the thing", frame_id: frameId }] : [],
+        steps: [{ text: "do the thing", frame_id: "f_0001" }],
         source_span: { start_s: 0, end_s: 10 }
       }
     ],
@@ -39,7 +39,7 @@ function fakeClient(impl: (params: GenerateStructuredParams<unknown>) => unknown
 }
 
 describe("buildDocCacheKey", () => {
-  const base = { transcriptText: "t", manifestText: "m", model: "model-a", chapterLabel: "full" };
+  const base = { transcriptText: "t", manifestText: "m", model: "model-a" };
 
   it("is deterministic", () => {
     expect(buildDocCacheKey(base)).toBe(buildDocCacheKey({ ...base }));
@@ -50,7 +50,6 @@ describe("buildDocCacheKey", () => {
     expect(buildDocCacheKey({ ...base, transcriptText: "t2" })).not.toBe(key);
     expect(buildDocCacheKey({ ...base, manifestText: "m2" })).not.toBe(key);
     expect(buildDocCacheKey({ ...base, model: "model-b" })).not.toBe(key);
-    expect(buildDocCacheKey({ ...base, chapterLabel: "chapter1of2" })).not.toBe(key);
     expect(buildDocCacheKey({ ...base, retrySuffix: "retry1" })).not.toBe(key);
   });
 });
@@ -62,83 +61,6 @@ describe("formatTranscript", () => {
       { startSeconds: 65, endSeconds: 70, text: "world" }
     ]);
     expect(text).toBe("[00:00] hello\n[01:05] world");
-  });
-});
-
-describe("generateDoc", () => {
-  const segments = [{ startSeconds: 0, endSeconds: 10, text: "short" }];
-
-  it("makes a single strong-model call for short recordings", async () => {
-    const client = fakeClient(() => doc("Short"));
-    const result = await generateDoc({
-      client,
-      strongModel: "strong",
-      triageModel: "triage",
-      segments,
-      manifest: [manifestFrame("f_0001", 1)],
-      durationSeconds: 600,
-      chapterBoundaries: [],
-      workdir: "/tmp",
-      videoId: "v1",
-      log: noop
-    });
-    expect(result.title).toBe("Short");
-    expect(client.calls.length).toBe(1);
-    expect(client.calls[0]!.model).toBe("strong");
-    expect(client.calls[0]!.userPrompt).toContain("f_0001");
-    expect(client.calls[0]!.cacheKey).toBeTruthy();
-  });
-
-  it("chapters long recordings and merges with the triage model", async () => {
-    const client = fakeClient((params) =>
-      params.purpose === "merge" ? doc("Merged") : doc(`Chapter ${params.purpose}`)
-    );
-    const longSegments = [
-      { startSeconds: 0, endSeconds: 100, text: "first half" },
-      { startSeconds: 1600, endSeconds: 1700, text: "second half" }
-    ];
-    const result = await generateDoc({
-      client,
-      strongModel: "strong",
-      triageModel: "triage",
-      segments: longSegments,
-      manifest: [manifestFrame("f_0001", 10), manifestFrame("f_0002", 1650)],
-      durationSeconds: 40 * 60,
-      chapterBoundaries: [20 * 60],
-      workdir: "/tmp",
-      videoId: "v1",
-      log: noop
-    });
-    expect(result.title).toBe("Merged");
-    const purposes = client.calls.map((c) => c.purpose);
-    expect(purposes).toEqual(["doc:chapter1of2", "doc:chapter2of2", "merge"]);
-    expect(client.calls[2]!.model).toBe("triage");
-    // chapter calls only see their own frames/transcript
-    expect(client.calls[0]!.userPrompt).toContain("f_0001");
-    expect(client.calls[0]!.userPrompt).not.toContain("f_0002");
-    expect(client.calls[1]!.userPrompt).toContain("second half");
-    expect(client.calls[1]!.userPrompt).not.toContain("first half");
-  });
-
-  it("falls back to concatenation when the merge call fails", async () => {
-    const client = fakeClient((params) => {
-      if (params.purpose === "merge") throw new Error("merge exploded");
-      return doc(`C${params.purpose}`, undefined);
-    });
-    const result = await generateDoc({
-      client,
-      strongModel: "strong",
-      triageModel: "triage",
-      segments,
-      manifest: [],
-      durationSeconds: 40 * 60,
-      chapterBoundaries: [20 * 60],
-      workdir: "/tmp",
-      videoId: "v1",
-      log: noop
-    });
-    expect(result.sections.length).toBe(2);
-    expect(result.confidence_notes).toContain("chapter outputs were concatenated without a merge pass");
   });
 });
 
@@ -157,10 +79,42 @@ describe("thinFrames", () => {
   });
 });
 
-describe("concatChapterDocs", () => {
-  it("concatenates sections and dedupes notes", () => {
-    const merged = concatChapterDocs([doc("A", "f_0001"), doc("B", "f_0002")]);
-    expect(merged.title).toBe("A");
-    expect(merged.sections.length).toBe(2);
+describe("generateDoc", () => {
+  const segments = [{ startSeconds: 0, endSeconds: 10, text: "short" }];
+
+  it("makes exactly one strong-model call", async () => {
+    const client = fakeClient(() => doc("Short"));
+    const result = await generateDoc({
+      client,
+      strongModel: "strong",
+      segments,
+      manifest: [manifestFrame("f_0001", 1)],
+      workdir: "/tmp",
+      videoId: "v1",
+      log: noop
+    });
+    expect(result.title).toBe("Short");
+    expect(client.calls.length).toBe(1);
+    expect(client.calls[0]!.model).toBe("strong");
+    expect(client.calls[0]!.purpose).toBe("doc");
+    expect(client.calls[0]!.userPrompt).toContain("f_0001");
+    expect(client.calls[0]!.cacheKey).toBeTruthy();
+  });
+
+  it("sends at most 16 frame images even for frame-heavy recordings", async () => {
+    const client = fakeClient(() => doc("Long"));
+    const manifest = Array.from({ length: 40 }, (_, i) =>
+      manifestFrame(`f_${String(i + 1).padStart(4, "0")}`, i * 10)
+    );
+    await generateDoc({
+      client,
+      strongModel: "strong",
+      segments,
+      manifest,
+      workdir: "/tmp",
+      videoId: "v1",
+      log: noop
+    });
+    expect(client.calls[0]!.imagePaths.length).toBe(16);
   });
 });

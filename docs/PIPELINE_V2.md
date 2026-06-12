@@ -1,8 +1,8 @@
 # PIPELINE_V2 — Collapsed Documentation Pipeline
 
 Turns a processed recording into a structured how-to document
-(runbook / tutorial / SOP) with frame screenshots, in four stages: one
-deterministic preprocessing pass, at most two model calls in the common case,
+(runbook / tutorial / SOP) with a few frame screenshots: one deterministic
+preprocessing pass, **ONE model call** (plus at most one corrective retry),
 and a deterministic render. All LLM access goes through headless Claude Code
 (`claude -p`) on the developer's OAuth subscription — **no API keys, no SDK**.
 
@@ -13,9 +13,8 @@ upload ──► transcode (media-server) ──► transcription (Deepgram)   [
                                               ▼
                                   job_queue: generate_doc
                                               │
-   Stage A  frames + chapters (ffmpeg, deterministic, no LLM)
-   Stage B  frame triage       (DocModelClient, DOC_MODEL_TRIAGE)   [P1]
-   Stage C  doc pass           (DocModelClient, DOC_MODEL_STRONG)
+   Stage A  candidate frames  (ffmpeg, deterministic, no LLM)
+   Stage C  doc pass — ONE model call (DocModelClient, DOC_MODEL_STRONG)
    Stage D  validate + crop + render markdown + persist (no LLM)
                                               ▼
                        documents / doc_sections / doc_steps (+ frames)
@@ -46,9 +45,8 @@ Backend selected by `DOC_MODEL_BACKEND`:
   config change (`DOC_MODEL_BACKEND=anthropic-api`) plus implementing the stub
   against the Claude API with a paid key; callers are backend-agnostic.
 
-Model IDs are never hardcoded: callers resolve `DOC_MODEL_STRONG` (doc pass)
-or `DOC_MODEL_TRIAGE` (triage / merge) from env; the client throws if the
-resolved value is empty.
+Model IDs are never hardcoded: callers resolve `DOC_MODEL_STRONG` from env;
+the client throws if the resolved value is empty.
 
 **Caching (P0).** Before spawning, the client checks `doc_model_cache` by
 `cacheKey` (SHA-256 over transcript hash + frame-manifest hash + prompt
@@ -71,33 +69,24 @@ Inputs already exist: normalized mp4 in MinIO (`result_key`, falling back to
    → list of `{ts, score}` scene changes (no PySceneDetect — see
    DECISIONS.md #2).
 2. **Candidate frames**: captured at `scene_change_end + 500 ms` (clamped to
-   duration), downscaled to 768 px wide JPEGs. Target band **50–150 frames**:
-   below 50 the timeline is supplemented with uniform samples; above 150 the
+   duration), downscaled to 768 px wide JPEGs. Target band **12–40 frames**
+   (docs only render a handful of screenshots, so extraction stays light):
+   sparse timelines are supplemented with uniform samples; above 40 the
    lowest-score scene changes are dropped.
 3. **SSIM dedup**: adjacent frames compared with ffmpeg's `ssim` filter;
-   the later frame is dropped when `All ≥ 0.95`.
-4. **Chapter boundaries**: transcript silence gaps (≥ 3 s between segments)
-   clustered with scene changes (a gap that has a scene change within ±2 s
-   becomes a boundary). Used only to split long recordings for Stage C.
+   the later frame is dropped when `All ≥ 0.92`.
 
 Frames are uploaded to `videos/{id}/frames/f_NNNN.jpg` and recorded in the
 `frames` table. Frame ids exposed to the model are the stable labels
 `f_0001 …`.
 
-## Stage B — triage (P1, `DOC_MODEL_TRIAGE`)
+## Stage C — one strong-model call per recording (`DOC_MODEL_STRONG`)
 
-One batched call: caption (1 sentence) + classify each frame
-(`content | transition | junk`). Junk and near-duplicate captions are
-dropped. Output manifest: `[{frame_id, ts, caption}]`.
-**Fallback:** if the triage call fails for any reason, all deduped frames
-pass straight to Stage C with empty captions — triage can only improve the
-doc, never block it.
-
-## Stage C — single strong-model pass (`DOC_MODEL_STRONG`)
-
-One call per recording — or one per chapter when duration > 25 min — with the
-full transcript (with `[mm:ss]` markers), the frame manifest, and the frame
-images readable from the working directory. Output is strict JSON:
+Exactly ONE model call per recording, regardless of length: the full
+transcript (with `[mm:ss]` markers), a manifest of at most **16 frame
+images** (evenly thinned across the timeline), and the images readable from
+the working directory. No triage pass, no chaptering, no merge pass — one
+recording, one call. Output is strict JSON:
 
 ```json
 {
@@ -114,13 +103,9 @@ images readable from the working directory. Output is strict JSON:
 }
 ```
 
-`frame_id`, `crop`, `alt`, `callout` are optional per step. For chaptered
-runs a triage-model **merge pass** (P1) unifies headings and dedupes
-intro/outro across chapter outputs.
-
-Token bounds: at most 40 frame images are attached to any single model call
-(`thinFrames`, even time-spacing), and SSIM dedup at extraction runs at 0.92
-to trim near-identical screen states before they cost vision tokens.
+`frame_id`, `crop`, `alt`, `callout` are optional per step. The prompt
+instructs at most 5 screenshots per document, attached only where seeing the
+screen is essential.
 
 Results are cached by SHA-256(transcript hash + manifest hash + prompt
 version + model), so retries and re-renders cost zero credits.
@@ -134,13 +119,11 @@ job (not a new service).
    manifest. On hallucinated refs the Stage C call is retried once with the
    invalid ids listed; refs still invalid after that are dropped from their
    steps and recorded in `confidence_notes` — never rendered silently.
-1b. **Screenshot dedup guard** (`dedupeStepImages`, prompt v2): a frame may
-   illustrate at most 2 steps per document, an identical frame+crop never
-   renders twice, and sliver crops (<12% of the frame) are widened to a
-   usable centered region. The prompt also instructs the model that most
-   steps need no screenshot and that one frame must never be sliced into
-   multiple thin row-crops. Removed repeats are summarized in one
-   confidence note.
+1b. **Screenshot budget guard** (`dedupeStepImages`): at most 6 screenshots
+   per document, at most 2 uses of any frame, no duplicate frame+crop, and
+   sliver crops (<12% of the frame) widened to a usable centered region.
+   Removals are summarized in one confidence note — deterministic, so it
+   holds even if the model ignores the prompt.
 2. **Crops**: frames pulled from MinIO; fractional `crop` boxes applied with
    ffmpeg's `crop` filter (not sharp — DECISIONS.md #3), written to
    `videos/{id}/doc/{frame_id}_crop.jpg`.
@@ -179,8 +162,7 @@ job (not a new service).
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `DOC_MODEL_BACKEND` | `claude-cli` | `claude-cli \| anthropic-api` |
-| `DOC_MODEL_STRONG` | *(unset)* | model id for the doc pass (`claude -p --model`) |
-| `DOC_MODEL_TRIAGE` | *(unset)* | model id for triage / merge |
+| `DOC_MODEL_STRONG` | *(unset)* | model id for the single doc call (`claude -p --model`) |
 | `DOC_MODEL_TIMEOUT_MS` | `300000` | per-CLI-call timeout |
 | `DOC_MAX_MODEL_CALLS_PER_JOB` | `6` | per-job real-call guard |
 | `DOC_MAX_MODEL_CALLS_PER_DAY` | `60` | trailing-24h real-call guard |

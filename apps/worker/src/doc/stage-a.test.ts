@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  chooseCaptureTimes,
-  computeChapterBoundaries,
-  parseSceneChanges,
-  splitIntoChapters
-} from "./stage-a.js";
+import { chooseCaptureTimes, parseSceneChanges } from "./stage-a.js";
 
 describe("parseSceneChanges", () => {
   it("parses pts_time + scene_score pairs from ffmpeg metadata output", () => {
@@ -37,19 +32,21 @@ describe("chooseCaptureTimes", () => {
     expect(Math.max(...times)).toBeLessThan(10);
   });
 
-  it("caps at 150 frames keeping the strongest scene changes", () => {
+  it("caps at 40 frames keeping the strongest scene changes", () => {
     const scenes = Array.from({ length: 300 }, (_, i) => ({ ts: i * 10, score: i < 200 ? 0.1 : 0.9 }));
     const times = chooseCaptureTimes(scenes, 3000);
-    expect(times.length).toBe(150);
-    // the 100 strongest (ts ≥ 2000) must all survive
-    expect(times.filter((t) => t >= 2000).length).toBe(100);
+    expect(times.length).toBe(40);
+    // only the strongest scene changes (ts ≥ 2000) survive the cap
+    expect(times.every((t) => t >= 2000)).toBe(true);
     // returned in chronological order
     expect([...times].sort((a, b) => a - b)).toEqual(times);
   });
 
-  it("supplements sparse scene changes with uniform samples up to 50", () => {
+  it("supplements sparse scene changes with uniform samples up to ~12", () => {
     const times = chooseCaptureTimes([{ ts: 100, score: 0.9 }], 600);
-    expect(times.length).toBeGreaterThanOrEqual(50);
+    // one uniform sample can collide with the existing capture and be skipped
+    expect(times.length).toBeGreaterThanOrEqual(11);
+    expect(times.length).toBeLessThanOrEqual(13);
   });
 
   it("relaxes the minimum for short videos (~one frame per 2s)", () => {
@@ -58,44 +55,3 @@ describe("chooseCaptureTimes", () => {
   });
 });
 
-describe("computeChapterBoundaries", () => {
-  const segments = [
-    { startSeconds: 0, endSeconds: 60 },
-    { startSeconds: 65, endSeconds: 120 }, // 5s gap
-    { startSeconds: 121, endSeconds: 180 } // 1s gap — too short
-  ];
-
-  it("marks a boundary where a silence gap coincides with a scene change", () => {
-    const boundaries = computeChapterBoundaries(segments, [{ ts: 62, score: 0.8 }]);
-    expect(boundaries).toEqual([65]);
-  });
-
-  it("ignores silence gaps with no nearby scene change", () => {
-    const boundaries = computeChapterBoundaries(segments, [{ ts: 150, score: 0.8 }]);
-    expect(boundaries).toEqual([]);
-  });
-});
-
-describe("splitIntoChapters", () => {
-  it("keeps recordings within 25 minutes as a single chapter", () => {
-    expect(splitIntoChapters(20 * 60, [300, 600])).toEqual([{ start: 0, end: 1200 }]);
-  });
-
-  it("splits long recordings at boundaries", () => {
-    const chapters = splitIntoChapters(40 * 60, [20 * 60]);
-    expect(chapters).toEqual([
-      { start: 0, end: 1200 },
-      { start: 1200, end: 2400 }
-    ]);
-  });
-
-  it("splits oversized boundary-free spans evenly", () => {
-    const chapters = splitIntoChapters(60 * 60, []);
-    expect(chapters.length).toBe(3);
-    for (const chapter of chapters) {
-      expect(chapter.end - chapter.start).toBeLessThanOrEqual(25 * 60);
-    }
-    expect(chapters[0]!.start).toBe(0);
-    expect(chapters[chapters.length - 1]!.end).toBe(3600);
-  });
-});
