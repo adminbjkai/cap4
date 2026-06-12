@@ -73,3 +73,13 @@ Ambiguity calls made during the autonomous session, simplest-option-first.
 14. **`POST /api/videos/:id/generate-doc` requires `transcription_status =
     'complete'`** and returns 409 otherwise. A doc without a transcript
     contradicts the Stage C contract; `no_audio` videos can't have docs.
+
+15. **Additive-only guarantee (owner request, mid-session).** Nothing in the
+    existing pipeline was changed: Groq still does title/summary/chapters/
+    enrichment on its own API key, Deepgram still does transcription +
+    diarization, speaker label editing and transcript download are untouched.
+    The doc pipeline is a separate opt-in job type with its own tables and
+    routes; the only edits to existing files are registrations (worker
+    dispatch branch, web-api route module, config/env additions). Deleting
+    `apps/worker/src/doc/`, `routes/docs.ts`, and migration 0008 would restore
+    the previous system exactly.
