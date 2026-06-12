@@ -339,13 +339,29 @@ async function fail(job: JobRow, error: unknown, fatal = false): Promise<FailRes
   });
 }
 
+// Optional allowlist of job types this worker claims (WORKER_JOB_TYPES CSV).
+// Unset = every type except generate_doc, which needs the `claude` CLI and is
+// handled by a dedicated host worker (WORKER_JOB_TYPES=generate_doc).
+const allowedJobTypes: JobType[] | null = env.WORKER_JOB_TYPES
+  ? (env.WORKER_JOB_TYPES.split(",").map((t) => t.trim()).filter(Boolean) as JobType[])
+  : null;
+
 async function claimOne(excludeTypes: JobType[] = []): Promise<JobRow | null> {
-  const sql = excludeTypes.length > 0
-    ? CLAIM_SQL.replace("WHERE status IN ('queued', 'leased')", `WHERE status IN ('queued', 'leased') AND job_type NOT IN (${excludeTypes.map((_, i) => `$${i + 4}`).join(",")})`)
+  const filters: string[] = [];
+  const params: unknown[] = [1, env.WORKER_ID, `${env.WORKER_LEASE_SECONDS} seconds`];
+  if (allowedJobTypes) {
+    params.push(allowedJobTypes);
+    filters.push(`AND job_type = ANY($${params.length}::job_type[])`);
+  }
+  if (excludeTypes.length > 0) {
+    params.push(excludeTypes);
+    filters.push(`AND NOT (job_type = ANY($${params.length}::job_type[]))`);
+  }
+  const sql = filters.length > 0
+    ? CLAIM_SQL.replace("WHERE status IN ('queued', 'leased')", `WHERE status IN ('queued', 'leased') ${filters.join(" ")}`)
     : CLAIM_SQL;
 
   return withTransaction(env.DATABASE_URL, async (client) => {
-    const params = [1, env.WORKER_ID, `${env.WORKER_LEASE_SECONDS} seconds`, ...excludeTypes];
     const result = await client.query<JobRow>(sql, params);
     return result.rows[0] ?? null;
   });
@@ -1323,6 +1339,9 @@ async function main(): Promise<void> {
 
     if (inFlight.size < MAX_CONCURRENT_JOBS) {
       const excludeTypes: JobType[] = [];
+      if (!allowedJobTypes) {
+        excludeTypes.push("generate_doc");
+      }
       if (inFlightProcessVideo >= 1) {
         excludeTypes.push("process_video");
       } else {

@@ -23,6 +23,7 @@ import { upsertRecentSession } from "../lib/sessions";
 import { PlayerCard } from "../components/PlayerCard";
 import { TranscriptCard } from "../components/TranscriptCard";
 import { SummaryCard } from "../components/SummaryCard";
+import { DocCard } from "../components/DocCard";
 import { ChapterList } from "../components/ChapterList";
 import { buildPublicObjectUrl } from "../lib/format";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
@@ -43,7 +44,7 @@ function hasReachedTerminalState(status: VideoStatusResponse | null): boolean {
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 type ChapterItem = { title: string; seconds: number };
-type RailTab     = "notes" | "summary" | "transcript";
+type RailTab     = "notes" | "summary" | "transcript" | "doc";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function normalizeWords(value: string): string[] {
@@ -431,6 +432,16 @@ export function VideoPage() {
     if (tab === "notes") {
       return <NotesPanel videoId={videoId} />;
     }
+    if (tab === "doc") {
+      return (
+        <DocCard
+          videoId={videoId}
+          transcriptionStatus={status?.transcriptionStatus}
+          videoTitle={status?.aiOutput?.title ?? status?.name}
+          onSeekToSeconds={requestSeek}
+        />
+      );
+    }
     if (tab === "summary") {
       return (
         <SummaryCard
@@ -783,7 +794,7 @@ export function VideoPage() {
 
             {/* Tab bar */}
             <div className="rail-tab-bar">
-              {(["notes", "summary", "transcript"] as const).map((tab) => (
+              {(["notes", "summary", "transcript", "doc"] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"

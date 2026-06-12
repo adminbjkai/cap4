@@ -174,15 +174,35 @@ job (not a new service).
 | `DOC_MAX_MODEL_CALLS_PER_JOB` | `6` | per-job real-call guard |
 | `DOC_MAX_MODEL_CALLS_PER_DAY` | `60` | trailing-24h real-call guard |
 
-## Deployment (known issue)
+## Deployment
 
-The claude-cli backend requires the `claude` binary and an OAuth login in the
-worker's environment. The live worker **container** has neither (and no
-outbound network to install them), so `generate_doc` currently runs only when
-the worker runs on the host (`scripts/dev-local.sh`). Options, in order of
-simplicity: run a second host-side worker that claims only `generate_doc`
-jobs; or mount the CLI + `~/.claude` credentials into the container. Decision
-deferred to the owner — see DECISIONS.md #11.
+The claude-cli backend requires the `claude` binary and an OAuth login, which
+the worker **container** does not have (and has no outbound network to
+install). The split is therefore:
+
+- **Container worker** (unchanged env): claims every job type EXCEPT
+  `generate_doc` — workers without `WORKER_JOB_TYPES` exclude it by default,
+  so doc jobs can never be picked up by a worker that can't run them.
+- **Host doc worker**: `scripts/doc-worker.sh` runs the same compiled worker
+  on the host with `WORKER_JOB_TYPES=generate_doc` (claims ONLY doc jobs),
+  `WORKER_ID=doc-worker-host`, and DB/MinIO reached via their docker network
+  IPs (resolved at startup; postgres/minio publish no host ports). Start it
+  with `nohup ./scripts/doc-worker.sh >> /tmp/cap4-doc-worker.log 2>&1 &`.
+  If it isn't running, doc jobs simply wait in the queue (UI shows
+  "generating") until it starts — nothing breaks.
+
+`WORKER_JOB_TYPES` (CSV allowlist) is general: any worker can be pinned to a
+subset of job types.
+
+## UI
+
+VideoPage right rail has a **Doc** tab (`DocCard.tsx`): shows a manual
+"Generate doc" button (enabled once transcription is complete), polls while
+generating, then renders the document — sections with `[mm:ss]` jump links,
+numbered steps with screenshots (click a screenshot to seek the player to
+that moment), callouts, confidence notes, a **Download .md** button, and a
+Regenerate action (cached model calls make regeneration cheap unless inputs
+changed).
 
 ## Failure & retry behavior
 

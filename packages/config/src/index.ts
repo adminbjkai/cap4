@@ -30,6 +30,10 @@ const BaseEnv = z.object({
   WORKER_POLL_MS: z.coerce.number().int().positive().default(2000),
   WORKER_HEARTBEAT_MS: z.coerce.number().int().positive().default(15000),
   WORKER_RECLAIM_MS: z.coerce.number().int().positive().default(10000),
+  // Optional CSV allowlist of job types this worker claims. Unset = all types
+  // EXCEPT generate_doc, which needs the `claude` CLI and only runs on a
+  // worker started with WORKER_JOB_TYPES=generate_doc (host doc-worker).
+  WORKER_JOB_TYPES: z.string().optional(),
   // Doc pipeline (PIPELINE_V2). Model IDs deliberately have no defaults —
   // they are configured in .env, never hardcoded.
   DOC_MODEL_BACKEND: z.enum(["claude-cli", "anthropic-api"]).default("claude-cli"),

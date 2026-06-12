@@ -55,6 +55,7 @@ vi.mock("../components/PlayerCard", () => ({ PlayerCard: () => <div>PLAYER</div>
 vi.mock("../components/ChapterList", () => ({ ChapterList: () => <div>CHAPTERS</div> }));
 vi.mock("../components/TranscriptCard", () => ({ TranscriptCard: () => <div>TRANSCRIPT_PANEL</div> }));
 vi.mock("../components/SummaryCard", () => ({ SummaryCard: () => <div>SUMMARY_PANEL</div> }));
+vi.mock("../components/DocCard", () => ({ DocCard: () => <div>DOC_PANEL</div> }));
 
 function renderVideoPage() {
   return render(
@@ -97,5 +98,17 @@ describe("VideoPage right-rail tabs", () => {
     });
     // Notes panel (inline) renders its textarea.
     expect(screen.getByPlaceholderText(/private notes/i)).toBeTruthy();
+  });
+
+  it("shows the Doc tab and renders its panel when selected", async () => {
+    renderVideoPage();
+    expect(await screen.findByText("TRANSCRIPT_PANEL")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Doc" }));
+
+    expect(screen.getByText("DOC_PANEL")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByText("TRANSCRIPT_PANEL")).toBeNull();
+    });
   });
 });

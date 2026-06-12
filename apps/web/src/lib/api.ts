@@ -628,3 +628,56 @@ export async function uploadMultipart(
 
   return completed.jobId;
 }
+
+/* ── Doc pipeline (opt-in, PIPELINE_V2) ──────────────────────────────────── */
+
+export type DocStepResponse = {
+  position: number;
+  text: string;
+  frameId: string | null;
+  frameKey: string | null;
+  frameTs: number | null;
+  crop: { x: number; y: number; w: number; h: number } | null;
+  alt: string | null;
+  callout: string | null;
+};
+
+export type DocSectionResponse = {
+  id: string;
+  position: number;
+  heading: string;
+  bodyMd: string;
+  startS: number | null;
+  endS: number | null;
+  steps: DocStepResponse[];
+};
+
+export type DocResponse = {
+  id: string;
+  status: "generating" | "complete" | "failed";
+  title: string | null;
+  docType: string | null;
+  markdown: string | null;
+  confidenceNotes: string[];
+  unusedFrames: string[];
+  promptVersion: string | null;
+  model: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sections: DocSectionResponse[];
+};
+
+/** Returns null when no document exists yet (404). */
+export async function getVideoDoc(videoId: string): Promise<DocResponse | null> {
+  const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/doc`);
+  if (res.status === 404) return null;
+  const body = await parseJson<{ ok: boolean; document: DocResponse }>(res);
+  return body.document;
+}
+
+export async function generateVideoDoc(videoId: string): Promise<{ ok: boolean; jobId: number; status: string }> {
+  return parseJson(
+    await fetch(`/api/videos/${encodeURIComponent(videoId)}/generate-doc`, { method: "POST" })
+  );
+}
