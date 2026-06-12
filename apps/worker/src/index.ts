@@ -1344,7 +1344,9 @@ async function main(): Promise<void> {
       }
       if (inFlightProcessVideo >= 1) {
         excludeTypes.push("process_video");
-      } else {
+      } else if (!allowedJobTypes || allowedJobTypes.includes("process_video")) {
+        // Only probe media-server health when this worker can actually claim
+        // process_video (the host doc-worker can't reach it and never will).
         const mediaHealthy = await checkMediaHealthy();
         if (!mediaHealthy) {
           excludeTypes.push("process_video");

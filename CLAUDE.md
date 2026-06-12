@@ -17,7 +17,21 @@
 
 ## Current State
 
-### 2026-06-11 — Collapsed doc pipeline (branch `feat/collapsed-doc-pipeline`, NOT deployed)
+### 2026-06-11 — Collapsed doc pipeline (branch `feat/collapsed-doc-pipeline`, LIVE)
+- **Deployed 2026-06-11**: migration 0008 applied to live DB; web-api + worker
+  hot-swapped (incl. packages/config dist); frontend rebuilt + copied to
+  `cap4_web_dist` volume; **host doc-worker running**
+  (`nohup ./scripts/doc-worker.sh >> /tmp/cap4-doc-worker.log 2>&1 &`,
+  `WORKER_ID=doc-worker-host`, claims ONLY `generate_doc` via the new
+  `WORKER_JOB_TYPES` allowlist; container workers exclude generate_doc by
+  default; doc worker does not survive host reboot — restart manually).
+  E2E-verified live: video b3c85d5c → Doc complete, 2 model calls
+  (haiku triage + opus doc), crops served via /cap4/ nginx path.
+- **UI**: VideoPage right rail has a 4th tab **Doc** (`DocCard.tsx`):
+  manual Generate button (enabled when transcription complete), polls while
+  generating, renders sections/steps with screenshots (click → seek player),
+  callouts, confidence notes, Download .md, Regenerate. DOC_* config lives in
+  live `.env`.
 - **New opt-in feature, purely additive** — turns a recording into a structured
   how-to doc (runbook/tutorial/SOP) with frame screenshots. Nothing in the
   existing pipeline changed: Groq summary/chapters/title, Deepgram
