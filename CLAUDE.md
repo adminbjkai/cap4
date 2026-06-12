@@ -17,6 +17,34 @@
 
 ## Current State
 
+### 2026-06-11 — Collapsed doc pipeline (branch `feat/collapsed-doc-pipeline`, NOT deployed)
+- **New opt-in feature, purely additive** — turns a recording into a structured
+  how-to doc (runbook/tutorial/SOP) with frame screenshots. Nothing in the
+  existing pipeline changed: Groq summary/chapters/title, Deepgram
+  transcription/diarization, speaker editing, transcript download all work
+  exactly as before on their existing API keys.
+- **All LLM calls via headless Claude Code** (`claude -p`, OAuth subscription —
+  no ANTHROPIC_API_KEY, no SDK). `DocModelClient` in
+  `apps/worker/src/doc/model-client.ts`: claude-cli backend (JSON parse,
+  zod validation, retry-once, timeout, stderr capture) + anthropic-api stub.
+  Credit protection: result cache (`doc_model_cache`, SHA-256 of
+  transcript+manifest+prompt version+model) and call guards
+  (`DOC_MAX_MODEL_CALLS_PER_JOB`=6, `DOC_MAX_MODEL_CALLS_PER_DAY`=60).
+  Models via `DOC_MODEL_STRONG` / `DOC_MODEL_TRIAGE` env (never hardcoded).
+- **Stages** (single `generate_doc` worker job, triggered only by
+  `POST /api/videos/:id/generate-doc`): A) ffmpeg scene detect → 50-150
+  deduped 768px frames + chapter boundaries (no LLM); B) triage
+  caption/classify with pass-through fallback; C) one strong-model doc pass
+  (per-chapter >25 min + merge); D) frame-ref validation (retry once on
+  hallucinated refs, then drop-with-note), ffmpeg crops, markdown render,
+  persist to `documents`/`doc_sections`/`doc_steps`/`frames` (migration 0008,
+  not yet applied to live DB). Read via `GET /api/videos/:id/doc`.
+- **Deploy constraint**: worker needs the `claude` CLI + login → host-run
+  worker only (containers have no network/CLI). See docs/PIPELINE_V2.md.
+- Tests: worker 51/51 (was 8), workspace 81 passing vs 38 baseline; live smoke
+  (`DOC_LIVE_SMOKE=1`) verified once for real. Docs: docs/AUDIT.md,
+  docs/PIPELINE_V2.md, DECISIONS.md.
+
 ### 2026-06-10 — Transcode timeout fix + lightweight status polling (live)
 - **Transcode timeout fixed** — worker's media-server `POST /process` call now uses new
   `MEDIA_PROCESS_TIMEOUT_MS` config (default 30 min) instead of `PROVIDER_TIMEOUT_MS`

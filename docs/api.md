@@ -361,6 +361,24 @@ Response:
 }
 ```
 
+## Doc Pipeline Routes (opt-in)
+
+Documentation generation (PIPELINE_V2) is never triggered automatically —
+see `docs/PIPELINE_V2.md` for the full contract and deployment constraints.
+
+### `POST /api/videos/:id/generate-doc`
+
+Enqueues a `generate_doc` job. Requires `transcription_status = 'complete'`
+(409 otherwise; 404 for unknown/deleted videos). Idempotent while a job is
+already queued/running. Returns `202 { ok, jobId, status }`.
+
+### `GET /api/videos/:id/doc`
+
+Returns the generated document: status (`generating | complete | failed`),
+title, doc type, rendered markdown, confidence notes, and sections with steps
+(each step optionally carrying a frame key, timestamp, crop box, alt text and
+callout). 404 until a document exists for the video.
+
 ## Library, Jobs, and System Routes
 
 ### `GET /api/library/videos`
