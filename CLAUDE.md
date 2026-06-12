@@ -46,13 +46,16 @@
   (`DOC_MAX_MODEL_CALLS_PER_JOB`=6, `DOC_MAX_MODEL_CALLS_PER_DAY`=60).
   Models via `DOC_MODEL_STRONG` / `DOC_MODEL_TRIAGE` env (never hardcoded).
 - **Stages** (single `generate_doc` worker job, triggered only by
-  `POST /api/videos/:id/generate-doc`): A) ffmpeg scene detect → 50-150
-  deduped 768px frames + chapter boundaries (no LLM); B) triage
-  caption/classify with pass-through fallback; C) one strong-model doc pass
-  (per-chapter >25 min + merge); D) frame-ref validation (retry once on
-  hallucinated refs, then drop-with-note), ffmpeg crops, markdown render,
-  persist to `documents`/`doc_sections`/`doc_steps`/`frames` (migration 0008,
-  not yet applied to live DB). Read via `GET /api/videos/:id/doc`.
+  `POST /api/videos/:id/generate-doc`; prompt v3, simplified 2026-06-12 per
+  owner): A) ffmpeg scene detect → 12-40 deduped 768px frames (no LLM);
+  C) **ONE strong-model call** per recording regardless of length (≤16 images
+  sent; no triage/chaptering/merge — stage-b in .trash/); D) frame-ref
+  validation (retry once on hallucinated refs, then drop-with-note) +
+  screenshot budget (max 6/doc, 2/frame, no dup crops, slivers widened),
+  ffmpeg crops, markdown render, persist to
+  `documents`/`doc_sections`/`doc_steps`/`frames` (migration 0008, applied
+  live). Read via `GET /api/videos/:id/doc`. v3 E2E live: 43-min video →
+  complete in 75s, exactly 1 opus call.
 - **Deploy constraint**: worker needs the `claude` CLI + login → host-run
   worker only (containers have no network/CLI). See docs/PIPELINE_V2.md.
 - Tests: worker 51/51 (was 8), workspace 81 passing vs 38 baseline; live smoke
