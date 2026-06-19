@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-06-19 (security/CI/DX hardening pass — applied to repo, not yet deployed; see Current State)
+**Last updated:** 2026-06-19 (security/CI/DX hardening pass — committed, pushed, and LIVE in prod; see Current State)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -12,17 +12,43 @@
 > Backend route changes are compiled on the host and hot-swapped into
 > `cap4-web-api-1` via `docker cp` + `docker restart`. See the
 > `frontend-deploy-mechanism` memory.
+>
+> **Correction (2026-06-19):** on this host the **build environment CAN reach
+> apk + npm**, and `docker compose build web-api worker media-server` succeeded —
+> so dependency/image changes ARE deployable here (build → tag old images
+> `:rollback` → `docker compose up -d --no-deps <svc>` per service → verify
+> `/health`). Use this for changes that live in `node_modules` (dep bumps), which
+> the `docker cp dist/` hot-swap does NOT carry. Also: the nginx config is a
+> **single-file bind mount**, so editing `docker/nginx/default.conf` then
+> `nginx -s reload` does NOT pick up the change (reload re-reads the old inode) —
+> **restart `cap4-web-internal-1`** instead. Full request path:
+> `cap4.bjk.ai` → host nginx (`/etc/nginx/sites-enabled/cap4.bjk.ai`, bjk.ai
+> wildcard TLS) → `127.0.0.1:8007` → `cap4-web-internal-1` → web-api/minio/static.
 
 ---
 
 ## Current State
 
-### 2026-06-19 — Security/CI/DX hardening pass (APPLIED TO REPO, NOT YET DEPLOYED)
-- Three `/improve` plans executed in the working tree (uncommitted, **not** deployed —
-  live containers run already-deployed artifacts, so these don't affect anything serving
-  users). Plans + status in `plans/`; full rationale in `DECISIONS.md #16`. Independently
-  fresh-context-verified (PASS on 7 checks: typecheck/test/build green — web 36, worker 51;
-  `pnpm audit --prod` clean; no peer mismatch; no Anthropic SDK/API introduced).
+### 2026-06-19 — Security/CI/DX hardening pass (LIVE — committed, pushed, deployed)
+- Three `/improve` plans executed, committed (`8cc7aaa` feature work + `e4a311a`
+  hardening), **pushed** to `feat/collapsed-doc-pipeline`, and **deployed to prod**
+  (cap4.bjk.ai) and verified end-to-end. Plans + status in `plans/`; full rationale in
+  `DECISIONS.md #16`. Independently fresh-context-verified (PASS on 7 checks:
+  typecheck/test/build green — web 36, worker 51; `pnpm audit --prod` clean; no peer
+  mismatch; no Anthropic SDK/API introduced).
+- **Deploy (2026-06-19), all on this host, rollback-protected, verified live:**
+  1. **Frontend** rebuilt on host → new `dist` copied into `cap4_web_dist` volume
+     (additive, zero-downtime; `https://cap4.bjk.ai/` 200 serving the new bundle).
+  2. **nginx `/ready`**: edited `docker/nginx/default.conf`; the single-file bind mount
+     needed a `cap4-web-internal-1` **restart** to pick it up (a reload re-reads the old
+     inode). `/ready` now proxies to web-api (real readiness JSON) instead of falling
+     through to the SPA. `make smoke` passes.
+  3. **Backend dep patches**: `docker compose build web-api worker media-server` (build
+     env CAN reach apk+npm — see deploy-note correction below), then recreated all three
+     with `--no-deps`, one at a time (worker → media-server → web-api), each verified
+     healthy. **Live containers now run fastify 5.8.5 / fast-uri 4.0.0 / fast-xml-parser
+     5.9.2.** Old images kept as `cap4-{web-api,worker,media-server}:rollback` (safe to
+     delete once confident). Rollback volume backup: `/tmp/cap4_web_dist_ROLLBACK.tgz`.
 - **Dependency-vuln remediation (Plan 001):** `pnpm audit` went 36 advisories (1 crit + 15
   high) → **0 in production deps**. Request-path libs patched: `fastify ^5.8.5`, plus root
   `pnpm.overrides` for `fast-uri >=3.1.2` / `fast-xml-parser >=5.7.0` / `ws >=8.21.0` /

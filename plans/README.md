@@ -9,9 +9,9 @@ honor its STOP conditions, and update your row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001  | Remediate dependency vulnerabilities (subscription-auth-safe bumps + overrides) | P1 | M | — | DONE (2026-06-19, applied to working tree, not yet committed/deployed) |
-| 002  | Consolidate the two CI workflows and add a `pnpm audit` gate | P1 | S | 001 | DONE (2026-06-19, applied to working tree, not yet committed) |
-| 003  | Fix `make smoke` + Playwright e2e + README to target the nginx host port | P2 | S | — | DONE (2026-06-19, applied to working tree, not yet committed/deployed) |
+| 001  | Remediate dependency vulnerabilities (subscription-auth-safe bumps + overrides) | P1 | M | — | DONE + DEPLOYED (2026-06-19; committed `e4a311a`, pushed, live in prod — fastify 5.8.5 / fast-uri 4.0.0 / fast-xml-parser 5.9.2 running) |
+| 002  | Consolidate the two CI workflows and add a `pnpm audit` gate | P1 | S | 001 | DONE (2026-06-19; committed `e4a311a`, pushed — activates on next PR/push to main) |
+| 003  | Fix `make smoke` + Playwright e2e + README to target the nginx host port | P2 | S | — | DONE + DEPLOYED (2026-06-19; committed `e4a311a`, pushed; nginx `/ready` live via container restart, `make smoke` passes) |
 | 004  | Upgrade `apps/web` Vite 5 → 6/7 and restore the vitest 4.1 bump | P3 | M | 001 | TODO (scoped 2026-06-19; clears the last dev-tooling advisories) |
 
 ### Execution notes (2026-06-19)
