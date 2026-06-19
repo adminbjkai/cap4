@@ -49,6 +49,14 @@
      healthy. **Live containers now run fastify 5.8.5 / fast-uri 4.0.0 / fast-xml-parser
      5.9.2.** Old images kept as `cap4-{web-api,worker,media-server}:rollback` (safe to
      delete once confident). Rollback volume backup: `/tmp/cap4_web_dist_ROLLBACK.tgz`.
+  4. **Upload ceiling raised 500M → 10g** (owner request). Uploads flow through BOTH
+     nginx layers, so both were raised: container nginx `docker/nginx/default.conf`
+     (committed) and the **host** nginx `/etc/nginx/sites-available/cap4.bjk.ai`
+     (system file, NOT in repo; backup at `…cap4.bjk.ai.bak-20260619-uploadlimit`,
+     `sudo nginx -t` + `sudo nginx -s reload`). Request buffering left ON by default —
+     turning it off breaks S3 presigned-PUT signatures (need fixed Content-Length).
+     Note: files >5 GB must use the multipart upload path (S3 single-PUT cap is 5 GB);
+     large single PUTs are buffered to nginx temp disk, so ensure host disk headroom.
 - **Dependency-vuln remediation (Plan 001):** `pnpm audit` went 36 advisories (1 crit + 15
   high) → **0 in production deps**. Request-path libs patched: `fastify ^5.8.5`, plus root
   `pnpm.overrides` for `fast-uri >=3.1.2` / `fast-xml-parser >=5.7.0` / `ws >=8.21.0` /
