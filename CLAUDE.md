@@ -1,6 +1,6 @@
 # Working Memory — cap4
 
-**Last updated:** 2026-06-05 (Phase 4.8: library list/table view + original file date; rail-tab crossfade fix — live)
+**Last updated:** 2026-06-19 (security/CI/DX hardening pass — applied to repo, not yet deployed; see Current State)
 **Project:** cap4 — single-tenant video processing platform
 **Source dir:** cap3test (virtiofs mount — cannot rename, this IS cap4)
 **GitHub:** https://github.com/adminbjkai/cap4
@@ -16,6 +16,74 @@
 ---
 
 ## Current State
+
+### 2026-06-19 — Security/CI/DX hardening pass (APPLIED TO REPO, NOT YET DEPLOYED)
+- Three `/improve` plans executed in the working tree (uncommitted, **not** deployed —
+  live containers run already-deployed artifacts, so these don't affect anything serving
+  users). Plans + status in `plans/`; full rationale in `DECISIONS.md #16`. Independently
+  fresh-context-verified (PASS on 7 checks: typecheck/test/build green — web 36, worker 51;
+  `pnpm audit --prod` clean; no peer mismatch; no Anthropic SDK/API introduced).
+- **Dependency-vuln remediation (Plan 001):** `pnpm audit` went 36 advisories (1 crit + 15
+  high) → **0 in production deps**. Request-path libs patched: `fastify ^5.8.5`, plus root
+  `pnpm.overrides` for `fast-uri >=3.1.2` / `fast-xml-parser >=5.7.0` / `ws >=8.21.0` /
+  `flatted >=3.4.2`; `react-router-dom ^6.30.4`, `happy-dom ^20.8.9`. Residual advisories
+  are **dev/build tooling only** (vitest `--ui`, vite-5 dev server, picomatch) — never run
+  in the nginx-served prod stack; clearing them needs the deferred **vite 5→6 major**, so
+  `vitest` is pinned to `~4.0.18` (vite-5-compatible) for now.
+- **CI consolidation (Plan 002):** deleted the redundant `test.yml`; `ci.yml` is now the
+  single workflow on **pnpm 9** (was split pnpm 8 / pnpm 9) with lint/typecheck/
+  test(+postgres)/build/**audit** jobs. New `audit` job runs `pnpm audit --prod
+  --audit-level=high` (gates shipped deps; won't red on the deferred dev advisories).
+- **Smoke/docs port fix (Plan 003):** `make smoke` + README now target the nginx host
+  port (`PORT`, default 8007) instead of the unexposed `:3000`; added a `location /ready`
+  proxy to `docker/nginx/default.conf` (mirrors `/health`). **Deploy step still pending:**
+  the nginx `/ready` change needs `nginx -s reload` on `cap4-web-internal-1` for `make
+  smoke`'s `/ready` check to pass live. `playwright.config.ts` intentionally unchanged
+  (its `webServer` self-boots web-api on :3000, so that default is correct).
+- **Additive-only / no UX change:** no application source or user-facing behavior changed;
+  Groq/Deepgram/doc pipeline untouched. Claude usage remains subscription/OAuth CLI only
+  (no API key) — see `claude-subscription-auth-only` memory.
+
+### 2026-06-18 — Record page: drag-and-drop + clipboard paste upload (LIVE)
+- The `/record` "Use an existing local file" area is now a **dashed dropzone**: drag &
+  drop a video onto it, or **paste a file with ⌘V / Ctrl+V** (window `paste` listener
+  reads `clipboardData.files`), in addition to the existing Choose File input. All three
+  funnel through the existing `handleExistingFileSelection`. New `acceptIncomingFile`
+  guard accepts `video/*` (or unknown type) and rejects other types with a hint.
+  RecordPage.tsx only; verified live via Playwright (drop + paste both load preview).
+
+### 2026-06-18 — Doc export with embedded images: DOCX + PDF (LIVE)
+- Doc tab download was raw `.md` only (images were remote refs, not in the file). Added
+  a **"Download ▾" menu** in `DocCard.tsx`: **PDF (with images)**, **Word .docx (with
+  images)**, and Markdown (.md). PDF/DOCX are **self-contained** — screenshots fetched
+  (same-origin `/cap4/...`) and embedded inline, matching the Doc tab.
+- Pure **client-side** export (`apps/web/src/lib/doc-export.ts`): walks the doc
+  sections/steps/callouts/confidenceNotes. Uses `docx@9.7.1` + `jspdf@4.2.1`,
+  **dynamically imported** so they code-split into lazy chunks (only load on export).
+  No backend route, no model calls, no container changes.
+- Verified live via Playwright on dcb167cd: PDF 228KB (`%PDF`), DOCX 199KB (zip with
+  `word/media/` images), no console errors. Web tests 36/36. Deployed via host build →
+  `cap4_web_dist` volume copy → nginx reload (see `frontend-deploy-mechanism`).
+
+### 2026-06-18 — Raw-original prune (disk cleanup) + doc-worker reboot fix (LIVE)
+- **Disk cleanup**: cap4 used to keep BOTH the raw upload (`raw/source.mp4`) and the
+  transcoded `result/result.mp4` forever — raws were ~62% of MinIO. New
+  `scripts/prune-raw-originals.{sh,mjs}` deletes the raw S3 object once a video is done
+  with it (`transcription_status IN ('complete','no_audio') AND result_key NOT NULL AND
+  deleted_at IS NULL`). **Deletes the S3 object ONLY — never touches `uploads.raw_key`**
+  (NOT NULL, read without null-guards by upload endpoints; nulling = risk). Safe because
+  a complete video's raw is never read again (transcribe short-circuits on status before
+  the `raw_key ?? result_key` read; doc prefers result_key; cleanup is null-guarded +
+  idempotent). Backfill freed **27.6 GB** (videos dir 44G→17G); E2E-verified videos still
+  play + transcripts/docs intact. **Daily host cron** (4:30am, `--min-age-hours 24`)
+  keeps it pruned. Tradeoff: can't re-transcode from pristine source anymore.
+  See memory `raw-original-prune-cleanup`.
+- **Doc-worker reboot fix**: the host doc-worker (processes `generate_doc`) had died on
+  a host reboot (~2026-06-16), so manual Generate-doc clicks queued forever and `GET
+  /doc` 404'd. Restarted it; added `@reboot` crontab entry + PATH incl.
+  `/home/bjkai/.local/bin` so it auto-starts with `claude` on PATH. **Doc generation
+  remains manual-only** (enqueued ONLY by `POST /api/videos/:id/generate-doc`, docs.ts:42
+  — not in the automated pipeline). See memory `doc-worker-host-process`.
 
 ### 2026-06-11 — Collapsed doc pipeline (branch `feat/collapsed-doc-pipeline`, LIVE)
 - **Deployed 2026-06-11**: migration 0008 applied to live DB; web-api + worker

@@ -100,3 +100,25 @@ Ambiguity calls made during the autonomous session, simplest-option-first.
     dispatch branch, web-api route module, config/env additions). Deleting
     `apps/worker/src/doc/`, `routes/docs.ts`, and migration 0008 would restore
     the previous system exactly.
+
+16. **Dependency-vuln remediation (2026-06-19) clears the request-path libs,
+    defers the dev-tooling ones.** `pnpm audit` had 1 critical + 15 high. The
+    **runtime-reachable** advisories — Fastify body-schema-validation bypass
+    (`fastify` → `^5.8.5`), `fast-uri` path-traversal/host-confusion, the AWS
+    SDK's `fast-xml-parser` entity-expansion DoS, and `ws` — are now cleared:
+    `fastify` bumped directly, the transitive trio pinned via root
+    `pnpm.overrides` (`fast-uri >=3.1.2`, `fast-xml-parser >=5.7.0`,
+    `ws >=8.21.0`, plus `flatted >=3.4.2` for the eslint cache chain).
+    `react-router-dom` bumped to `^6.30.4`, `happy-dom` to `^20.8.9` (both
+    same-major patch).
+    The **residual** advisories are dev/build-tooling only and never run in the
+    nginx-served production stack: `vitest` (a `vitest --ui` server file-read —
+    this repo only ever runs `vitest run`, never the UI), the `apps/web` dev
+    `vite` 5.x `server.fs.deny` issues, and `picomatch`. Clearing `vitest`/`vite`
+    requires the **vite 5→6 major upgrade**, deferred as separate work:
+    `vitest@4.1` drops vite-5 peer support, so bumping it now against the
+    vite-5-pinned web app would be an unsupported pairing. `vitest` is therefore
+    pinned to `~4.0.18` (the vite-5-compatible line) until the vite major lands.
+    No `@aws-sdk` or `eslint` direct bump was needed (overrides covered their
+    transitive advisories with less churn). Verified: `pnpm audit` shows 0
+    runtime-reachable highs; typecheck/test/build all green (web 36, worker 51).

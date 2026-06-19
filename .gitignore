@@ -93,6 +93,12 @@ bykimi.md
 # AI agent session directories
 .claude/
 .gemini/
+.agents/
+
+# AI agent tooling + local scratch (not deliverables)
+skills-lock.json
+aiprompt.md
+PROGRESS.md
 
 # Reference copies / legacy
 cap4_new/

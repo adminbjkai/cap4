@@ -4,6 +4,11 @@
 # Override: `make PROJECT=cap4-staging up`
 PROJECT ?= cap4
 
+# Host port the web-internal nginx binds (must match PORT in .env).
+# The hardened stack does NOT publish the web-api container (:3000) to the host;
+# everything is reached through nginx on this port. Override: `make PORT=8007 smoke`
+PORT ?= 8007
+
 # Start all services. Migrations run automatically via the 'migrate' service.
 up:
 	docker compose -p $(PROJECT) up -d --build
@@ -29,10 +34,11 @@ reset-db:
 
 # Run the smoke test (requires services to be up and healthy).
 # /debug/smoke is only registered in non-production builds (NODE_ENV != production).
-# The prod stack uses /health and /ready as the canonical liveness checks.
+# The prod stack uses /health and /ready as the canonical liveness checks, reached
+# through the nginx host port (PORT), which proxies them to web-api.
 smoke:
-	@echo "--- /health ---" && curl -fsS http://localhost:3000/health
-	@echo "--- /ready ---"  && curl -fsS http://localhost:3000/ready
+	@echo "--- /health ---" && curl -fsS http://localhost:$(PORT)/health
+	@echo "--- /ready ---"  && curl -fsS http://localhost:$(PORT)/ready
 	@echo "\nSmoke passed."
 
 # Remove containers, volumes, and dangling build cache.
