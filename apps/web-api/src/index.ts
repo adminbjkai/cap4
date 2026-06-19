@@ -10,6 +10,7 @@ import { uploadRoutes } from "./routes/uploads.js";
 import { libraryRoutes } from "./routes/library.js";
 import { jobRoutes } from "./routes/jobs.js";
 import { webhookRoutes } from "./routes/webhooks.js";
+import { docRoutes } from "./routes/docs.js";
 
 const env = getEnv();
 const app = Fastify({ logger: false });
@@ -67,6 +68,7 @@ await app.register(uploadRoutes);
 await app.register(libraryRoutes);
 await app.register(jobRoutes);
 await app.register(webhookRoutes);
+await app.register(docRoutes);
 
 // ---------------------------------------------------------------------------
 // Start

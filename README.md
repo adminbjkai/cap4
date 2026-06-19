@@ -16,7 +16,7 @@ Single-tenant video processing platform with a React watch app, Fastify API, Pos
 - `apps/web` — React/Vite frontend
 - `apps/web-api` — Fastify API
 - `apps/worker` — queue worker for processing, transcription, and AI jobs
-- `apps/media-server` — FFmpeg wrapper invoked synchronously by the worker via POST /process
+- `apps/media-server` — FFmpeg wrapper; the worker POSTs /process, it replies 202 and reports completion via signed webhooks to the API
 - `packages/db` / `db/migrations` — PostgreSQL access and schema
 - `packages/logger`, `packages/config` — shared packages
 
@@ -40,10 +40,12 @@ make up
 make smoke
 ```
 
-Open:
+Open (the hardened stack serves both the app and the API through nginx on the
+single host port `PORT` from `.env`, default `8007`; the web-api container's
+`:3000` and media-server's `:3100` are internal-only and not published to the
+host):
 
-- App: `http://localhost:8022`
-- API: `http://localhost:3000`
+- App + API: `http://localhost:8007` (API routes live under `/api`, e.g. `http://localhost:8007/api/...`)
 - MinIO API: `http://localhost:8922`
 - MinIO console: `http://localhost:8923` (bound to localhost only in Compose)
 
@@ -62,14 +64,14 @@ All mutation routes in this flow require an `Idempotency-Key` header.
 Singlepart example:
 
 ```bash
-VIDEO_JSON=$(curl -sS -X POST http://localhost:3000/api/videos \
+VIDEO_JSON=$(curl -sS -X POST http://localhost:8007/api/videos \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: create-video-1" \
   -d '{"name":"Demo upload"}')
 
 VIDEO_ID=$(printf '%s' "$VIDEO_JSON" | jq -r '.videoId')
 
-SIGNED_JSON=$(curl -sS -X POST http://localhost:3000/api/uploads/signed \
+SIGNED_JSON=$(curl -sS -X POST http://localhost:8007/api/uploads/signed \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: signed-upload-1" \
   -d "{\"videoId\":\"$VIDEO_ID\",\"contentType\":\"video/mp4\"}")
@@ -80,12 +82,12 @@ curl -X PUT "$PUT_URL" \
   -H "Content-Type: video/mp4" \
   --data-binary @sample.mp4
 
-curl -X POST http://localhost:3000/api/uploads/complete \
+curl -X POST http://localhost:8007/api/uploads/complete \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: complete-upload-1" \
   -d "{\"videoId\":\"$VIDEO_ID\"}"
 
-curl http://localhost:3000/api/videos/$VIDEO_ID/status
+curl http://localhost:8007/api/videos/$VIDEO_ID/status
 ```
 
 ## Development Commands

@@ -4,6 +4,14 @@
   "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@9.12.3",
+  "pnpm": {
+    "overrides": {
+      "fast-uri": ">=3.1.2",
+      "fast-xml-parser": ">=5.7.0",
+      "ws": ">=8.21.0",
+      "flatted": ">=3.4.2"
+    }
+  },
   "scripts": {
     "build:internal": "pnpm --filter @cap/config --filter @cap/db --filter @cap/logger build",
     "build": "pnpm --filter '*' build",
@@ -15,7 +23,7 @@
     "typecheck": "pnpm --filter '*' typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "db:migrate": "pnpm --filter @cap/db migrate",
+    "db:migrate": "docker compose run --rm migrate",
     "dev:web-api": "pnpm --filter @cap/web-api dev",
     "dev:web": "pnpm --filter @cap/web dev",
     "dev:worker": "pnpm --filter @cap/worker dev",

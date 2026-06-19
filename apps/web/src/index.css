@@ -400,6 +400,256 @@ body {
     border-color: var(--border-strong);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
+  /* ── Library: grid/list view toggle ────────────────────────────────── */
+  .library-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+  }
+  .library-view-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75rem;
+    width: 2rem;
+    border-radius: 0.375rem;
+    color: var(--text-muted);
+    transition:
+      color 150ms ease,
+      background 150ms ease;
+  }
+  .library-view-button:hover {
+    color: var(--text-secondary);
+  }
+  .library-view-button-active {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+
+  /* ── Library: list / table view ────────────────────────────────────── */
+  .lib-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border-default);
+    border-radius: 0.75rem;
+    background: var(--bg-surface);
+  }
+  .lib-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+  }
+  .lib-th {
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .lib-th-thumb {
+    width: 4.5rem;
+  }
+  .lib-th-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+  }
+  .lib-th-button:hover {
+    color: var(--text-primary);
+  }
+  .lib-th-active {
+    color: var(--text-primary);
+  }
+  .lib-sort-caret {
+    font-size: 0.6rem;
+    transition: opacity 120ms ease;
+  }
+  .lib-row {
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+  .lib-row:hover {
+    background: var(--hover-surface);
+  }
+  .lib-td {
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid var(--border-default);
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+  .lib-table tbody tr:last-child .lib-td {
+    border-bottom: 0;
+  }
+  .lib-td-title {
+    max-width: 22rem;
+  }
+  .lib-title-text {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lib-td-thumb {
+    width: 4.5rem;
+  }
+  .lib-thumb {
+    height: 2.25rem;
+    width: 4rem;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    background: var(--bg-surface-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lib-thumb img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+  }
+  .lib-thumb-empty {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  /* List controls (columns menu, filters toggle, clear) */
+  .lib-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.625rem;
+  }
+  .lib-control-active {
+    border-color: var(--accent-blue-border);
+    color: var(--text-primary);
+  }
+  .lib-col-menu-wrap {
+    position: relative;
+  }
+  .lib-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+  .lib-col-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 40;
+    min-width: 12rem;
+    padding: 0.5rem;
+    border-radius: 0.625rem;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  }
+  .lib-col-menu-title {
+    padding: 0.25rem 0.5rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .lib-col-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .lib-col-menu-item:hover {
+    background: var(--hover-surface);
+  }
+
+  /* Draggable header internals */
+  .lib-th {
+    cursor: grab;
+  }
+  .lib-th-dragover {
+    background: var(--accent-blue-subtle);
+    box-shadow: inset 2px 0 0 var(--accent-blue);
+  }
+  .lib-th-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .lib-grip {
+    color: var(--text-muted);
+    opacity: 0.55;
+    font-size: 0.7rem;
+    cursor: grab;
+    user-select: none;
+  }
+  .lib-th-button {
+    cursor: pointer;
+  }
+  .lib-th-static {
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  /* Per-column filter row */
+  .lib-filter-row .lib-filter-cell {
+    padding: 0.3rem 0.5rem 0.5rem;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-surface-subtle);
+  }
+  .lib-filter-input {
+    width: 100%;
+    min-width: 5rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  .lib-filter-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+  }
+
+  /* Editable note cell */
+  .lib-td-note {
+    min-width: 10rem;
+  }
+  .lib-note-input {
+    width: 100%;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.8125rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-primary);
+  }
+  .lib-note-input::placeholder {
+    color: var(--text-muted);
+  }
+  .lib-note-input:hover {
+    border-color: var(--border-default);
+  }
+  .lib-note-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    background: var(--bg-surface);
+  }
+
   .library-card-reveal {
     animation: card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
     will-change: transform, opacity;
@@ -1318,11 +1568,17 @@ body {
   .page-transition-enter,
   .library-card-reveal,
   .rail-tab-panel-enter,
-  .rail-tab-panel-exit,
   .progress-active-bar,
   .dialog-surface {
     animation: none !important;
     transform: none !important;
+  }
+  /* Reduced motion: skip the rail crossfade entirely. The exit panel is an
+     absolutely-positioned overlay that relies on its fade-out animation to
+     disappear; with animations disabled it would otherwise sit fully opaque
+     on top of the active panel and overlap its content. */
+  .rail-tab-panel-exit {
+    display: none !important;
   }
 }
 

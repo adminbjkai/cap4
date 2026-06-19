@@ -32,14 +32,11 @@ export const PROCESSING_PHASE_RANK: Record<string, number> = {
 
 export type JobType = "process_video" | "transcribe_video" | "generate_ai" | "cleanup_artifacts";
 
+/** 202 acceptance body from media-server POST /process (async handoff). */
 export type ProcessResponse = {
-  resultKey: string;
-  thumbnailKey: string;
-  durationSeconds?: number;
-  width?: number;
-  height?: number;
-  fps?: number | null;
-  hasAudio?: boolean;
+  ok: boolean;
+  accepted: boolean;
+  videoId: string;
 };
 
 export type WebhookPayload = {
@@ -49,6 +46,9 @@ export type WebhookPayload = {
   progress: number;
   message?: string;
   error?: string;
+  resultKey?: string;
+  thumbnailKey?: string;
+  hasAudio?: boolean;
   metadata?: {
     duration?: number;
     width?: number;
@@ -304,8 +304,9 @@ export function normalizeCursorTimestamp(value: string | Date): string | null {
   return new Date(parsed).toISOString();
 }
 
-export function encodeLibraryCursor(createdAtIso: string, id: string): string {
-  return Buffer.from(`${createdAtIso}|${id}`, "utf8").toString("base64url");
+export function encodeLibraryCursor(createdAt: string | Date, id: string): string {
+  const iso = new Date(createdAt as string).toISOString();
+  return Buffer.from(`${iso}|${id}`, "utf8").toString("base64url");
 }
 
 export function decodeLibraryCursor(cursor: string): { createdAtIso: string; id: string } | null {

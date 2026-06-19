@@ -11,10 +11,8 @@ Current HTTP contract for the Fastify API in `apps/web-api`.
 - Auth: none
 - Global rate limit: `100 requests / minute / IP`
 - Webhook route is excluded from the global rate limiter
-- Most POST/PATCH mutation routes require `Idempotency-Key`; the webhook route uses HMAC headers instead
 - Most validation errors return `{"ok": false, "error": "..." }`
 - Responses are route-specific JSON objects; there is no global `{ success, data }` envelope
-- The authoritative CI workflow that exercises this contract lives at `.github/workflows/test.yml`
 
 ## Upload Lifecycle
 
@@ -38,7 +36,7 @@ Request:
 curl -X POST http://localhost:3000/api/videos \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: create-video-1" \
-  -d '{"name":"Demo upload","webhookUrl":"https://example.com/hook"}'
+  -d '{"name":"Demo upload","webhookUrl":"https://example.com/hook","originalFileCreatedAt":"2024-01-15T10:30:00.000Z"}'
 ```
 
 Response:
@@ -56,7 +54,12 @@ Notes:
 - `Idempotency-Key` is required.
 - `name` is optional; default is `"Untitled Video"`.
 - `webhookUrl` is optional and stored on `videos.webhook_url`.
-- `webhookUrl` must use `http` or `https` and cannot target localhost, Docker service names, `.local`, or `.internal` hosts.
+- `originalFileCreatedAt` is optional (ISO 8601). For file uploads the web client
+  sends the source file's `File.lastModified`; it is stored on
+  `videos.original_file_created_at` and distinguishes the file's own creation time
+  from when it was uploaded into cap4 (`videos.created_at`). Values that are
+  unparseable, before 1990, or more than ~1 day in the future are ignored
+  (stored as `NULL`). Screen recordings omit it.
 
 ### `GET /api/videos/:id/status`
 
@@ -97,23 +100,7 @@ Response shape:
     "model": "llama-3.3-70b-versatile",
     "title": "Weekly review",
     "summary": "Summary text",
-    "keyPoints": ["Point 1", "Point 2"],
-    "chapters": [
-      { "title": "Kickoff", "seconds": 0 },
-      { "title": "Action items", "seconds": 84 }
-    ],
-    "entities": {
-      "people": ["Murry"],
-      "organizations": ["Cap4"],
-      "locations": [],
-      "dates": []
-    },
-    "actionItems": [
-      { "task": "Review the staging deploy", "assignee": "Murry", "deadline": "2026-03-31" }
-    ],
-    "quotes": [
-      { "text": "Keep the queue monotonic.", "timestamp": 118 }
-    ]
+    "keyPoints": ["Point 1", "Point 2"]
   }
 }
 ```
@@ -152,12 +139,7 @@ AI statuses:
 
 Important:
 
-- `name` is the persisted video name and is the UI fallback when no AI title exists.
-- `transcript` is `null` until a transcript row with `vttKey` exists.
-- `aiOutput` is `null` until AI output exists.
-- `aiOutput.chapters`, `aiOutput.entities`, `aiOutput.actionItems`, and `aiOutput.quotes` are optional and are omitted when no validated enrichment data exists.
-- `keyPoints` remains for summary copy, but the watch page should prefer `chapters` over heuristic timestamp reconstruction when structured chapter timing is available.
-- The current watch page consumes `entities`, `actionItems`, and `quotes` directly in the summary UI and uses chapter timing for jump actions when available.
+- The database stores enrichment fields such as `entities_json`, `action_items_json`, and `quotes_json`, but `GET /api/videos/:id/status` does not currently expose them.
 
 ### `PATCH /api/videos/:id/watch-edits`
 
@@ -194,11 +176,11 @@ Notes:
 - At least one of `title`, `transcriptText`, or `speakerLabels` must be present.
 - `title` updates `ai_outputs.title` if an AI row exists; otherwise falls back to updating `videos.name`.
 - `transcriptText` rewrites `transcripts.segments_json` while preserving timing metadata shape.
-- `speakerLabels` updates `transcripts.speaker_labels_json`.
 
 ### `POST /api/videos/:id/retry`
 
-Requeue failed transcription and/or AI jobs.
+Requeue failed/stuck jobs. Depending on state this can reset the `process_video`,
+`transcribe_video`, and/or `generate_ai` jobs; `jobsReset` lists what was re-queued.
 
 ```bash
 curl -X POST http://localhost:3000/api/videos/550e8400-e29b-41d4-a716-446655440000/retry \
@@ -211,7 +193,7 @@ Response:
 {
   "ok": true,
   "videoId": "550e8400-e29b-41d4-a716-446655440000",
-  "jobsReset": ["transcribe_video", "generate_ai"]
+  "jobsReset": ["process_video", "transcribe_video", "generate_ai"]
 }
 ```
 
@@ -235,8 +217,6 @@ Response:
 ```
 
 ## Upload Routes
-
-All upload mutation routes below require `Idempotency-Key`.
 
 ### `POST /api/uploads/signed`
 
@@ -381,6 +361,24 @@ Response:
 }
 ```
 
+## Doc Pipeline Routes (opt-in)
+
+Documentation generation (PIPELINE_V2) is never triggered automatically —
+see `docs/PIPELINE_V2.md` for the full contract and deployment constraints.
+
+### `POST /api/videos/:id/generate-doc`
+
+Enqueues a `generate_doc` job. Requires `transcription_status = 'complete'`
+(409 otherwise; 404 for unknown/deleted videos). Idempotent while a job is
+already queued/running. Returns `202 { ok, jobId, status }`.
+
+### `GET /api/videos/:id/doc`
+
+Returns the generated document: status (`generating | complete | failed`),
+title, doc type, rendered markdown, confidence notes, and sections with steps
+(each step optionally carrying a frame key, timestamp, crop box, alt text and
+callout). 404 until a document exists for the video.
+
 ## Library, Jobs, and System Routes
 
 ### `GET /api/library/videos`
@@ -408,6 +406,7 @@ Response:
       "transcriptionStatus": "complete",
       "aiStatus": "complete",
       "createdAt": "2026-03-09T20:10:00.000Z",
+      "originalFileCreatedAt": "2024-01-15T10:30:00.000Z",
       "durationSeconds": 123.456
     }
   ],
@@ -417,14 +416,23 @@ Response:
 }
 ```
 
+Notes:
+
+- `createdAt` is when the video was uploaded into cap4. `originalFileCreatedAt`
+  is the source file's own timestamp (`File.lastModified`) and is `null` for
+  screen recordings and for videos uploaded before migration `0007`.
+- The web client renders this list as either a card **grid** (default) or a
+  **list/table** view (toggle persisted in `localStorage` under `cap4:libraryView`).
+  The table adds show/hide + drag-reorder columns (persisted under
+  `cap4:libraryColumns`), per-column + global filtering with clear-all, click-to-sort
+  headers, EST date/time rendering of `createdAt` and `originalFileCreatedAt`, and an
+  inline per-row note stored client-side under `cap4:notes:<videoId>`. Sorting and
+  filtering are applied **client-side over the loaded page(s)** (the server only sorts
+  by `created_asc`/`created_desc`), so with pagination they reorder loaded rows only.
+
 ### `GET /api/jobs/:id`
 
 Return one `job_queue` row.
-
-Notes:
-
-- `id` must be numeric.
-- Field names are returned in `snake_case` because this route mirrors the queue row directly.
 
 ```json
 {
@@ -476,7 +484,7 @@ Current webhook contract for media-server progress updates handled by `apps/web-
 - Auth: HMAC verification plus timestamp skew validation
 - Rate limit: excluded from the global API limiter
 - Content type: `application/cap4-webhook+json`
-- Flow note: this route exists for signed progress updates and is covered by the API contract plus test/debug tooling. The checked-in main worker path still calls media-server `/process` synchronously, and the `apps/media-server` implementation shown in this repo does not itself emit these callbacks during that path.
+- Flow note: this route is the mainline completion path. The worker's `POST /process` call returns `202` immediately and the media-server emits these signed callbacks as it works: phase transitions (`probing`, `processing`, `uploading`), then `complete` (carrying `resultKey`, `thumbnailKey`, `hasAudio`, and `metadata`) or `failed` (carrying `error`).
 
 ### What This Route Does
 
@@ -486,7 +494,7 @@ When a signed progress update is posted to this route, the API:
 2. Verifies the HMAC signature against the raw request body.
 3. Rejects stale timestamps outside `WEBHOOK_MAX_SKEW_SECONDS`.
 4. Deduplicates deliveries by `source + delivery_id`.
-5. Applies the update only if it moves the video state forward or increases progress at the same rank.
+5. Applies the update only if it moves the video state forward or increases progress at the same rank. On `complete` it also persists `result_key`/`thumbnail_key`, clears `error_message`, and either queues transcription (when `hasAudio` is not `false`) or marks transcription `no_audio` and AI `skipped`. On `failed` it stores the error message.
 6. Optionally enqueues an outbound `deliver_webhook` job when the video has a user-configured `webhook_url`.
 
 ### Required Headers
@@ -527,7 +535,10 @@ Fields:
 - `phase`: processing phase accepted by the API state machine
 - `progress`: integer percentage, clamped to `0..100`
 - `message`: optional status detail
-- `error`: optional error text
+- `error`: optional error text (persisted to `videos.error_message` on `phase: "failed"`)
+- `resultKey`: optional S3 key of the processed result (sent with `phase: "complete"`)
+- `thumbnailKey`: optional S3 key of the thumbnail (sent with `phase: "complete"`)
+- `hasAudio`: optional boolean; `false` short-circuits transcription/AI to `no_audio`/`skipped`
 - `metadata`: optional duration/size/fps values to persist
 
 ### Accepted Processing Phases

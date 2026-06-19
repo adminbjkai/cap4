@@ -45,12 +45,25 @@ export async function videoRoutes(app: FastifyInstance) {
   // POST /api/videos — create video
   // ------------------------------------------------------------------
 
-  app.post<{ Body: { name?: string; webhookUrl?: string } }>("/api/videos", async (req, reply) => {
+  app.post<{ Body: { name?: string; webhookUrl?: string; originalFileCreatedAt?: string } }>("/api/videos", async (req, reply) => {
     const idempotencyKey = requireIdempotencyKey(req.headers as Record<string, unknown>);
     if (!idempotencyKey) return reply.code(400).send(badRequest("Missing Idempotency-Key header"));
 
     const name = String(req.body?.name ?? "Untitled Video").trim() || "Untitled Video";
     const webhookUrl = req.body?.webhookUrl ? String(req.body.webhookUrl).trim() : null;
+
+    // Original source-file timestamp (browser File.lastModified). Only accept sane
+    // values; ignore anything unparseable, pre-1990, or far in the future.
+    let originalFileCreatedAt: string | null = null;
+    const rawOriginal = req.body?.originalFileCreatedAt;
+    if (rawOriginal != null && String(rawOriginal).trim() !== "") {
+      const parsedMs = new Date(String(rawOriginal)).getTime();
+      const minMs = 631152000000; // 1990-01-01T00:00:00Z
+      const maxMs = Date.now() + 25 * 60 * 60 * 1000; // tolerate up to ~1 day of clock skew
+      if (Number.isFinite(parsedMs) && parsedMs > minMs && parsedMs < maxMs) {
+        originalFileCreatedAt = new Date(parsedMs).toISOString();
+      }
+    }
 
     if (webhookUrl) {
       try {
@@ -68,7 +81,7 @@ export async function videoRoutes(app: FastifyInstance) {
     }
 
     const endpointKey = "/api/videos";
-    const requestHash = sha256Hex(JSON.stringify({ name, webhookUrl }));
+    const requestHash = sha256Hex(JSON.stringify({ name, webhookUrl, originalFileCreatedAt }));
 
     const result = await withTransaction(env.DATABASE_URL, async (client) => {
       const begin = await idempotencyBegin({
@@ -84,8 +97,9 @@ export async function videoRoutes(app: FastifyInstance) {
       }
 
       const videoResult = await client.query<{ id: string }>(
-        `INSERT INTO videos (name, source_type, webhook_url) VALUES ($1, 'web_mp4', $2) RETURNING id`,
-        [name, webhookUrl]
+        `INSERT INTO videos (name, source_type, webhook_url, original_file_created_at)
+         VALUES ($1, 'web_mp4', $2, $3::timestamptz) RETURNING id`,
+        [name, webhookUrl, originalFileCreatedAt]
       );
 
       const videoId = videoResult.rows[0]!.id;
@@ -109,8 +123,71 @@ export async function videoRoutes(app: FastifyInstance) {
   // GET /api/videos/:id/status
   // ------------------------------------------------------------------
 
-  app.get<{ Params: { id: string } }>("/api/videos/:id/status", async (req, reply) => {
+  // ?view=summary returns the lightweight polling shape: everything except the
+  // transcript segments and AI output, which are large and change rarely.
+  app.get<{ Params: { id: string }; Querystring: { view?: string } }>("/api/videos/:id/status", async (req, reply) => {
     const videoId = req.params.id;
+    const summaryOnly = req.query?.view === "summary";
+
+    if (summaryOnly) {
+      const summary = await query<{
+        id: string;
+        name: string;
+        processing_phase: string;
+        processing_progress: number;
+        result_key: string | null;
+        thumbnail_key: string | null;
+        error_message: string | null;
+        transcription_status: string;
+        ai_status: string;
+        transcription_dead_error: string | null;
+        ai_dead_error: string | null;
+        created_at: string;
+        original_file_created_at: string | null;
+      }>(
+        env.DATABASE_URL,
+        `SELECT
+           v.id, v.name, v.processing_phase, v.processing_progress,
+           v.result_key, v.thumbnail_key, v.error_message,
+           v.transcription_status, v.ai_status,
+           tj.last_error AS transcription_dead_error,
+           aj.last_error AS ai_dead_error,
+           v.created_at, v.original_file_created_at
+         FROM videos v
+         LEFT JOIN LATERAL (
+           SELECT last_error FROM job_queue
+           WHERE video_id = v.id AND job_type = 'transcribe_video' AND status = 'dead'
+           ORDER BY id DESC LIMIT 1
+         ) tj ON true
+         LEFT JOIN LATERAL (
+           SELECT last_error FROM job_queue
+           WHERE video_id = v.id AND job_type = 'generate_ai' AND status = 'dead'
+           ORDER BY id DESC LIMIT 1
+         ) aj ON true
+         WHERE v.id = $1::uuid AND v.deleted_at IS NULL`,
+        [videoId]
+      );
+
+      if (summary.rowCount === 0) {
+        return reply.code(404).send({ ok: false, error: "Video not found" });
+      }
+      const s = summary.rows[0]!;
+      return reply.send({
+        videoId: s.id,
+        name: s.name,
+        processingPhase: s.processing_phase,
+        processingProgress: s.processing_progress,
+        resultKey: s.result_key,
+        thumbnailKey: s.thumbnail_key,
+        errorMessage: s.error_message,
+        transcriptionStatus: s.transcription_status,
+        aiStatus: s.ai_status,
+        transcriptErrorMessage: s.transcription_dead_error,
+        aiErrorMessage: s.ai_dead_error,
+        createdAt: s.created_at,
+        originalFileCreatedAt: s.original_file_created_at
+      });
+    }
     const result = await query<{
       id: string;
       name: string;
@@ -136,6 +213,8 @@ export async function videoRoutes(app: FastifyInstance) {
       ai_quotes_json: unknown;
       transcription_dead_error: string | null;
       ai_dead_error: string | null;
+      created_at: string;
+      original_file_created_at: string | null;
     }>(
       env.DATABASE_URL,
       `SELECT
@@ -162,7 +241,9 @@ export async function videoRoutes(app: FastifyInstance) {
          ao.action_items_json AS ai_action_items_json,
          ao.quotes_json AS ai_quotes_json,
          tj.last_error AS transcription_dead_error,
-         aj.last_error AS ai_dead_error
+         aj.last_error AS ai_dead_error,
+         v.created_at,
+         v.original_file_created_at
        FROM videos v
        LEFT JOIN transcripts t ON t.video_id = v.id
        LEFT JOIN ai_outputs ao ON ao.video_id = v.id
@@ -212,6 +293,8 @@ export async function videoRoutes(app: FastifyInstance) {
       aiStatus: row.ai_status,
       transcriptErrorMessage: row.transcription_dead_error,
       aiErrorMessage: row.ai_dead_error,
+      createdAt: row.created_at,
+      originalFileCreatedAt: row.original_file_created_at,
       transcript: row.transcript_vtt_key
         ? {
           provider: row.transcript_provider,
@@ -486,7 +569,7 @@ export async function videoRoutes(app: FastifyInstance) {
   });
 
   // ------------------------------------------------------------------
-  // POST /api/videos/:id/retry — re-queue failed transcription / AI jobs
+  // POST /api/videos/:id/retry — re-queue failed processing / transcription / AI jobs
   // ------------------------------------------------------------------
 
   app.post<{ Params: { id: string } }>("/api/videos/:id/retry", async (req, reply) => {
@@ -525,7 +608,7 @@ export async function videoRoutes(app: FastifyInstance) {
 
       // 2. Video existence
       const videoResult = await client.query(
-        `SELECT id, transcription_status, ai_status
+        `SELECT id, processing_phase, transcription_status, ai_status
          FROM videos
          WHERE id = $1::uuid
            AND deleted_at IS NULL
@@ -541,7 +624,45 @@ export async function videoRoutes(app: FastifyInstance) {
       const video = videoResult.rows[0];
       const jobsReset: string[] = [];
 
-      // 3. Reset Transcription Job if failed/dead
+      // 3. Reset processing job if processing has not completed.
+      if (["failed", "not_required", "queued", "downloading", "probing", "processing", "uploading", "generating_thumbnail"].includes(video.processing_phase)) {
+        const res = await client.query(
+          `UPDATE job_queue
+           SET status = 'queued',
+               attempts = 0,
+               run_after = now(),
+               last_error = NULL,
+               updated_at = now()
+           WHERE video_id = $1::uuid AND job_type = 'process_video'
+             AND status IN ('dead', 'leased', 'running')
+           RETURNING id`,
+          [videoId]
+        );
+
+        if ((res.rowCount ?? 0) === 0) {
+          await client.query(
+            `INSERT INTO job_queue (video_id, job_type, status, priority, run_after, payload, max_attempts)
+             VALUES ($1::uuid, 'process_video', 'queued', 100, now(), '{}'::jsonb, $2)
+             ON CONFLICT (video_id, job_type) WHERE status IN ('queued', 'leased', 'running')
+             DO UPDATE SET updated_at = now()`,
+            [videoId, env.WORKER_MAX_ATTEMPTS]
+          );
+        }
+
+        jobsReset.push("process_video");
+        await client.query(
+          `UPDATE videos
+           SET processing_phase = 'queued',
+               processing_phase_rank = 10,
+               processing_progress = 5,
+               error_message = NULL,
+               updated_at = now()
+           WHERE id = $1::uuid`,
+          [videoId]
+        );
+      }
+
+      // 4. Reset Transcription Job if failed/dead
       if (["failed", "not_started"].includes(video.transcription_status) || video.transcription_status === "processing") {
         const res = await client.query(
           `UPDATE job_queue
@@ -560,7 +681,7 @@ export async function videoRoutes(app: FastifyInstance) {
         }
       }
 
-      // 4. Reset AI Job if failed/dead
+      // 5. Reset AI Job if failed/dead
       if (["failed", "not_started"].includes(video.ai_status) || video.ai_status === "processing") {
         const res = await client.query(
           `UPDATE job_queue
@@ -579,7 +700,7 @@ export async function videoRoutes(app: FastifyInstance) {
         }
       }
 
-      // 5. Success
+      // 6. Success
       const body = { ok: true, videoId, jobsReset };
       await client.query(`UPDATE idempotency_keys SET status_code = 200, response_body = $3::jsonb WHERE endpoint = $1 AND idempotency_key = $2`, [endpointKey, idempotencyKey, JSON.stringify(body)]);
       return { statusCode: 200, body };

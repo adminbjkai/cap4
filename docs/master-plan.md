@@ -1,136 +1,606 @@
 ---
 title: "Master Plan"
-description: "High-level synthesis of the project, its current state, and its history"
+description: "Authoritative project roadmap and synthesis"
 ---
 
 # cap4 — Master Plan
 
-**Status:** Current-state synthesis for the repo
-**Last reviewed:** 2026-03-24
-**Purpose:** Keep one concise high-level document that explains what cap4 is,
-how it got here, and what is currently true.
-
-This document is not a feature backlog. For current technical contracts, use:
-
-- [API reference](api.md)
-- [Architecture](architecture.md)
-- [Database schema](database.md)
-- [Environment variables](environment.md)
-- [Local development](local-dev.md)
-- [Deployment](deployment.md)
+**Date:** March 9, 2026
+**Status:** Authoritative — supersedes all earlier planning docs
+**Purpose:** Synthesis of all 4 project versions into a confident cap4 roadmap
 
 ---
 
-## Current State
+## Executive Summary
 
-cap4 is a single-tenant video processing platform with:
+cap4 is a single-tenant video processing platform. A user uploads a video; cap4 encodes it, transcribes the audio, generates AI titles/summaries/chapters, and serves everything in a clean player UI.
 
-- React watch app
-- Fastify API
-- PostgreSQL-backed job queue
-- background worker
-- FFmpeg media-server
-- S3-compatible object storage
+This document is the result of a full audit across all four project generations:
 
-Current repo state:
+| Version | Codebase | Key Characteristic |
+|---------|----------|--------------------|
+| v1 | `Cap_for_reference_only` | Original Cap open-source SaaS — multi-tenant, Tauri desktop, MySQL, 39 tables. **Reference only, not the same product.** |
+| v2 | `Cap_v2` | Greenfield rewrite — Fastify, PostgreSQL, SQL job queue. Clean architecture, multipart stubbed (501). |
+| v3 | `cap3` | Matured v2 — 2007-line API, 3 migrations, multipart fully implemented, Nginx added. |
+| v4 | `cap3test` | cap3 + Kimi's security audit hardening. Best production state so far. |
 
-- upload -> process -> transcript -> AI summary flow is implemented
-- recordings auto-upload after capture; file selections remain explicit upload actions
-- custom video controls, transcript search, confidence review, command palette, speaker diarization, editable speaker labels, and summary enrichments are shipped
-- the checked-in Docker Compose stack is self-bootstrapping via the `migrate` service
-- GitHub Actions is consolidated into one authoritative workflow at `.github/workflows/test.yml`
-- the repo has no end-user authentication layer; auth is out of scope for the current state
+**cap4 = cap3test codebase + documentation rewrite + completed refactoring.**
 
-Current validation command set used in this repo:
-
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm build`
-- `pnpm test`
-- `pnpm --filter @cap/web test:e2e`
-- `pnpm --filter @cap/web-api test:e2e`
-- `pnpm db:migrate`
-- `make smoke` against a running stack
+The source code is production-ready. Monolithic API split, CI/CD workflows, GitHub repo, and Phase 4.7 UI improvements are all complete.
 
 ---
 
-## Current System Shape
+## Phase 4.7 — Agent Sprint (BJK-9 through BJK-18) (Completed)
 
-- `web-api` owns HTTP routes, health/readiness, idempotency, and queue enqueue paths
-- `worker` claims `job_queue` work with PostgreSQL leasing and calls Deepgram, Groq, and `media-server`
-- `media-server` exposes `/health` and `/process`; the mainline worker path calls it synchronously
-- `webhook` terminology is split:
-  - incoming media progress route: `POST /api/webhooks/media-server/progress`
-  - outgoing user callbacks: `deliver_webhook` jobs to `videos.webhook_url`
-- frontend assets are built by `web-builder` and served by nginx in `web-internal`
+The focused agent sprint shipped ten product and platform improvements end-to-end:
 
-For the detailed contract, do not rely on this file. Use [architecture.md](architecture.md), [api.md](api.md), and [database.md](database.md).
+- **BJK-9:** Micro-animations and transitions system (page/card/modal motion polish)
+- **BJK-10:** Color system redesign with refined dark mode token hierarchy
+- **BJK-11:** Custom video player controls replacing native browser chrome
+- **BJK-12:** Rich library card redesign (thumbnail overlays, hover states, processing affordances)
+- **BJK-13:** Command palette plus keyboard shortcuts and shortcuts overlay
+- **BJK-14:** Speaker diarization UI with editable labels and speaker filtering
+- **BJK-15:** Confidence-aware transcript review mode and highlighting for uncertain segments
+- **BJK-16:** Enhanced Groq prompt pipeline with entities, action items, quotes, sentiment, and schema validation
+- **BJK-17:** Transcript full-text search with highlighting and keyboard match navigation
+- **BJK-18:** Sage-green visual refresh, true-dark surfaces, delete-button interaction fix, summary strip between player and chapters
 
----
-
-## Delivered Milestones
-
-### Phase 1
-
-- web-api monolith split into route modules and shared helpers
-- GitHub repo, issue templates, and CI workflows added
-
-### Phase 3
-
-- rate limiting and raw-body webhook support
-- nginx hardening
-- Fastify v5 migration
-- log redaction and security cleanup
-
-### Phase 4
-
-- integration suite for the real upload -> transcode -> transcribe -> AI flow
-- API contract coverage for uploads, videos, jobs, library, and webhooks
-
-### Phase 4.5
-
-- automatic migrations on Compose startup
-- local-dev and config docs aligned to the real stack
-- `make reset-db` and `make smoke` corrected for the current runtime
-
-### Phase 4.7
-
-- micro-interactions and theme redesign
-- custom video player controls
-- command palette and shortcut overlay
-- speaker diarization UI
-- confidence review flow
-- transcript full-text search
-- summary enrichments for entities, action items, and quotes
+Result: Phases 1-4.7 (BJK-9 through BJK-18) are complete.
 
 ---
 
-## Historical Lineage
+## What We Learned from Each Version
 
-| Version | Codebase | What mattered |
-|---------|----------|---------------|
-| v1 | `Cap_for_reference_only` | Reference product only; not the architecture cap4 uses |
-| v2 | `Cap_v2` | Established the PostgreSQL job-queue architecture |
-| v3 | `cap3` | Matured multipart upload and core service split |
-| v4 | `cap3test` | Security hardening and the base for cap4 |
+### From v1 (Cap open-source)
+v1 is a completely different product — multi-org SaaS with Stripe billing, WorkOS SSO, Tauri desktop app, and 39 database tables. We don't adopt its architecture. However, two ideas are worth noting:
+- **Tinybird analytics** — lightweight event analytics worth considering later
+- **Chapter derivation** — v1 had a chapter algorithm matching AI key points to transcript segments, which is relevant to our AI pipeline
 
-Two historical docs are kept intentionally:
+### From v2 (greenfield)
+v2 established the clean architectural foundation that all later versions built on:
+- DB-backed job queue with `FOR UPDATE SKIP LOCKED` (no Redis needed)
+- Monotonic state machine with phase ranks
+- Idempotency key enforcement on all POST mutations
+- Separate `media-server` service isolating FFmpeg from business logic
+- Phased roadmap docs (Phase E/F/G) showing disciplined planning
 
-- [docs/archive/audit-plan.md](archive/audit-plan.md) — completed audit tracker
-- [docs/archive/roadmap.md](archive/roadmap.md) — archived cap3-era roadmap
+**Key mistake to avoid:** v2's multipart upload was stubbed (`501 Not Implemented`) and documented as unimplemented. Always keep docs and code in sync.
 
-They are history, not the current contract.
+### From v3 (cap3)
+v3 completed what v2 started. The full implementation is here:
+- Multipart upload fully working (init → presign-part → complete → abort)
+- `@cap/logger` package extracted (structured Pino logging)
+- `@cap/config` and `@cap/db` as shared packages
+- 3 SQL migrations establishing a clean schema evolution pattern
+- `generate_ai` job properly separated from transcription
+- Webhook progress deduplication via `progress_bucket` column
+
+**Key problem in v3:** 2007-line monolithic `index.ts`. Everything in one file is unsustainable.
+
+### From v4 (cap3test — current best)
+v4 = v3 + Kimi's security hardening:
+- Webhook timestamp validation (replay attack prevention)
+- HMAC signature verification with timing-safe comparison
+- Delivery ID deduplication in the webhook_events table
+- `TranscriptParagraph` component (paragraph view for transcript)
+- `ChapterList` component (left sidebar navigation)
+- `RecordPage` placeholder (future recording feature)
+- `ProviderStatusPanel` (Deepgram/Groq health checks in UI)
+
+**What to discard from v4:** The `.audit/` directory, `AGENTS.md`, and `bykimi.md` (already removed in cap4 clean copy). These are operational audit infrastructure, not product.
 
 ---
 
-## What This File Should Not Do
+## Tech Stack — Definitive
 
-This file should not:
+No changes from what's working in v4. The stack is proven.
 
-- duplicate route-by-route API details
-- restate the database schema in SQL-like detail
-- describe unsupported deployment targets
-- carry speculative future phases or roadmap expansion
+### Backend
+| Component | Technology | Version |
+|-----------|------------|---------|
+| HTTP API | Fastify | 5.8.1 |
+| Runtime | Node.js | 20+ |
+| Language | TypeScript | strict mode |
+| Database | PostgreSQL | 16 |
+| Object Storage | MinIO (S3-compatible) | Latest |
+| Video Processing | FFmpeg (via media-server) | 6+ |
+| Transcription | Deepgram | Nova-2 model |
+| AI Generation | Groq | llama-3.3-70b-versatile |
+| Logging | Pino (via @cap/logger) | Structured JSON |
+| Package Manager | pnpm workspaces | 9+ |
 
-If it starts doing any of those again, trim it back and push the details into
-the focused docs that already exist.
+### Frontend
+| Component | Technology | Version |
+|-----------|------------|---------|
+| Framework | React | 18.3.1 |
+| Build Tool | Vite | 5+ |
+| Language | TypeScript | strict mode |
+| Styling | Tailwind CSS + CSS custom properties | — |
+| Video Player | Custom controls over HTML5 `<video>` (`CustomVideoControls`) | — |
+
+### Infrastructure
+| Component | Technology |
+|-----------|------------|
+| Container | Docker + Docker Compose |
+| Reverse Proxy | Nginx |
+| CI/CD | GitHub Actions (to be added) |
+| Repo | GitHub |
+
+---
+
+## Database Schema — Authoritative State
+
+The schema spans **7 migrations** (`0001`–`0007`). The authoritative, column-level
+reference is **[database.md](database.md)** — the overview below intentionally does
+not duplicate it.
+
+The schema is **normalized**: `videos` holds core state and lifecycle, while upload,
+transcript, AI-output, and webhook data live in their own tables keyed by `video_id`.
+
+### Core Tables (overview)
+
+- **videos** — central entity (`id UUID` PK). Processing state
+  (`processing_phase` + monotonic `processing_phase_rank`, `transcription_status`,
+  `ai_status`), media metadata (`duration_seconds`, `width`, `height`, `fps`),
+  `result_key` / `thumbnail_key`, `name`, `webhook_url` (migration `0003`),
+  `deleted_at` soft-delete (migration `0002`), and `original_file_created_at`
+  (migration `0007`).
+- **uploads** — one row per video (`video_id` PK); `mode` (`singlepart` | `multipart`),
+  `phase`, `multipart_upload_id`, `raw_key`, byte counters, `etag_manifest`.
+- **job_queue** — work queue (`id BIGSERIAL` PK); `job_type`
+  (`process_video` | `transcribe_video` | `generate_ai` | `cleanup_artifacts` | `deliver_webhook`),
+  `status` (`queued` → `leased` → `running` → `succeeded` | `cancelled` | `dead`),
+  `attempts` / `max_attempts`, `run_after`, `locked_by` / `locked_until` / `lease_token`,
+  `last_error`, `finished_at`. A partial unique index allows one active job per
+  `(video_id, job_type)`.
+- **transcripts** — one row per video; `provider`, `language`, `vtt_key`,
+  `segments_json`, `speaker_labels_json` (migration `0006`).
+- **ai_outputs** — one row per video; `provider`, `model`, `title`, `summary`,
+  `chapters_json`, plus `entities_json` / `action_items_json` / `quotes_json` (migration `0005`).
+- **webhook_events** — inbound progress-webhook log + dedup; `delivery_id`, `job_id`,
+  `phase` / `phase_rank`, `progress` / `progress_bucket`, `signature`,
+  `accepted` / `reject_reason`. Unique on `(source, delivery_id)` and
+  `(source, job_id, phase, progress_bucket)`.
+- **idempotency_keys** — request idempotency cache keyed by `(endpoint, idempotency_key)`.
+
+### State Machine Phases (processing_phase)
+
+```
+not_required (rank 0)
+    ↓
+queued (rank 10)
+    ↓
+downloading (rank 20)
+    ↓
+probing (rank 30)
+    ↓
+processing (rank 40)       ← FFmpeg encoding
+    ↓
+uploading (rank 50)         ← Upload to MinIO
+    ↓
+generating_thumbnail (rank 60)
+    ↓
+complete (rank 70)          ← Terminal: success
+failed (rank 80)            ← Terminal: encoding failed
+cancelled (rank 90)         ← Terminal: user cancelled
+```
+
+**Transcription and AI** have their own independent status enums (`transcription_status`, `ai_status`) that run in parallel once `processing_phase = complete`.
+
+---
+
+## Architecture — Services
+
+```
+Browser (React)
+     │
+     ▼
+[Nginx] ──────────── port 8022 (external)
+     │
+     ├─────────────▶ [web] React SPA
+     │                (port 5173 internal)
+     │
+     └─────────────▶ [web-api] Fastify HTTP
+                      (port 3000 internal)
+                           │
+                           ├─── [PostgreSQL] Database
+                           │     (port 5432)
+                           │
+                           ├─── [MinIO] S3 Storage
+                           │     (port 9000)
+                           │
+                           └─── [media-server] FFmpeg
+                                 (port 3100 internal)
+                                 └── Emits HMAC webhooks
+                                     back to web-api
+
+[worker] Node.js background processor
+     │── Polls PostgreSQL jobs table
+     │── Claims jobs: FOR UPDATE SKIP LOCKED
+     │── Calls Deepgram (transcription)
+     │── Calls Groq (AI title/summary/chapters)
+     └── Updates video state
+```
+
+### Key Architectural Guarantees
+
+1. **Monotonic state** — `processing_phase_rank` enforced on every UPDATE
+2. **Atomic job claiming** — `FOR UPDATE SKIP LOCKED` prevents thundering herd
+3. **Crash recovery** — `lease_expires_at` allows reclaim after worker crash
+4. **Idempotent mutations** — Delivery ID dedup in `webhook_events`
+5. **Webhook security** — HMAC-SHA256 + timestamp skew check (±5 min)
+6. **No data loss** — Database is the single source of truth; S3 holds blobs
+
+---
+
+## Monolith Refactor Plan (Priority 1)
+
+The 2007-line `apps/web-api/src/index.ts` is the biggest maintenance risk. It needs to be split into route modules. This is the first code change for cap4.
+
+### Target Structure
+
+```
+apps/web-api/src/
+├── index.ts                     ← Fastify app setup + plugin registration only
+├── plugins/
+│   ├── logging.ts               ← Already exists ✓
+│   └── health.ts                ← Already exists ✓
+└── routes/
+    ├── uploads.ts               ← All /api/uploads/* routes
+    ├── videos.ts                ← All /api/videos/* routes
+    ├── library.ts               ← /api/library/* routes
+    ├── jobs.ts                  ← /api/jobs/* routes
+    ├── system.ts                ← /api/system/* routes (provider-status)
+    └── webhooks.ts              ← /api/webhooks/media-server/progress
+```
+
+Each route file exports a Fastify plugin using `fastify-plugin`:
+
+```typescript
+// routes/videos.ts
+import fp from 'fastify-plugin';
+import type { FastifyPluginAsync } from 'fastify';
+
+const videosRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/api/videos/:id/status', async (req, reply) => { ... });
+  app.post('/api/videos/:id/retry', async (req, reply) => { ... });
+  app.post('/api/videos/:id/delete', async (req, reply) => { ... });
+};
+
+export default fp(videosRoutes);
+```
+
+This is a mechanical refactor — no logic changes, just file organization. It should be done first before any feature work.
+
+---
+
+## Video Player UI Improvements (Priority 2)
+
+From `VIDEO_PLAYER_IMPROVEMENTS.md` — these are the known UI improvements. The components (`ChapterList`, `TranscriptParagraph`) already exist in v4; the work is finishing and polishing them.
+
+### Feature 1: Chapter Navigation (Epic)
+**Status:** `ChapterList.tsx` component exists, needs integration into player layout
+**Goal:** Click a chapter → video seeks to that timestamp
+
+Implementation:
+- Wire `ChapterList` props: `chapters`, `currentTime`, `onSeek`
+- Sync active chapter highlight as video plays
+- `VideoPage.tsx` passes `videoRef.current.currentTime` as prop
+
+### Feature 2: Reposition Chapter Layout
+**Status:** Chapters currently render below video
+**Goal:** Chapter list on left sidebar (desktop), collapsed accordion (mobile)
+
+Implementation:
+- CSS Grid: `[chapters] [video]` on `>1024px`, stacked below on `<1024px`
+- No new components needed, just layout restructure in `VideoPage.tsx`
+
+### Feature 3: Transcript Paragraph View
+**Status:** `TranscriptParagraph.tsx` component exists
+**Goal:** Display transcript as readable paragraphs with timestamps, not raw text dump
+
+Implementation:
+- Parse `transcript_text` into paragraph-sized chunks (split on sentence boundaries or Deepgram word groups with >1s gaps)
+- Use `TranscriptParagraph` to render each chunk with its start timestamp
+- Clicking a paragraph seeks video to that point
+
+### Feature 4: Summary Quality Improvement
+**Status:** Groq prompt in worker generates summary
+**Goal:** Better structured summaries with bullet points and key takeaways
+
+Implementation:
+- Revise Groq system prompt in `apps/worker/src/providers/` (or equivalent)
+- Add `keyPoints: string[]` to the AI response schema
+- Store in `chapters` JSONB or add a `key_points` column in a future migration
+
+---
+
+## GitHub Setup Plan
+
+### Step 1: Create Repository
+```bash
+# From cap4/ directory (the clean copy at cap3test/cap4/ or cap4_new/cap4/)
+cd /path/to/cap4
+git init
+git add .
+git commit -m "feat: initial cap4 release"
+gh repo create cap4 --public --source=. --push
+```
+
+### Step 2: Issue Templates
+Create `.github/ISSUE_TEMPLATE/`:
+
+**bug.yml:**
+```yaml
+name: Bug Report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell
+```
+
+**feature.yml:**
+```yaml
+name: Feature Request
+description: Suggest an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+```
+
+### Step 3: CI/CD Workflows
+
+**`.github/workflows/test.yml`** — Run on every PR:
+```yaml
+name: Test
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cap4_test
+          POSTGRES_USER: cap4
+          POSTGRES_PASSWORD: password
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm lint
+      - run: pnpm test
+```
+
+**`.github/workflows/build.yml`** — Validate Docker builds:
+```yaml
+name: Build
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build .
+```
+
+### Step 4: Create GitHub Issues (from VIDEO_PLAYER_IMPROVEMENTS.md)
+Create these 4 issues at launch:
+1. **[Epic] Chapter Navigation UI** — Wire `ChapterList` to video player
+2. **Reposition Chapter Layout** — Left sidebar on desktop, accordion on mobile
+3. **Transcript Paragraph View** — Parse and display transcript in readable chunks
+4. **Summary Quality Improvement** — Revise Groq prompt for structured output
+
+### Step 5: Tag v1.0.0
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+# Create GitHub Release with release notes
+```
+
+---
+
+## Security Checklist
+
+Items identified in the v4 audit as still pending:
+
+| Issue | Severity | Action |
+|-------|----------|--------|
+| No rate limiting on upload endpoint | P1 | Add `@fastify/rate-limit` (100 req/min per IP) |
+| Worker processes untrusted video with FFmpeg | P1 | Ensure media-server runs in isolated container (already true via Docker) |
+| Nginx not enforcing upload size limit | P2 | Add `client_max_body_size 2g;` in nginx config |
+| No input validation on webhook `phase` enum | P2 | Already has `phaseRank()` check — verify coverage |
+| Deepgram/Groq keys logged on startup? | P2 | Audit `@cap/logger` for accidental key logging |
+| `pnpm audit` — check for CVEs | P3 | Run before v1.0.0 release |
+
+All P0 security issues were fixed in v4 (Kimi's audit): HMAC verification, timestamp replay protection, delivery ID dedup, timing-safe comparison.
+
+---
+
+## Documentation Structure
+
+All docs live in `docs/` with flat lowercase naming:
+
+```
+cap4/
+├── README.md                    ✓ Project overview + quick start
+├── CONTRIBUTING.md              ✓ Dev workflow, contribution rules
+├── CLAUDE.md                    ✓ Agent working memory
+│
+└── docs/
+    ├── architecture.md          ✓ System design, state machine, job queue
+    ├── api.md                   ✓ API endpoints + webhook contract
+    ├── database.md              ✓ Full schema + migrations
+    ├── environment.md           ✓ Environment variable reference
+    ├── local-dev.md             ✓ Docker + no-Docker setup
+    ├── deployment.md            ✓ Production guide
+    ├── troubleshooting.md       ✓ Common issues
+    ├── design-system.md         ✓ UI tokens + component library
+    ├── tech-stack.md            ✓ Languages, frameworks, versions
+    ├── agents.md                ✓ AI agent roles + conventions
+    ├── master-plan.md           ✓ This file — authoritative plan
+    ├── tasks.md                 ✓ Current + completed work
+    ├── qa.md                    ✓ Speaker diarization test plan
+    └── archive/
+        ├── audit-plan.md        ✓ Completed audit tracker
+        └── roadmap.md           ✓ Archived cap3 roadmap
+```
+
+---
+
+## Development Phases
+
+### Phase 1 — Ship ✅ Complete
+Goal: Get a clean, working codebase onto GitHub.
+
+- [x] API monolith refactor (2007-line `index.ts` → 6 route modules)
+- [x] Create `.github/ISSUE_TEMPLATE/` files
+- [x] Create `.github/workflows/test.yml` + `build.yml`
+- [x] `gh repo create cap4 --public` → https://github.com/adminbjkai/cap4
+- [x] Tag v1.0.0 + GitHub release
+
+### Phase 2 — Player UI ✅ Complete
+Goal: Finish the video player UX improvements.
+
+- [x] Chapter navigation (ChapterList → video seek)
+- [x] Chapter layout (left sidebar on lg+ breakpoint)
+- [x] TranscriptParagraph click-to-seek
+- [x] Groq prompt revision (better key points)
+
+### Phase 3 — Hardening ✅ Complete
+Goal: Production-grade reliability.
+
+- [x] Rate limiting (`@fastify/rate-limit` v10.3.0 — 100 req/min per IP)
+- [x] Nginx upload size limit (`client_max_body_size 2g`)
+- [x] Fastify security audit (bumped to ^5.8.1)
+- [x] Key log audit — pino redacts API keys and secrets
+
+### Phase 4 — Integration Tests ✅ Complete (18/18 passing; host-verified 2026-03-23)
+Goal: Verify full upload → encode → transcribe → AI pipeline end-to-end.
+
+- [x] Vitest integration config (180s timeout, singleFork)
+- [x] Test fixture `vid0.mp4` (30s, 2.6 MB) for fast real-pipeline tests
+- [x] Full-flow tests (7) — upload → transcribe → AI → complete pipeline
+- [x] API contract tests (11) — 404, missing headers, idempotency, soft-delete, health/ready
+- [x] `transcript.language` defaults to `'en'` at 3 layers
+- [x] Migration 0004 — backfills NULL language → 'en', adds NOT NULL DEFAULT 'en'
+
+### Phase 4.5 — Docker & Config Audit ✅ Complete
+Goal: `docker compose down -v && docker compose up` works with zero manual steps.
+
+- [x] **Auto-migrations** — `migrate` service applies all pending SQL via `run-migrations.sh`
+- [x] **Makefile** updated — `reset-db` + `migrate` targets
+- [x] **`.env.example`** — comprehensive comments, URL guidance
+- [x] **LOCAL_DEV.md** — full rewrite: Docker and non-Docker paths, URL routing table
+- [x] **`scripts/dev-local.sh`** — run all services without Docker
+- [x] Branding: all cap3 → cap4 references cleaned up
+
+### Phase 4.6 — UI Design System Overhaul ✅ Complete
+Goal: Modern, polished video page matching original Cap.so aesthetic — clean colors, proper component library, 3-tab rail, interactive seeker.
+
+- [x] **tailwind.config.cjs** — semantic color tokens backed by CSS vars (`bg-surface`, `text-foreground`, `text-muted`, `blue.*` etc.); `darkMode` config; font + shadow extensions
+- [x] **index.css** — blue accent vars (`--accent-blue` family light + dark); all previously-missing component classes: `line-item/active`, `chapter-handle/active`, `popover-panel`, `seeker-*`, `rail-tab-*`, `notes-textarea`, `chapter-row-active`, `scroll-panel`; thin global scrollbars
+- [x] **VideoPage.tsx** — 3-tab right rail: Notes | Summary | Transcript; `NotesPanel` with `localStorage` persistence + debounced auto-save; Chapters below-fold only
+- [x] **PlayerCard.tsx** — full-width clickable seeker track; hover preview tooltip (timestamp + nearest chapter title); `seeker-fill` playback bar; chapter dots with `stopPropagation`; time display alongside Prev/Next
+- [x] **SummaryCard.tsx** — dedicated compact branch: "Generated by Cap AI", `text-[13px]` body, inline chapter list with dividers
+- [x] **ChapterList.tsx** — replaced non-functional `bg-primary/10` with `.chapter-row-active`; active dot uses `var(--accent-blue)`
+- [x] **docs/ui/DESIGN_SYSTEM.md** — complete rewrite: token table, component class catalog, layout diagram, accessibility, spacing conventions
+
+### Backlog
+- [ ] Batch video operations
+- [ ] PgBouncer connection pooling
+- [ ] CDN integration for video delivery
+- [ ] Tinybird analytics integration
+- [ ] Multiple worker instances (architecturally supported — scale the service)
+
+---
+
+## What NOT to Do
+
+Lessons from the 4-version evolution:
+
+1. **Don't mix operational tooling with the product repo.** The `.audit/` directory and `bykimi.md` are the canonical example. Audit tools, AI specs, and operational runbooks belong in separate repos or internal wikis.
+
+2. **Don't let docs drift from code.** DOC-001 through DOC-005 in cap3 were all cases where the code was updated but docs were not. Every PR must include a doc check.
+
+3. **Don't use Linear (or any paid PM tool) in open-source docs.** All issue tracking should use GitHub Issues.
+
+4. **Don't build multi-tenancy unless you need it.** v1 has 39 tables, Stripe, WorkOS, and an entire org management system. cap4 is single-tenant by design — that's a feature, not a limitation.
+
+5. **Don't let a single file grow to 2000 lines.** The monolithic `index.ts` is the biggest source of cognitive overhead. The Phase 1 refactor addresses this.
+
+6. **Don't stub endpoints and mark them as unimplemented in docs.** If it's in the API, it should work. If it doesn't work, remove it from the docs.
+
+---
+
+## Key Metrics (cap4 at Launch)
+
+| Metric | Value |
+|--------|-------|
+| Source code | ~3,500 lines (TypeScript) |
+| Documentation | 11 markdown files |
+| Services | 9 Docker Compose services |
+| DB migrations | 7 SQL files |
+| API endpoints | ~15 routes |
+| Dependencies | ~30 packages |
+| Repo size | ~5MB (no audit artifacts) |
+| Test coverage | 18/18 integration tests + smoke test (host-verified 2026-03-23) |
+
+---
+
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Start everything | `make up` |
+| Stop everything | `make down` |
+| Full test | `make smoke` |
+| Reset database | `make reset-db` |
+| View all logs | `docker compose logs` |
+| Run linter | `pnpm lint` |
+| Format code | `pnpm format` |
+| Unit tests | `pnpm test` |
+
+---
+
+## Files Summary
+
+### Start Here
+- **README.md** — 5-minute project overview
+- **docs/local-dev.md** — Set up your dev environment
+- **docs/architecture.md** — Understand the system design
+
+### Reference
+- **docs/api.md** — Every API endpoint + webhook contract
+- **docs/database.md** — Full schema
+- **CONTRIBUTING.md** — How to contribute code
+
+### This Document
+- **docs/master-plan.md** — This file. The authoritative plan.
+
+---
+
+**Status: Phases 1–4.7 complete. Auth is out of scope.**
+
+All Docker infrastructure is self-bootstrapping — `docker compose up` applies
+migrations automatically. Host verification on 2026-03-23 confirmed `pnpm typecheck`, `pnpm build`, `docker compose up -d --build`, `/health`, `/ready`, `pnpm test:integration` (18/18), and `make smoke`.

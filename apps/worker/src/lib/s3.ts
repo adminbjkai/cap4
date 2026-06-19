@@ -1,24 +1,10 @@
 import { GetObjectCommand, PutObjectCommand, DeleteObjectsCommand, S3Client } from "@aws-sdk/client-s3";
+import { createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
 
 function isReadableStream(body: unknown): body is Readable {
   return Boolean(body) && typeof body === "object" && Symbol.asyncIterator in (body as Record<string, unknown>);
-}
-
-async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    if (Buffer.isBuffer(chunk)) {
-      chunks.push(chunk);
-      continue;
-    }
-    if (typeof chunk === "string") {
-      chunks.push(Buffer.from(chunk));
-      continue;
-    }
-    chunks.push(Buffer.from(chunk as Uint8Array));
-  }
-  return Buffer.concat(chunks);
 }
 
 export function getS3ClientAndBucket(raw: Record<string, string | undefined> = process.env): { client: S3Client; bucket: string } {
@@ -45,25 +31,22 @@ export function getS3ClientAndBucket(raw: Record<string, string | undefined> = p
   return { client, bucket };
 }
 
-export async function getObjectBuffer(client: S3Client, bucket: string, key: string): Promise<Buffer> {
-  const response = await client.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: key
-    })
-  );
-
+/**
+ * Streams an S3 object to a local file without buffering it in memory —
+ * raw uploads can be multiple GB.
+ */
+export async function downloadObjectToFile(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  filePath: string
+): Promise<void> {
+  const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   const body = response.Body;
-  if (!body) {
-    throw new Error(`S3 object body missing for key ${key}`);
+  if (!body || !isReadableStream(body)) {
+    throw new Error(`S3 object body is not streamable for key ${key}`);
   }
-
-  if (Buffer.isBuffer(body)) return body;
-  if (body instanceof Uint8Array) return Buffer.from(body);
-  if (typeof body === "string") return Buffer.from(body);
-  if (isReadableStream(body)) return streamToBuffer(body);
-
-  throw new Error(`Unsupported S3 body type for key ${key}`);
+  await pipeline(body, createWriteStream(filePath));
 }
 
 export async function putObjectBuffer(

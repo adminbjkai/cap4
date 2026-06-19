@@ -189,8 +189,6 @@ export async function summarizeWithGroq(args: {
   timeoutMs: number;
   transcript: string;
 }): Promise<GroqSummary> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), args.timeoutMs);
   const url = new URL(args.baseUrl);
   const normalizedPath = url.pathname.endsWith("/")
     ? `${url.pathname}chat/completions`
@@ -219,18 +217,16 @@ export async function summarizeWithGroq(args: {
 
   // Process single chunk or multiple chunks
   if (transcriptChunks.length === 1) {
-    return generateSingleChunk(url, args, transcriptChunks[0]!, controller, timeout);
+    return generateSingleChunk(url, args, transcriptChunks[0]!);
   }
-  
-  return generateMultipleChunks(url, args, transcriptChunks, controller, timeout);
+
+  return generateMultipleChunks(url, args, transcriptChunks);
 }
 
 async function generateSingleChunk(
   url: URL,
   args: { apiKey: string; model: string; timeoutMs: number },
-  transcript: string,
-  controller: AbortController,
-  timeout: ReturnType<typeof setTimeout>
+  transcript: string
 ): Promise<GroqSummary> {
   const systemPrompt = `You are Cap AI, an expert at analyzing video content and creating structured summaries.
 
@@ -301,7 +297,7 @@ Return ONLY valid JSON without markdown or code fences.`;
           { role: "user", content: `Transcript:\n${transcript}` }
         ]
       }),
-      signal: controller.signal
+      signal: AbortSignal.timeout(args.timeoutMs)
     });
 
     if (!response.ok) {
@@ -344,31 +340,41 @@ Return ONLY valid JSON without markdown or code fences.`;
       actionItems: actionItems.length > 0 ? actionItems : undefined,
       quotes: quotes.length > 0 ? quotes : undefined
     };
-  } finally {
-    clearTimeout(timeout);
+  } catch (error) {
+    throw normalizeAbortError(error, args.timeoutMs);
   }
 }
+
+/** Surfaces AbortSignal.timeout aborts as a readable timeout error. */
+function normalizeAbortError(error: unknown, timeoutMs: number): unknown {
+  if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
+    return new Error(`groq request timed out after ${timeoutMs}ms`);
+  }
+  return error;
+}
+
+type ChunkSummary = {
+  summary: string;
+  keyPoints: string[];
+  chapters: GroqChapter[];
+  entities?: GroqEntity;
+  actionItems?: GroqActionItem[];
+  quotes?: GroqQuote[];
+};
 
 async function generateMultipleChunks(
   url: URL,
   args: { apiKey: string; model: string; timeoutMs: number },
-  chunks: string[],
-  controller: AbortController,
-  timeout: ReturnType<typeof setTimeout>
+  chunks: string[]
 ): Promise<GroqSummary> {
-  // Process each chunk individually
-  const chunkSummaries: {
-    summary: string;
-    keyPoints: string[];
-    chapters: GroqChapter[];
-    entities?: GroqEntity;
-    actionItems?: GroqActionItem[];
-    quotes?: GroqQuote[];
-  }[] = [];
-
+  // Chunks are independent — process them concurrently (bounded) with a
+  // per-request timeout each, instead of serially under one shared deadline.
+  const CHUNK_CONCURRENCY = 4;
+  const results: Array<ChunkSummary | null> = new Array(chunks.length).fill(null);
   let failedChunks = 0;
+  let nextIndex = 0;
 
-  for (let i = 0; i < chunks.length; i++) {
+  const processChunk = async (i: number): Promise<void> => {
     const chunkPrompt = `You are Cap AI, an expert at analyzing video content. This is section ${i + 1} of ${chunks.length} from a longer video.
 
 Analyze this section and provide JSON:
@@ -421,38 +427,58 @@ ${chunks[i]}`;
             { role: "user", content: chunkPrompt }
           ]
         }),
-        signal: controller.signal
+        signal: AbortSignal.timeout(args.timeoutMs)
       });
 
-      if (!response.ok) continue;
+      if (!response.ok) {
+        failedChunks++;
+        console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, status: response.status }));
+        return;
+      }
 
       const payload = (await response.json()) as GroqChatCompletionResponse;
       const message = payload.choices?.[0]?.message?.content;
-      if (message) {
-        const parsed = parseJsonObject(message);
-        const validationResult = GroqResponseSchema.safeParse(parsed);
-        const validated = validationResult.success ? validationResult.data : parsed;
-
-        const entities = validated.entities ? normalizeEntities(validated.entities) : undefined;
-        const actionItems = normalizeActionItems(validated.action_items ?? validated.actionItems);
-        const quotes = normalizeQuotes(validated.quotes);
-
-        chunkSummaries.push({
-          summary: toNonEmptyString(validated.summary, ""),
-          keyPoints: normalizeKeyPoints(validated.key_points ?? validated.keyPoints),
-          chapters: normalizeChapters(validated.chapters),
-          entities: entities && (entities.people.length > 0 || entities.organizations.length > 0 ||
-                    entities.locations.length > 0 || entities.dates.length > 0) ? entities : undefined,
-          actionItems: actionItems.length > 0 ? actionItems : undefined,
-          quotes: quotes.length > 0 ? quotes : undefined
-        });
+      if (!message) {
+        failedChunks++;
+        return;
       }
+
+      const parsed = parseJsonObject(message);
+      const validationResult = GroqResponseSchema.safeParse(parsed);
+      const validated = validationResult.success ? validationResult.data : parsed;
+
+      const entities = validated.entities ? normalizeEntities(validated.entities) : undefined;
+      const actionItems = normalizeActionItems(validated.action_items ?? validated.actionItems);
+      const quotes = normalizeQuotes(validated.quotes);
+
+      results[i] = {
+        summary: toNonEmptyString(validated.summary, ""),
+        keyPoints: normalizeKeyPoints(validated.key_points ?? validated.keyPoints),
+        chapters: normalizeChapters(validated.chapters),
+        entities: entities && (entities.people.length > 0 || entities.organizations.length > 0 ||
+                  entities.locations.length > 0 || entities.dates.length > 0) ? entities : undefined,
+        actionItems: actionItems.length > 0 ? actionItems : undefined,
+        quotes: quotes.length > 0 ? quotes : undefined
+      };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: message }));
+      const errMessage = err instanceof Error ? err.message : String(err);
+      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: errMessage }));
       failedChunks++;
     }
-  }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunks.length) }, async () => {
+      while (true) {
+        const i = nextIndex++;
+        if (i >= chunks.length) return;
+        await processChunk(i);
+      }
+    })
+  );
+
+  // Preserve section order for the synthesis prompt.
+  const chunkSummaries = results.filter((r): r is ChunkSummary => r !== null);
 
   if (failedChunks > 0 && failedChunks / chunks.length > 0.3) {
     throw new Error(`Groq enrichment failed: ${failedChunks}/${chunks.length} chunks errored`);
@@ -541,7 +567,7 @@ Return ONLY valid JSON without any markdown formatting or code blocks.`;
           { role: "user", content: finalPrompt }
         ]
       }),
-      signal: controller.signal
+      signal: AbortSignal.timeout(args.timeoutMs)
     });
 
     if (!response.ok) {
@@ -581,7 +607,7 @@ Return ONLY valid JSON without any markdown formatting or code blocks.`;
       actionItems: allActionItems.length > 0 ? allActionItems : undefined,
       quotes: finalQuotes.length > 0 ? finalQuotes : undefined
     };
-  } finally {
-    clearTimeout(timeout);
+  } catch (error) {
+    throw normalizeAbortError(error, args.timeoutMs);
   }
 }

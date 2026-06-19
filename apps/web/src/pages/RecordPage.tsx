@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { completeUpload, createVideo, requestSignedUpload, uploadMultipart, uploadToSignedUrl, type UploadProgress } from "../lib/api";
+import { completeUpload, createVideo, LiveMultipartUploader, requestSignedUpload, uploadMultipart, uploadToSignedUrl, type UploadProgress } from "../lib/api";
 import { formatBytes, formatDuration, formatEta } from "../lib/format";
 import { upsertRecentSession } from "../lib/sessions";
 
@@ -57,6 +57,7 @@ export function RecordPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const lastProgressUpdateRef = useRef<number>(0);
@@ -78,6 +79,9 @@ export function RecordPage() {
   const micAnalyserDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const micMeterAnimationRef = useRef<number | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  // Live streaming upload: parts ship to S3 while the recording is in progress
+  const liveUploaderRef = useRef<LiveMultipartUploader | null>(null);
+  const liveFedCountRef = useRef(0);
   const timerRef = useRef<number | null>(null);
   const startedAtMsRef = useRef<number | null>(null);
   const finalizedRef = useRef(false);
@@ -126,6 +130,10 @@ export function RecordPage() {
   }, []);
 
   const resetLocalPreview = useCallback(() => {
+    const staleUploader = liveUploaderRef.current;
+    liveUploaderRef.current = null;
+    liveFedCountRef.current = 0;
+    if (staleUploader) void staleUploader.abort();
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
@@ -180,6 +188,9 @@ export function RecordPage() {
 
       const blob = new Blob(chunksRef.current, { type: recorderMimeType || "video/webm" });
       if (blob.size === 0) {
+        const uploader = liveUploaderRef.current;
+        liveUploaderRef.current = null;
+        if (uploader) void uploader.abort();
         setState("error");
         setErrorMessage(
           "Recording stopped before data was captured. Try again and share a tab/window for at least a moment."
@@ -191,11 +202,47 @@ export function RecordPage() {
       setRecordedBlob(blob);
       setPreviewUrl(nextPreviewUrl);
       setSourceLabel("Screen recording");
-      setState("preview");
       setErrorMessage(null);
       setRetryAvailable(false);
+
+      // Fast path: parts were streamed during recording — only the final part
+      // and the complete call remain.
+      const uploader = liveUploaderRef.current;
+      if (uploader && !uploader.failed) {
+        liveUploaderRef.current = null;
+        setVideoId(uploader.videoId);
+        setState("uploading");
+        void (async () => {
+          try {
+            const nextJobId = await uploader.finish();
+            setState("processing");
+            setJobId(nextJobId);
+            upsertRecentSession({
+              videoId: uploader.videoId,
+              jobId: nextJobId ?? undefined,
+              createdAt: new Date().toISOString(),
+              processingPhase: "queued",
+              processingProgress: 5
+            });
+            setState("complete");
+            navigate(nextJobId ? `/video/${uploader.videoId}?jobId=${nextJobId}` : `/video/${uploader.videoId}`);
+          } catch {
+            // Fall back to the classic whole-blob upload (reuses the videoId).
+            void uploader.abort();
+            setState("preview");
+          }
+        })();
+        return;
+      }
+
+      // No usable live uploader (init failed, never attached, or a part
+      // failed mid-recording): classic post-stop upload.
+      const stale = liveUploaderRef.current;
+      liveUploaderRef.current = null;
+      if (stale) void stale.abort();
+      setState("preview");
     },
-    [cleanupRecordingResources]
+    [cleanupRecordingResources, navigate]
   );
 
   useEffect(() => {
@@ -334,6 +381,11 @@ export function RecordPage() {
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data);
+          const uploader = liveUploaderRef.current;
+          if (uploader && !uploader.failed) {
+            uploader.addChunk(event.data);
+            liveFedCountRef.current = chunksRef.current.length;
+          }
         }
       };
 
@@ -391,6 +443,31 @@ export function RecordPage() {
 
       recorder.start(250);
       setState("recording");
+
+      // Kick off the streaming upload session in the background. If anything
+      // here fails we silently fall back to the classic post-stop upload.
+      liveUploaderRef.current = null;
+      liveFedCountRef.current = 0;
+      void (async () => {
+        try {
+          const created = await createVideo();
+          const uploader = new LiveMultipartUploader(created.videoId, recorder.mimeType || "video/webm");
+          await uploader.start();
+          // Attach only if this recording session is still the active one.
+          if (mediaRecorderRef.current === recorder && !finalizedRef.current) {
+            setUploadContext({ videoId: created.videoId });
+            // Feed chunks captured before init completed, then go live.
+            const pending = chunksRef.current;
+            for (const chunk of pending) uploader.addChunk(chunk);
+            liveFedCountRef.current = pending.length;
+            liveUploaderRef.current = uploader;
+          } else {
+            void uploader.abort();
+          }
+        } catch {
+          // createVideo/initiate failed — post-stop upload path will handle it.
+        }
+      })();
     } catch (error) {
       cleanupRecordingResources();
       setState("error");
@@ -422,7 +499,13 @@ export function RecordPage() {
     try {
       let activeVideoId = uploadContext?.videoId ?? null;
       if (!activeVideoId) {
-        const created = await createVideo();
+        // For selected files, capture the source file's original timestamp
+        // (File.lastModified). Recordings are plain Blobs and have no such date.
+        const originalFileCreatedAt =
+          recordedBlob instanceof File && Number.isFinite(recordedBlob.lastModified) && recordedBlob.lastModified > 0
+            ? new Date(recordedBlob.lastModified).toISOString()
+            : undefined;
+        const created = await createVideo(undefined, originalFileCreatedAt);
         activeVideoId = created.videoId;
         setUploadContext({ videoId: activeVideoId });
       }
@@ -507,6 +590,57 @@ export function RecordPage() {
     setRetryAvailable(false);
     setUploadContext(null);
   }, [previewUrl]);
+
+  // Shared entry for files arriving via drag-drop or clipboard paste (not just the
+  // Choose File input). Accept videos; allow unknown type (some files report none);
+  // reject anything else with a friendly hint instead of queuing a doomed upload.
+  const acceptIncomingFile = useCallback((file: File | null) => {
+    if (!file) return;
+    if (file.type && !file.type.startsWith("video/")) {
+      setErrorMessage(`That doesn't look like a video file (${file.type}). Drop or paste a video file.`);
+      return;
+    }
+    handleExistingFileSelection(file);
+  }, [handleExistingFileSelection]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }, [isDragging]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    acceptIncomingFile(e.dataTransfer?.files?.[0] ?? null);
+  }, [acceptIncomingFile]);
+
+  // Paste a file from the OS clipboard (⌘V / Ctrl+V) anywhere on the Record page.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const data = e.clipboardData;
+      if (!data) return;
+      let file: File | null = data.files && data.files.length > 0 ? data.files[0] : null;
+      if (!file) {
+        for (const item of Array.from(data.items)) {
+          if (item.kind === "file") { file = item.getAsFile(); break; }
+        }
+      }
+      if (file) {
+        e.preventDefault();
+        acceptIncomingFile(file);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [acceptIncomingFile]);
 
   const resetAll = useCallback(() => {
     cleanupRecordingResources();
@@ -694,10 +828,22 @@ export function RecordPage() {
             {sourceLabel ? <span className="status-chip">{sourceLabel}</span> : null}
           </div>
 
-          <div className="panel-subtle p-3">
+          <div
+            className={`panel-subtle border-2 border-dashed p-3 transition-colors ${isDragging ? "border-primary bg-surface-subtle" : "border-default"}`}
+            onDragEnter={handleDragOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            data-testid="file-dropzone"
+          >
             <label htmlFor="existingVideo" className="field-label">
               Use an existing local file
             </label>
+            <p className="mb-2 mt-1 text-sm text-hint">
+              {isDragging
+                ? "Drop the video to load it"
+                : "Drag & drop a video here, paste it with ⌘V / Ctrl+V, or choose a file."}
+            </p>
             <input
               id="existingVideo"
               type="file"
