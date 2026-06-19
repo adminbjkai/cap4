@@ -15,6 +15,13 @@ import { query } from '@cap/db';
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 const env = getEnv();
 
+test.use({
+  extraHTTPHeaders: {
+    Accept: 'application/json',
+    'x-real-ip': '10.20.0.14',
+  },
+});
+
 test.describe('Videos API', () => {
   test('POST /api/videos - should create a new video', async ({ request }) => {
     const idempotencyKey = randomUUID();

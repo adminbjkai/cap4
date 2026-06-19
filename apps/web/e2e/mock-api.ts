@@ -4,6 +4,7 @@ export const MOCK_VIDEO_ID = "00000000-0000-0000-0000-000000000001";
 
 export const MOCK_VIDEO_STATUS = {
   videoId: MOCK_VIDEO_ID,
+  name: "API Architecture Walkthrough",
   processingPhase: "complete",
   processingProgress: 100,
   resultKey: "cap4/00000000-0000-0000-0000-000000000001/result.mp4",
@@ -36,6 +37,24 @@ export const MOCK_VIDEO_STATUS = {
     model: "llama-3.1-8b-instant",
     title: "Building APIs: Architecture and Best Practices",
     summary: "In this video, I walk through the core concepts of API architecture including authentication, rate limiting, and logging.",
+    chapters: [
+      { title: "Define endpoints clearly", seconds: 20 },
+      { title: "Authentication and tokens", seconds: 28 },
+      { title: "Rate limiting", seconds: 44 },
+      { title: "Logging and wrap-up", seconds: 52 }
+    ],
+    entities: {
+      people: ["Murry"],
+      organizations: ["Cap4"],
+      locations: [],
+      dates: ["2026-03-24"]
+    },
+    actionItems: [
+      { task: "Review the staging deploy", assignee: "Murry", deadline: "2026-03-31" }
+    ],
+    quotes: [
+      { text: "Keep the queue monotonic.", timestamp: 52 }
+    ],
     keyPoints: [
       "define endpoints clearly",
       "JSON web tokens for auth",

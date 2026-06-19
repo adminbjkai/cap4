@@ -5,15 +5,14 @@ description: "Docker and no-Docker setup for local development"
 
 # Local Development
 
-Two ways to run cap4 locally. **Docker (recommended)** is the fastest path and
-mirrors production exactly. **Local (no Docker)** is useful for rapid iteration
-on individual services.
+Two ways to run cap4 locally:
 
----
+- **Docker (recommended)** mirrors the checked-in stack most closely.
+- **Local (no Docker)** is useful for faster service-by-service iteration.
 
 ## Option A — Docker (Recommended)
 
-### Requirements
+### Docker Requirements
 
 - Docker Desktop (or Engine + Compose v2)
 - Node 20+ and pnpm (for running tests and the Vite dev server)
@@ -34,13 +33,15 @@ cp .env.example .env
 make up
 # or: docker compose up -d --build
 
-# 4. Open the app
+# 4. Verify the stack
+make smoke
+
+# 5. Open the app
 open http://localhost:8022
 ```
 
 **Migrations run automatically.** On every `docker compose up`, the `migrate`
-service applies any pending SQL files from `db/migrations/` using
-`docker/postgres/run-migrations.sh`. No manual `psql` commands are ever needed.
+service applies pending SQL files from `db/migrations/`.
 
 ### Services & Ports
 
@@ -54,6 +55,7 @@ service applies any pending SQL files from `db/migrations/` using
 | **minio console** | http://localhost:8923 | MinIO admin UI               |
 
 MinIO default credentials (from `.env.example`): `minio` / `minio123`
+The console port is bound to localhost only in the checked-in Compose stack.
 
 ### Resetting Everything
 
@@ -94,17 +96,15 @@ make smoke       # Run smoke test against running stack
 pnpm test:integration  # Full integration test suite (requires running stack)
 ```
 
----
-
 ## Option B — Local (No Docker)
 
 Run every service as a native process. Useful for rapid backend iteration
 without Docker rebuild cycles.
 
-### Requirements
+### Native Runtime Requirements
 
 - Node 20+ and pnpm
-- PostgreSQL 15+ running on localhost:5432
+- PostgreSQL 16+ running on localhost:5432
 - MinIO running on localhost:9000
 - ffmpeg
 
@@ -155,22 +155,15 @@ brew install ffmpeg      # macOS
 apt-get install ffmpeg   # Ubuntu/Debian
 ```
 
-### Apply Migrations (One-Time, and After Each New Migration File)
+### Apply Migrations (Initial Setup And After Schema Changes)
 
 ```bash
-for f in db/migrations/*.sql; do
-  psql -U app -d cap4 -f "$f"
-done
+DATABASE_URL=postgres://app:app@localhost:5432/cap4 pnpm db:migrate
 ```
 
-Current migration set:
-
-- `0001_init.sql`
-- `0002_video_soft_delete.sql`
-- `0003_add_webhook_reporting.sql`
-- `0004_fix_transcript_language.sql`
-- `0005_add_ai_enrichment_fields.sql`
-- `0006_add_transcript_speaker_labels.sql`
+This uses the repo-native migration runner in `packages/db/scripts/migrate.mjs`.
+Manual `psql` loops are not the supported migration path in the current repo
+state.
 
 ### Environment File for Local Dev
 
@@ -213,8 +206,6 @@ pnpm dev:web            # terminal 4 — Vite dev server on :5173
 
 Open the app at `http://localhost:5173`.
 
----
-
 ## URL Routing — How the Frontend Accesses MinIO
 
 Understanding where video files are loaded from:
@@ -229,24 +220,39 @@ Understanding where video files are loaded from:
 `VITE_S3_PUBLIC_ENDPOINT` at build time. If unset, it falls back to a relative
 path — the correct default for both Docker nginx and local Vite dev.
 
----
-
 ## Running Tests
 
 ```bash
-# Unit tests (no Docker required)
+# Lint, types, and unit tests
+pnpm lint
+pnpm typecheck
 pnpm test
 
-# Integration tests (Docker stack must be running + real API keys set)
+# API integration tests (Docker stack must be running + real API keys set)
 make up
 pnpm test:integration
 # or: pnpm --filter @cap/web-api test:integration
+
+# Web E2E
+pnpm --filter @cap/web build
+pnpm --filter @cap/web test:e2e
+
+# API E2E
+DATABASE_URL=postgres://app:app@localhost:5432/cap4 pnpm db:migrate
+S3_ENDPOINT=http://localhost:9000 \
+S3_ACCESS_KEY=minioadmin \
+S3_SECRET_KEY=minioadmin \
+S3_BUCKET=cap4 \
+pnpm --filter @cap/web-api exec node ./scripts/prepare-minio.mjs
+pnpm --filter @cap/web-api test:e2e
 ```
 
-Integration tests run the real upload → transcode → transcribe → AI pipeline
-end-to-end. Expect 2–5 minutes.
+Notes:
 
----
+- `pnpm test` is the workspace unit-test entrypoint.
+- `pnpm --filter @cap/web test:e2e` exercises the watch-page UI against the app-local Playwright config.
+- `pnpm --filter @cap/web-api test:e2e` boots the compiled API and expects Postgres plus S3-compatible storage to already be available.
+- The checked-in CI workflow performs the same API E2E preparation using `pnpm db:migrate` and `apps/web-api/scripts/prepare-minio.mjs`.
 
 ## Database Access
 
@@ -268,7 +274,7 @@ SELECT id, processing_phase, created_at FROM videos ORDER BY created_at DESC;
 SELECT id, job_type, status, attempts FROM job_queue WHERE status = 'queued';
 
 -- Recent failures
-SELECT id, job_type, error_message, updated_at FROM job_queue
+SELECT id, job_type, last_error, updated_at FROM job_queue
 WHERE status = 'dead' ORDER BY updated_at DESC LIMIT 10;
 
 -- Applied migrations
@@ -290,7 +296,7 @@ lsof -i :8922   # MinIO
 ### `relation "..." does not exist` (empty database)
 
 - **Docker:** `make reset-db` — migrations auto-apply on startup
-- **Local:** Run the migration SQL files manually (see above)
+- **Local:** run `DATABASE_URL=postgres://app:app@localhost:5432/cap4 pnpm db:migrate`
 
 ### Presigned upload fails
 

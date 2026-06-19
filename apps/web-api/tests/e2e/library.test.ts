@@ -10,6 +10,13 @@ import { randomUUID } from 'crypto';
 
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 
+test.use({
+  extraHTTPHeaders: {
+    Accept: 'application/json',
+    'x-real-ip': '10.20.0.12',
+  },
+});
+
 test.describe('Library API', () => {
   // Create multiple videos for pagination testing
   test.beforeAll(async ({ request }) => {

@@ -13,6 +13,7 @@ type SummaryCardProps = {
 };
 
 type TimedKeyPoint = { title: string; jumpSeconds: number | null };
+type EntitySection = { label: string; items: string[] };
 
 function formatTimestamp(secondsInput: number): string {
   const totalSeconds = Math.max(0, Math.floor(secondsInput));
@@ -63,6 +64,19 @@ export function SummaryCard({
     if (!aiOutput) return [];
     return aiOutput.keyPoints.map(p => ({ title: p, jumpSeconds: null }));
   }, [aiOutput, chapters]);
+
+  const entitySections = useMemo<EntitySection[]>(() => {
+    if (!aiOutput?.entities) return [];
+    return [
+      { label: 'People', items: aiOutput.entities.people },
+      { label: 'Organizations', items: aiOutput.entities.organizations },
+      { label: 'Locations', items: aiOutput.entities.locations },
+      { label: 'Dates', items: aiOutput.entities.dates },
+    ].filter(section => section.items.length > 0);
+  }, [aiOutput]);
+
+  const actionItems = aiOutput?.actionItems ?? [];
+  const quotes = aiOutput?.quotes ?? [];
 
   /* ── Compact (rail-embedded) render ────────────────────────────────────── */
   if (compact) {
@@ -155,6 +169,86 @@ export function SummaryCard({
                     </li>
                   ))}
                 </ol>
+              </div>
+            )}
+
+            {entitySections.length > 0 && (
+              <div>
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-wide mb-2"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Entities
+                </p>
+                <div className="space-y-2">
+                  {entitySections.map(section => (
+                    <div key={section.label}>
+                      <p className="text-[11px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        {section.label}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {section.items.map(item => (
+                          <span
+                            key={`${section.label}-${item}`}
+                            className="rounded-full border px-2 py-0.5 text-[11px]"
+                            style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {actionItems.length > 0 && (
+              <div>
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-wide mb-2"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Action items
+                </p>
+                <ul className="space-y-2">
+                  {actionItems.map((item, index) => (
+                    <li key={`${item.task}-${index}`} className="rounded-lg border px-2.5 py-2 text-[12px]" style={{ borderColor: 'var(--border-default)' }}>
+                      <p style={{ color: 'var(--text-primary)' }}>{item.task}</p>
+                      {(item.assignee || item.deadline) && (
+                        <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                          {[item.assignee ? `Assignee: ${item.assignee}` : null, item.deadline ? `Due: ${item.deadline}` : null].filter(Boolean).join(' • ')}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {quotes.length > 0 && (
+              <div>
+                <p
+                  className="text-[11px] font-semibold uppercase tracking-wide mb-2"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Quotes
+                </p>
+                <ul className="space-y-2">
+                  {quotes.map((quote, index) => (
+                    <li key={`${quote.text}-${index}`} className="rounded-lg border px-2.5 py-2 text-[12px]" style={{ borderColor: 'var(--border-default)' }}>
+                      <p style={{ color: 'var(--text-primary)' }}>&ldquo;{quote.text}&rdquo;</p>
+                      <button
+                        type="button"
+                        onClick={() => onJumpToSeconds(quote.timestamp)}
+                        className="mt-1 text-[11px] font-medium"
+                        style={{ color: 'var(--accent-blue)' }}
+                      >
+                        Jump to {formatTimestamp(quote.timestamp)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>
@@ -253,6 +347,89 @@ export function SummaryCard({
                   </li>
                 ))}
               </ol>
+            </div>
+          )}
+          {entitySections.length > 0 && (
+            <div className="space-y-2">
+              <p
+                className="text-xs font-semibold uppercase tracking-wide mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Entities
+              </p>
+              {entitySections.map(section => (
+                <div key={section.label}>
+                  <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    {section.label}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {section.items.map(item => (
+                      <span
+                        key={`${section.label}-${item}`}
+                        className="rounded-full border px-2 py-0.5 text-xs"
+                        style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {actionItems.length > 0 && (
+            <div className="space-y-2">
+              <p
+                className="text-xs font-semibold uppercase tracking-wide mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Action items
+              </p>
+              <ul className="space-y-2">
+                {actionItems.map((item, index) => (
+                  <li
+                    key={`${item.task}-${index}`}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: 'var(--border-default)' }}
+                  >
+                    <p>{item.task}</p>
+                    {(item.assignee || item.deadline) && (
+                      <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {[item.assignee ? `Assignee: ${item.assignee}` : null, item.deadline ? `Due: ${item.deadline}` : null].filter(Boolean).join(' • ')}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {quotes.length > 0 && (
+            <div className="space-y-2">
+              <p
+                className="text-xs font-semibold uppercase tracking-wide mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Quotes
+              </p>
+              <ul className="space-y-2">
+                {quotes.map((quote, index) => (
+                  <li
+                    key={`${quote.text}-${index}`}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                    style={{ borderColor: 'var(--border-default)' }}
+                  >
+                    <p>&ldquo;{quote.text}&rdquo;</p>
+                    <button
+                      type="button"
+                      onClick={() => onJumpToSeconds(quote.timestamp)}
+                      className="mt-1 text-xs font-medium"
+                      style={{ color: 'var(--accent-blue)' }}
+                    >
+                      Jump to {formatTimestamp(quote.timestamp)}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

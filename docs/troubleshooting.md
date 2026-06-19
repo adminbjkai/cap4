@@ -1,436 +1,318 @@
 ---
 title: "Troubleshooting"
-description: "Common issues and how to fix them"
+description: "Practical fixes for common cap4 runtime and operator issues"
 ---
 
 # Troubleshooting Guide
 
-Common issues and how to fix them.
+This guide focuses on the checked-in Docker Compose stack and the current API
+contract. When in doubt, use the code and the route docs as the source of truth.
 
 ---
 
-## Service Won't Start
+## First Checks
 
-### Docker containers not starting
+Start here before debugging deeper:
 
 ```bash
-# Check status
 docker compose ps
-
-# View logs
-docker compose logs
-
-# Common issues:
-# 1. Port already in use
-lsof -i :3000
-kill -9 <PID>
-
-# 2. Out of disk space
-docker system prune -a
-
-# 3. Image pull failure
-docker compose pull
-docker compose up -d
+docker compose logs --tail=200
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+make smoke
 ```
 
-### PostgreSQL won't connect
+If those checks fail, fix the stack-level issue first before chasing app-level symptoms.
+
+---
+
+## Stack Won't Start
+
+### Containers fail immediately
 
 ```bash
-# Is postgres running?
-docker compose ps postgres
-
-# Check logs
+docker compose ps
 docker compose logs postgres
-
-# Common issues:
-# - Wrong password in .env
-# - Database doesn't exist
-# - Port 5432 in use
-
-# Reset and retry
-docker compose down
-docker volume rm cap4_postgres_data
-docker compose up -d postgres
-```
-
----
-
-## Video Processing Fails
-
-### "Processing timed out"
-
-Likely video format or size issue.
-
-```bash
-# Check file format
-ffprobe -v error sample.mp4
-
-# Supported: MP4 with H.264 video + AAC audio
-ffmpeg -i sample.mp4 -c:v libx264 -c:a aac output.mp4
-
-# Check worker logs
-docker compose logs worker
-```
-
-### "Transcription failed"
-
-Deepgram API issue.
-
-```bash
-# Verify API key is set
-echo $DEEPGRAM_API_KEY
-
-# Test API
-curl -X POST https://api.deepgram.com/v1/listen \
-  -H "Authorization: Token ${DEEPGRAM_API_KEY}" \
-  --data-binary @audio.wav
-
-# If error: check Deepgram account + quota
-```
-
-### "AI generation failed"
-
-Groq API issue.
-
-```bash
-# Verify API key
-echo $GROQ_API_KEY
-
-# Check Groq account
-# - Valid API key?
-# - Sufficient credits?
-# - Rate limited?
-```
-
----
-
-## Upload Failures
-
-### "413 Payload Too Large"
-
-File exceeds 2GB limit.
-
-```bash
-# Check file size
-ls -lh video.mp4
-
-# For large files, use multipart upload endpoints:
-# POST /api/uploads/multipart/create
-# POST /api/uploads/multipart/presign-part
-# POST /api/uploads/multipart/complete
-```
-
-### "400 Bad Request"
-
-Missing or invalid header.
-
-```bash
-# Must include Idempotency-Key
-curl -X POST /api/videos \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -F "video=@file.mp4"
-```
-
-### "409 Conflict - Duplicate request"
-
-Same Idempotency-Key used twice (this is OK).
-
-```bash
-# If intentional, use the video ID from first response
-# If error: retry with new Idempotency-Key
-curl -X POST /api/videos \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -F "video=@file.mp4"
-```
-
----
-
-## Database Issues
-
-### "Database connection pool exhausted"
-
-Too many concurrent connections.
-
-```bash
-# Check connections
-docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "SELECT count(*) FROM pg_stat_activity;"
-
-# Increase pool size in .env
-DB_POOL_SIZE=30
-
-# Restart services
-docker compose restart web-api worker
-```
-
-### "Unique constraint violation"
-
-Duplicate data being inserted.
-
-```bash
-# Check for duplicate videos
-docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "SELECT id, uploadedAt FROM videos ORDER BY uploadedAt;"
-
-# If corrupted, remove duplicates
-docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "DELETE FROM videos WHERE id IN (SELECT id FROM videos WHERE id NOT IN (SELECT DISTINCT(id) FROM videos));"
-```
-
-### "Migration failed"
-
-Database schema issue.
-
-```bash
-# Check logs for migration errors
 docker compose logs migrate
+docker compose logs web-api
+docker compose logs worker
+docker compose logs media-server
+```
 
-# Reset and re-apply migrations
+Common causes:
+
+- invalid or missing values in `.env`
+- `POSTGRES_PASSWORD`, provider keys, or `MEDIA_SERVER_WEBHOOK_SECRET` not set correctly
+- host port collision on `3000`, `3100`, `5432`, `8022`, `8922`, or `8923`
+
+Useful checks:
+
+```bash
+lsof -i :3000
+lsof -i :3100
+lsof -i :5432
+lsof -i :8022
+lsof -i :8922
+```
+
+### Migrations fail
+
+```bash
+docker compose logs migrate
+```
+
+If the database is disposable and you want a clean reset:
+
+```bash
 make reset-db
 ```
 
+For non-disposable environments, inspect the failing SQL and database state before retrying.
+
 ---
 
-## API Issues
+## Health or Readiness Fails
 
-### "500 Internal Server Error"
+### `/health` returns 503
 
-Server-side error. Check logs.
+The usual cause is database connectivity.
 
 ```bash
-# View API logs
 docker compose logs web-api
-
-# Common issues:
-# - Database connection failed
-# - External API timeout
-# - Unhandled exception
-
-# If persistent, restart service
-docker compose restart web-api
+docker compose exec postgres pg_isready -U app -d cap4
 ```
 
-### "401 Unauthorized"
+### `/ready` returns 503 with `"status": "not_ready"`
 
-Authentication failed (shouldn't happen in single-tenant).
+The readiness route marks the API not ready when the DB check fails or is too slow.
 
-```bash
-# Check if API requires auth (it shouldn't)
-# If seeing auth error, API configuration is wrong
-```
-
-### "503 Service Unavailable"
-
-Service is down or overloaded.
+Check:
 
 ```bash
-# Check service status
-docker compose ps
-
-# Restart unhealthy services
-docker compose restart web-api worker
-
-# If still down, check logs and disk space
-docker system df
+docker compose logs web-api
+docker compose exec postgres psql -U app -d cap4 -c "SELECT 1"
 ```
 
 ---
 
-## Worker Issues
+## Upload Flow Fails
 
-### Worker won't claim jobs
+### `400 Bad Request` on create/upload routes
 
-```bash
-# Check worker is running
-docker compose ps worker
+Most mutation routes require `Idempotency-Key`.
 
-# View logs
-docker compose logs -f worker
-
-# Check for errors
-docker compose logs worker | grep -i error
-
-# Restart worker
-docker compose restart worker
-```
-
-### Worker crashes immediately
+Correct pattern:
 
 ```bash
-# Check logs for error
-docker compose logs worker
-
-# Common issues:
-# - Invalid environment variable
-# - Database connection failed
-# - Out of memory
-
-# Fix .env and restart
-docker compose down
-docker compose up -d worker
-```
-
-### Jobs stuck in "leased" state
-
-```bash
-# Check database
-docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "SELECT * FROM job_queue WHERE status IN ('leased', 'running') AND locked_until < NOW();"
-
-# If lease has expired, reset
-docker compose exec postgres psql -U cap4 -d cap4 -c \
-  "UPDATE job_queue SET status = 'queued', locked_by = NULL, locked_until = NULL, lease_token = NULL WHERE status IN ('leased', 'running') AND locked_until < NOW();"
-
-# Restart worker
-docker compose restart worker
-```
-
----
-
-## S3/MinIO Issues
-
-### "Access Denied" uploading to S3
-
-Wrong credentials.
-
-```bash
-# Verify credentials in .env
-# MINIO_ROOT_USER=minioadmin
-# MINIO_ROOT_PASSWORD=minioadmin
-
-# Check MinIO is running
-docker compose ps minio
-
-# Test access
-curl http://localhost:9000/minio/health/live
-
-# View MinIO logs
-docker compose logs minio
-```
-
-### MinIO storage full
-
-```bash
-# Check disk usage
-docker system df
-
-# Clean up volumes
-docker volume rm cap4_minio_data
-
-# WARNING: This deletes all S3 data
-# Only do if acceptable to lose uploaded videos
-```
-
-### Signed URLs don't work
-
-```bash
-# Check S3_PUBLIC_ENDPOINT is set correctly
-# Must be browser-accessible (not localhost in production)
-
-# Test the full upload flow:
-# 1. Create video
 curl -X POST http://localhost:3000/api/videos \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"name":"test video"}'
+  -d '{"name":"test upload"}'
+```
 
-# 2. Request signed upload URL
-curl -X POST http://localhost:3000/api/uploads/signed \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"videoId":"550e8400-e29b-41d4-a716-446655440000","contentType":"video/mp4"}'
+Do not send a multipart form directly to `/api/videos`. The current API flow is:
+
+1. `POST /api/videos`
+2. `POST /api/uploads/signed` or multipart endpoints
+3. upload bytes to MinIO/S3
+4. `POST /api/uploads/complete` or multipart complete
+
+### Signed upload URLs do not work
+
+Check `S3_PUBLIC_ENDPOINT`.
+
+- Docker full-stack: `http://localhost:8922`
+- Local no-Docker MinIO: `http://localhost:9000`
+
+If the browser cannot reach the URL embedded in the presigned upload, uploads fail even when the backend is healthy.
+
+### Vite dev server can’t load video assets
+
+If you are running `pnpm dev:web` against Docker infrastructure, set:
+
+```bash
+VITE_S3_PUBLIC_ENDPOINT=http://localhost:8922
+```
+
+Leave it unset for the nginx-served Docker app on `http://localhost:8022`.
+
+### Multipart upload routes return 404
+
+The current multipart endpoints are:
+
+- `POST /api/uploads/multipart/initiate`
+- `POST /api/uploads/multipart/presign-part`
+- `POST /api/uploads/multipart/complete`
+- `POST /api/uploads/multipart/abort`
+
+Common causes:
+
+- multipart upload was never initiated
+- the video was soft-deleted
+- required fields or `Idempotency-Key` are missing
+
+---
+
+## Processing, Transcription, or AI Fails
+
+### Worker is not making progress
+
+```bash
+docker compose logs -f worker
+docker compose logs -f media-server
+```
+
+Check:
+
+- `MEDIA_SERVER_BASE_URL` resolves correctly inside Docker
+- Deepgram and Groq keys are valid
+- ffmpeg is available in the image and media-server starts cleanly
+
+### Transcription fails
+
+Typical causes:
+
+- invalid `DEEPGRAM_API_KEY`
+- provider quota or rate-limit issues
+- source file has no usable audio
+
+Inspect:
+
+```bash
+docker compose logs worker | grep -i deepgram
+```
+
+### AI generation fails
+
+Typical causes:
+
+- invalid `GROQ_API_KEY`
+- provider timeout / quota / rate limit
+- upstream transcript is missing or empty
+
+Inspect:
+
+```bash
+docker compose logs worker | grep -i groq
+```
+
+### Video processing fails
+
+Inspect `media-server` and `worker` together:
+
+```bash
+docker compose logs media-server
+docker compose logs worker
+```
+
+If needed, inspect the input file locally:
+
+```bash
+ffprobe -v error sample.mp4
 ```
 
 ---
 
-## Performance Issues
+## Queue Issues
 
-### Slow video uploads
+### Jobs appear stuck in `leased` or `running`
 
 ```bash
-# Check network
-iperf3 -c server
-
-# Check disk I/O
-iostat -x 1 5
-
-# Increase timeout in .env
-UPLOAD_TIMEOUT=300000
-
-# Restart
-docker compose restart web-api
+docker compose exec postgres psql -U app -d cap4 -c \
+  "SELECT id, video_id, job_type, status, locked_by, locked_until, updated_at
+   FROM job_queue
+   WHERE status IN ('leased', 'running')
+   ORDER BY updated_at DESC;"
 ```
 
-### Slow transcription/AI generation
+Expired leases that are not being reclaimed usually point to a worker health issue:
 
 ```bash
-# These are external API dependent
-# Check Deepgram/Groq API status
-# - Rate limiting?
-# - Quota exceeded?
-# - Network latency?
-
-# Monitor request times
-docker compose logs worker | grep duration
+docker compose logs worker
+docker compose restart worker
 ```
 
-### High memory usage
+### Need a quick queue summary
 
 ```bash
-# Check which service is consuming memory
-docker stats
+docker compose exec postgres psql -U app -d cap4 -c \
+  "SELECT status, count(*) FROM job_queue GROUP BY status ORDER BY status;"
+```
 
-# Increase container limits in docker-compose.yml
-# Services > {service} > deploy > resources > limits > memory
+### Need to inspect one job
 
-# Restart docker-compose
-docker compose down
-docker compose up -d
+```bash
+curl http://localhost:3000/api/jobs/123
+```
+
+The API exposes `last_error` from `job_queue`, which is the primary failure field for queue rows.
+
+---
+
+## Database and Storage Issues
+
+### PostgreSQL connection errors
+
+```bash
+docker compose logs postgres
+docker compose exec postgres pg_isready -U app -d cap4
+```
+
+Check that `DATABASE_URL` matches the credentials in `.env`.
+
+### MinIO access errors
+
+```bash
+docker compose ps minio
+docker compose logs minio
+curl http://localhost:8922/minio/health/live
+```
+
+Check that:
+
+- `S3_ACCESS_KEY` matches `MINIO_ROOT_USER`
+- `S3_SECRET_KEY` matches `MINIO_ROOT_PASSWORD`
+- `S3_BUCKET` matches the bucket created by `minio-setup`
+
+### MinIO console unavailable
+
+The checked-in Compose file binds the console host port to localhost only.
+
+Use:
+
+```bash
+http://localhost:8923
+```
+
+from the same host running Docker.
+
+---
+
+## Soft Delete Behavior
+
+If a deleted video “disappears,” that is expected.
+
+Current behavior:
+
+- `POST /api/videos/:id/delete` sets `videos.deleted_at`
+- deleted videos disappear from `GET /api/videos/:id/status`
+- deleted videos disappear from `GET /api/library/videos`
+- multipart upload routes reject soft-deleted videos
+
+If you need to inspect deleted rows directly:
+
+```bash
+docker compose exec postgres psql -U app -d cap4 -c \
+  "SELECT id, name, deleted_at FROM videos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC;"
 ```
 
 ---
 
-## Networking Issues
+## Full Reset
 
-### "Cannot connect to host"
-
-Host firewall or network issue.
+For a disposable environment only:
 
 ```bash
-# Test connectivity
-telnet localhost 3000
-curl http://localhost:3000/health
-
-# If working locally but not from another machine:
-# - Check firewall rules
-# - Verify external IP/DNS
-# - Check Docker network settings
-```
-
-### Webhook not reaching web-api
-
-media-server can't call back.
-
-```bash
-# Check Docker network
-docker network ls
-docker network inspect cap4_default
-
-# All services must be on same network
-# Check docker-compose.yml networking section
-
-# Test from media-server container
-docker compose exec media-server curl http://web-api:3000/health
-```
-
----
-
-## Reset Everything
-
-If all else fails:
-
-```bash
-# WARNING: This deletes all data
 make down
 docker system prune -a
 docker volume rm cap4_postgres_data cap4_minio_data
@@ -438,35 +320,4 @@ make up
 make smoke
 ```
 
----
-
-## Getting Help
-
-1. Check logs: `docker compose logs -f {service}`
-2. Review [architecture.md](architecture.md)
-3. Check [api.md](api.md) for API issues
-4. Ask on GitHub Discussions
-5. Open GitHub Issue with logs
-
----
-
-## Monitoring for Issues
-
-```bash
-# Watch logs in real-time
-docker compose logs -f
-
-# Monitor resource usage
-docker stats
-
-# Check database queries
-docker compose exec postgres \
-  psql -U cap4 -d cap4 -c \
-  "SELECT query, calls, mean_exec_time FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;"
-
-# Monitor job queue
-docker compose exec postgres \
-  psql -U cap4 -d cap4 -c \
-  "SELECT status, count(*) FROM job_queue GROUP BY status;"
-```
-
+This deletes local database and object-storage data.

@@ -8,6 +8,13 @@ import { randomUUID } from 'crypto';
 
 const BASE_URL = process.env.E2E_API_URL || 'http://localhost:3000';
 
+test.use({
+  extraHTTPHeaders: {
+    Accept: 'application/json',
+    'x-real-ip': '10.20.0.11',
+  },
+});
+
 test.describe('Jobs API', () => {
   let jobId: number;
 

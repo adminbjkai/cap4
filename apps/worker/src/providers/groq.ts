@@ -460,8 +460,9 @@ ${chunks[i]}`;
         actionItems: actionItems.length > 0 ? actionItems : undefined,
         quotes: quotes.length > 0 ? quotes : undefined
       };
-    } catch (err: any) {
-      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: err.message }));
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      console.error(JSON.stringify({ chunk: i, totalChunks: chunks.length, error: errMessage }));
       failedChunks++;
     }
   };

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 // Load .env from project root (ES module compatible)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: resolve(__dirname, '../../.env') });
+const apiPort = Number(process.env.WEB_API_PORT || 3000);
 
 /**
  * Playwright E2E test configuration for CAP4 API endpoints.
@@ -46,7 +47,7 @@ export default defineConfig({
 
   use: {
     // Base URL for API requests
-    baseURL: process.env.E2E_API_URL || 'http://localhost:3000',
+    baseURL: process.env.E2E_API_URL || `http://127.0.0.1:${apiPort}`,
 
     // Collect trace on failure
     trace: 'on-first-retry',
@@ -70,7 +71,7 @@ export default defineConfig({
   webServer: {
     // Use the compiled output to avoid tsx's IPC pipe (can fail under sandboxing).
     command: 'pnpm run build && node --enable-source-maps dist/index.js',
-    port: 3000,
+    port: apiPort,
     reuseExistingServer: true,
     timeout: 60_000,
   },

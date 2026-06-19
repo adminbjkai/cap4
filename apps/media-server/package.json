@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "pnpm -w build:internal",
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node --enable-source-maps dist/index.js",
