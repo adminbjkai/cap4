@@ -57,6 +57,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The doc-pipeline worker tests spawn real ffmpeg (scene detect + crops).
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       # Unit tests only (vitest). They need no database — the DB-backed
       # integration/e2e suites (pnpm test:integration / test:e2e) run a live
       # Docker stack and paid providers, so they are intentionally out of CI.
