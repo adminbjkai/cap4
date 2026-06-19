@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVideoDoc, generateVideoDoc, type DocResponse } from "../lib/api";
 import { buildPublicObjectUrl, formatDuration } from "../lib/format";
+import { exportDocx, exportPdf } from "../lib/doc-export";
 
 type Props = {
   videoId: string | undefined;
@@ -25,7 +26,11 @@ export function DocCard({ videoId, transcriptionStatus, videoTitle, onSeekToSeco
   const [loaded, setLoaded] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState<null | "docx" | "pdf">(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current !== null) {
@@ -77,18 +82,44 @@ export function DocCard({ videoId, transcriptionStatus, videoTitle, onSeekToSeco
     }
   };
 
-  const handleDownload = () => {
+  const filenameBase = () => slugify(doc?.title ?? videoTitle ?? "video");
+
+  const downloadMarkdown = () => {
     if (!doc?.markdown) return;
     const blob = new Blob([doc.markdown], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${slugify(doc.title ?? videoTitle ?? "video")}_doc.md`;
+    anchor.download = `${filenameBase()}_doc.md`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+
+  const runExport = async (format: "docx" | "pdf") => {
+    if (!doc || exporting) return;
+    setExporting(format);
+    setExportError(null);
+    try {
+      if (format === "docx") await exportDocx(doc, filenameBase());
+      else await exportPdf(doc, filenameBase());
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : `Could not export ${format.toUpperCase()}.`);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  // Close the download menu on outside click.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
 
   if (!loaded) {
     return <div className="p-4 text-[13px] text-muted">Loading doc…</div>;
@@ -142,10 +173,43 @@ export function DocCard({ videoId, transcriptionStatus, videoTitle, onSeekToSeco
             </span>
           )}
         </div>
-        <button type="button" className="btn-secondary shrink-0 text-[12px]" onClick={handleDownload}>
-          Download .md
-        </button>
+        <div className="relative shrink-0" ref={menuRef}>
+          <button
+            type="button"
+            className="btn-secondary text-[12px]"
+            disabled={exporting !== null}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            {exporting === "docx" ? "Preparing Word…" : exporting === "pdf" ? "Preparing PDF…" : "Download ▾"}
+          </button>
+          {menuOpen && exporting === null && (
+            <div className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-default bg-surface shadow-lg">
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-[12px] hover:bg-surface-subtle"
+                onClick={() => { setMenuOpen(false); void runExport("pdf"); }}
+              >
+                PDF (with images)
+              </button>
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-[12px] hover:bg-surface-subtle"
+                onClick={() => { setMenuOpen(false); void runExport("docx"); }}
+              >
+                Word .docx (with images)
+              </button>
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-[12px] hover:bg-surface-subtle"
+                onClick={() => { setMenuOpen(false); downloadMarkdown(); }}
+              >
+                Markdown .md
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+      {exportError && <div className="panel-danger text-[12px]">{exportError}</div>}
 
       {doc.sections.map((section) => (
         <section key={section.id}>

@@ -57,6 +57,7 @@ export function RecordPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const lastProgressUpdateRef = useRef<number>(0);
@@ -590,6 +591,57 @@ export function RecordPage() {
     setUploadContext(null);
   }, [previewUrl]);
 
+  // Shared entry for files arriving via drag-drop or clipboard paste (not just the
+  // Choose File input). Accept videos; allow unknown type (some files report none);
+  // reject anything else with a friendly hint instead of queuing a doomed upload.
+  const acceptIncomingFile = useCallback((file: File | null) => {
+    if (!file) return;
+    if (file.type && !file.type.startsWith("video/")) {
+      setErrorMessage(`That doesn't look like a video file (${file.type}). Drop or paste a video file.`);
+      return;
+    }
+    handleExistingFileSelection(file);
+  }, [handleExistingFileSelection]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }, [isDragging]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    acceptIncomingFile(e.dataTransfer?.files?.[0] ?? null);
+  }, [acceptIncomingFile]);
+
+  // Paste a file from the OS clipboard (⌘V / Ctrl+V) anywhere on the Record page.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const data = e.clipboardData;
+      if (!data) return;
+      let file: File | null = data.files && data.files.length > 0 ? data.files[0] : null;
+      if (!file) {
+        for (const item of Array.from(data.items)) {
+          if (item.kind === "file") { file = item.getAsFile(); break; }
+        }
+      }
+      if (file) {
+        e.preventDefault();
+        acceptIncomingFile(file);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [acceptIncomingFile]);
+
   const resetAll = useCallback(() => {
     cleanupRecordingResources();
     setState("idle");
@@ -776,10 +828,22 @@ export function RecordPage() {
             {sourceLabel ? <span className="status-chip">{sourceLabel}</span> : null}
           </div>
 
-          <div className="panel-subtle p-3">
+          <div
+            className={`panel-subtle border-2 border-dashed p-3 transition-colors ${isDragging ? "border-primary bg-surface-subtle" : "border-default"}`}
+            onDragEnter={handleDragOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            data-testid="file-dropzone"
+          >
             <label htmlFor="existingVideo" className="field-label">
               Use an existing local file
             </label>
+            <p className="mb-2 mt-1 text-sm text-hint">
+              {isDragging
+                ? "Drop the video to load it"
+                : "Drag & drop a video here, paste it with ⌘V / Ctrl+V, or choose a file."}
+            </p>
             <input
               id="existingVideo"
               type="file"

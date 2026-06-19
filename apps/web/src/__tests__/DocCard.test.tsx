@@ -96,7 +96,12 @@ describe("DocCard", () => {
     expect(screen.getByText("Run the build")).toBeTruthy();
     expect(screen.getByText("Takes ~2 min")).toBeTruthy();
     expect(screen.getByText("audio unclear at 03:10")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Download .md" })).toBeTruthy();
+    // download menu: button opens a menu of self-contained export formats
+    const downloadBtn = screen.getByRole("button", { name: /Download/ });
+    fireEvent.click(downloadBtn);
+    expect(screen.getByRole("button", { name: /PDF \(with images\)/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Word \.docx/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Markdown \.md/ })).toBeTruthy();
 
     // step screenshot click jumps the player to the frame timestamp
     fireEvent.click(screen.getByAltText("build output"));
