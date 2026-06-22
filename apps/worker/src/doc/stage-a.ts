@@ -10,6 +10,12 @@ const CAPTURE_OFFSET_S = 0.5; // capture at scene-change end + 500ms
 // fewer ffmpeg seeks, fewer SSIM compares, fewer images to upload.
 const MIN_FRAMES = 12;
 const MAX_FRAMES = 40;
+// Frames are BOTH the model's vision input AND the screenshots rendered in the
+// doc UI (DocCard shows the frame directly). 768px looked soft / pixelated when
+// enlarged, so extract at up to 1920px wide (capped, never upscaled) at high
+// JPEG quality. This also gives the model crisper input.
+const FRAME_MAX_WIDTH = 1920;
+const FRAME_JPEG_QUALITY = "2"; // ffmpeg -q:v: 1=best … 31=worst
 // Screen recordings change little between near-identical states (cursor,
 // caret); 0.92 trims those at the source so fewer images reach the model.
 const SSIM_DUP_THRESHOLD = 0.92;
@@ -98,8 +104,10 @@ export async function extractFrame(inputPath: string, ts: number, outPath: strin
       "-ss", ts.toFixed(3),
       "-i", inputPath,
       "-frames:v", "1",
-      "-vf", "scale=768:-2",
-      "-q:v", "4",
+      // cap width at FRAME_MAX_WIDTH, never upscale (min with input width);
+      // the comma inside min() is escaped for the ffmpeg filtergraph parser.
+      "-vf", `scale=min(${FRAME_MAX_WIDTH}\\,iw):-2`,
+      "-q:v", FRAME_JPEG_QUALITY,
       outPath
     ]
   });

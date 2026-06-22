@@ -29,6 +29,23 @@
 
 ## Current State
 
+### 2026-06-22 — Doc screenshots now high-res (LIVE — deployed + validated)
+- **Fix:** doc-pipeline frames were extracted at 768px (`stage-a.ts` `scale=768:-2`,
+  `-q:v 4`) and the doc UI (`DocCard.tsx` `<img src=frameKey>`) renders that frame
+  directly — so screenshots looked soft/pixelated when enlarged. Raised extraction to
+  **up to 1920px wide** (`scale=min(1920\,iw):-2`, capped, never upscaled) at `-q:v 2`;
+  `stage-d.ts` crops bumped to `-q:v 2` too. Worker-only change (no schema/route/frontend
+  change); same frames are the model's vision input, so this also gives the model crisper
+  input. Files: `apps/worker/src/doc/stage-a.ts`, `stage-d.ts`.
+- **Deploy:** rebuilt `apps/worker/dist`, restarted the **host doc-worker** (it alone
+  processes `generate_doc`; the container worker excludes it). Caught + killed a STALE
+  doc-worker (pid from Jun 18) running old code so only one runs the new code.
+- **Validated live:** regenerated video `098e5a81` — frames went **768×432 → 1920×1080**
+  (47KB → 328KB), worker job 783 complete, served via `/cap4/.../frames/`. Existing docs
+  keep their old frames until regenerated (Regenerate button); browser may cache old
+  frame URLs (same keys) — hard-refresh to see the new ones. Model call was a cache hit
+  (no extra spend); stage-a re-extracts frames every run regardless.
+
 ### 2026-06-19 — Security/CI/DX hardening pass (LIVE — committed, pushed, deployed)
 - Three `/improve` plans executed, committed (`8cc7aaa` feature work + `e4a311a`
   hardening), **pushed** to `feat/collapsed-doc-pipeline`, and **deployed to prod**

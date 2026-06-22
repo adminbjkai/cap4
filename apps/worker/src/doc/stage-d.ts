@@ -112,9 +112,11 @@ export async function cropFrame(
   outPath: string
 ): Promise<void> {
   const filter = `crop=iw*${crop.w}:ih*${crop.h}:iw*${crop.x}:ih*${crop.y}`;
+  // -q:v 2 (high quality): crops are sourced from the high-res frame, so keep
+  // the cropped screenshot crisp too (used in the doc download/export).
   const result = await runProcess({
     bin: "ffmpeg",
-    args: ["-y", "-i", inputPath, "-vf", filter, "-q:v", "4", outPath]
+    args: ["-y", "-i", inputPath, "-vf", filter, "-q:v", "2", outPath]
   });
   if (result.code !== 0) {
     throw new Error(`ffmpeg crop failed: ${result.stderr.slice(-300)}`);
