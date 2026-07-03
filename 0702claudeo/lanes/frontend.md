@@ -1,0 +1,42 @@
+# Lane brief — Frontend (apps/web)
+
+> Produced 2026-07-02 by a fresh-context review agent (Sonnet) as part of the 0702 full audit.
+> Read-only; verified `pnpm test` 36/36 and `pnpm build` green during the review.
+
+# Frontend Audit — `/apps/cap4/apps/web`
+
+## 1. Summary — Grade: B+
+
+Unusually mature engineering for a "single-tenant hobby" video app — careful race handling, ref-based stale-closure avoidance, adaptive polling backoff, resumable/live multipart uploads, and genuine code-splitting for heavy export libs — undercut by a few oversized untested components, zero route-level code splitting, and a couple of real a11y/DOM-query fragility gaps.
+
+## 2. Impressive strengths
+
+- **`apps/web/src/pages/VideoPage.tsx:229-246`** — explicit comment-documented fix for a React effect/cleanup race (rail-tab crossfade timer driven by a ref instead of effect cleanup, to avoid a stuck overlay panel). Shows real debugging discipline, not just a patch.
+- **`apps/web/src/pages/VideoPage.tsx:266-348`** — polling is genuinely well designed: uses a `statusRef` to avoid stale closures, fetches a lightweight `?view=summary` and only re-fetches the heavy payload when `transcriptionStatus`/`aiStatus` change, backs off adaptively (2s→5s→10s→20s) with exponential backoff on failures, and pauses via `visibilitychange` when the tab is hidden.
+- **`apps/web/src/lib/api.ts:361-491`** (`LiveMultipartUploader`) — streams `MediaRecorder` chunks to S3 multipart parts *during* recording, so stopping the recording only needs to flush the final part; per-part retry with fresh presigned URLs (URLs can expire mid-retry); serialized upload chain to avoid ordering issues. Falls back cleanly to whole-blob upload in `RecordPage.tsx:210-244` if the live uploader never attached or failed.
+- **`apps/web/src/lib/doc-export.ts`** — DOCX/PDF export dynamically imports `docx`/`jspdf` (confirmed in build output: separate `jspdf.es.min`, `index.es`, `purify.es`, `html2canvas.esm` chunks, not in the main bundle) and best-effort skips failed image fetches rather than aborting the whole export.
+- **`apps/web/src/pages/RecordPage.tsx:339-373`** — correctly mixes display + mic audio via `AudioContext`/`MediaStreamDestination` rather than naively picking one track, and tears down the `AudioContext`/analyser/tracks/RAF loop symmetrically in `cleanupRecordingResources` (`RecordPage.tsx:159-180`).
+- Genuinely useful additive UX: drag/drop + clipboard paste upload with type sniffing (`RecordPage.tsx:597-643`), confidence-review transcript mode, speaker relabeling with optimistic UI, library list view with persisted column order/visibility/filters.
+
+## 3. Issues ranked by severity
+
+1. **No route-level code splitting** — `App.tsx` statically imports `HomePage`, `RecordPage`, `VideoPage` (all three heaviest pages). Build output shows the main app bundle split into two ~310KB/~360KB chunks (~198KB gzip combined) that ship together on every route, even though `RecordPage`'s MediaRecorder logic and `HomePage`'s table logic are never needed on `/video/:id`. Fix: `React.lazy` + `<Suspense>` per route in `App.tsx`.
+2. **`ConfirmationDialog.tsx`** (used for every video/library delete) has no `role="dialog"`, `aria-modal`, `aria-labelledby`, no focus trap, and no autofocus/Escape wiring of its own — it relies on VideoPage's global `cap:escape` custom event, which only exists on the video page, so the identical dialog on `HomePage.tsx:283-292` (bulk/library delete) has **no keyboard escape path at all**. Failure scenario: keyboard-only user opens delete-confirm from the library grid, presses Escape, nothing happens; must click Cancel with a pointer. Fix: add `role="dialog"`/`aria-modal`, a local `onKeyDown` Escape handler, and initial focus on Cancel.
+3. **Fragile global DOM queries for the "active" video** — `VideoPage.tsx:475-477` (`getActiveVideoElement`) and `TranscriptCard.tsx:139-140` both do `document.querySelector('video')` to reach the player, rather than a passed ref. This works today only because exactly one `<video>` is ever mounted at a time; it's a landmine if a second player/preview is ever added to the same page (keyboard shortcuts or transcript auto-scroll would silently target the wrong element).
+4. **Duplicate time-tracking mechanisms** — `TranscriptCard.tsx:137-147` runs its own `setInterval(250ms)` polling `document.querySelector('video').currentTime`, duplicating the `playbackTimeSeconds` prop already pushed down from `PlayerCard`'s native `onTimeUpdate` via `VideoPage`. Wasted work (250ms poll + prop plumbing) and a second source of truth that can drift; the interval keeps running even while the Transcript tab isn't the rendered rail tab (only unmounts when the tab actually switches). Fix: drop the interval, use the existing prop.
+5. **Double-mount during rail-tab crossfade** — `VideoPage.tsx:810-819` mounts both `outgoingRailTab` and `renderedRailTab` panels simultaneously for 180ms during a tab switch. If switching *to* Transcript, this means two `TranscriptCard` instances briefly coexist, each registering its own `window` `keydown` (Cmd+F), `cap:seek`, and 250ms polling listeners — harmless in practice (short-lived) but a source of double `preventDefault()`/double search-focus races if a user types Cmd+F mid-transition.
+6. **`TranscriptCard.tsx:392-435`** — the Cmd/Ctrl+F handler calls `preventDefault()` unconditionally whenever a `TranscriptCard` is mounted with that key combo, hijacking the browser's native "Find in page" globally anywhere on `/video/:id` while the Transcript tab is rendered (even compact/rail mode) — acceptable trade-off for a transcript-search feature, but undocumented and not toggleable; worth a code comment since it surprises browser-native-search users.
+
+## 4. Should-have-been-different critiques
+
+- `TranscriptCard.tsx` (1135 lines) does too much: search, confidence review, speaker editing, verified-segment tracking, and download/copy all live in one component with ~25 local `useState`s. This should have been split (e.g. `SpeakerEditor`, `ConfidenceReview`, `TranscriptSearch` as sub-components) both for readability and so each concern could be unit-tested independently — right now it's the largest file in the app and has zero direct tests (only the much smaller `TranscriptParagraph.tsx` is tested).
+- `api.ts` mixes typed response contracts, three different upload strategies (signed-PUT, batch multipart, live-streaming multipart), and doc-pipeline types in one 703-line file with no tests at all for the upload/retry logic — the most failure-prone code in the app (network flakiness, S3 5GB caps, expiring presigned URLs) is exactly the code with no automated coverage.
+- Inline style objects (`style={{ color: "var(--text-primary)" }}`) are used pervasively alongside Tailwind utility classes throughout `VideoPage.tsx`/`PlayerCard.tsx`, while `DocCard.tsx`/`RecordPage.tsx` lean more on semantic classnames (`panel-subtle`, `btn-primary`) — two co-existing styling conventions in the same codebase rather than one consistent pattern.
+
+## 5. Test coverage assessment
+
+`pnpm test` confirmed **36/36 passing** across 5 files (`TranscriptParagraph`, `ChapterList`, `DocCard`, `HomePage.listview`, `VideoPage.railtabs`) — matches the CLAUDE.md claim. `pnpm build` succeeds cleanly (tsc + vite). Coverage is real but narrow relative to the ~8,800-line source tree:
+- **Untested entirely**: `RecordPage.tsx` (938 lines — recording, MediaRecorder, live-upload fallback logic), `TranscriptCard.tsx` (1135 lines — only its child `TranscriptParagraph` is tested), `lib/api.ts` (703 lines — all upload/multipart/retry logic), `CustomVideoControls.tsx` (484 lines), `CommandPalette.tsx`, `useKeyboardShortcuts.ts`, `doc-export.ts`.
+- **Well tested**: `DocCard` (5 tests covering generate/poll/export states), `HomePage` list view (6 tests: column hide, per-column filter, note edit), `VideoPage` rail tabs (3 tests, including a regression test for the exact crossfade-overlay bug fixed in strength #1).
+- Playwright e2e (`e2e/player.spec.ts`, `e2e/layout.spec.ts`) exists but is thin (2 spec files) and wasn't run in this audit (would require a served build + browser); config itself is sound (serves the actual `dist/`, screenshots on, video off, CI-aware retries).
+- Net: the test suite is high-quality where it exists but covers the *safer* surface area (rendering/UI state) while leaving the *riskiest* surface area (network upload retries, live recording capture/composition, transcript editing at scale) with zero automated regression protection.
