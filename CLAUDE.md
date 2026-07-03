@@ -29,6 +29,46 @@
 
 ## Current State
 
+### 2026-07-03 — Audit 0702 remediation (LIVE — committed `ab7fc2c`, pushed, deployed + verified)
+- Executed the P0s + cheap high-value items from `0702claudeo/ACTION-PLAN.md` (full audit
+  report lives in `0702claudeo/`). All deployed to prod and verified end-to-end.
+- **P0-1 maintenance sweep (real bug, ~100 days silent):** `apps/worker/src/index.ts`
+  cleanup deleted from `webhook_events` by `created_at` (column is `received_at`), failing
+  hourly and rolling back the **stuck-video watchdog** in the same transaction. Fixed the
+  column, split each cleanup into its own statement/txn (a bad one can't disable the
+  watchdog again), added per-table delete-count logging, and made maintenance run once at
+  startup. **Verified live:** worker restart logged `maintenance.cleanup idempotency_keys
+  deleted=1566 / webhook_events deleted=249`; DB now shows **0** expired idempotency keys
+  and **0** stale webhook_events; 0 `maintenance.error` since deploy.
+- **P0-2 SSRF (`webhookUrl`):** new shared `checkWebhookUrl` in `packages/config/src/net.ts`
+  (hostname denylist + private/link-local/CGNAT CIDR classifier + DNS resolution). Enforced
+  in `POST /api/videos` and **re-checked at delivery** in the worker's `handleDeliverWebhook`
+  (blocked → drop + ack, never retry). 28 unit tests. **Verified live:** `169.254.169.254`,
+  a private Docker IP, and `minio:9000` all rejected 400 before any DB write.
+- **Ops (P1-3):** `scripts/health-watch.sh` + cron `15 */6 * * *` scans container/doc-worker
+  logs, dead jobs, stuck videos, and doc-worker instance count; appends only problems to
+  `/var/tmp/cap4-health-alerts.log` (last-run stamp at `/var/tmp/cap4-health-watch.lastrun`).
+  This exists because P0-1 fired in plain sight for 100 days with nobody watching the logs.
+- **Docs (P1-2):** `docs/deployment.md` rewritten from fiction (registry/K8s/AWS boilerplate)
+  to the real single-host mechanism.
+- **Frontend (P2-4/5/6):** route-level `React.lazy` splitting in `App.tsx`; `ConfirmationDialog`
+  now has `role="dialog"`/`aria-modal`/focus + self-sufficient Escape (fixes no-keyboard-escape
+  on the library delete dialog); removed `TranscriptCard`'s duplicate 250ms `querySelector(video)`
+  poll in favor of the existing `playbackTimeSeconds` prop. Web 36/36, lazy chunks confirmed.
+- **nginx (container):** added `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`
+  and explicit 3600s proxy timeouts; **host nginx** got HSTS (`max-age=31536000; includeSubDomains`,
+  backup `cap4.bjk.ai.bak-20260703-031658-hsts`, `nginx -t` + reload). `docker/minio/cors.json`
+  origins corrected to real ones (8007 / cap4.bjk.ai); added the inode-restart comment to
+  `docker-compose.yml`. **Verified live:** all headers present on `https://cap4.bjk.ai/`.
+- **Deploy:** `docker compose build worker web-api` → `up -d --no-deps` each (old images kept
+  as `cap4-{worker,web-api}:rollback`) → **restart** `web-internal` (bind-mount inode) →
+  frontend host build → `cap4_web_dist` volume → **restarted host doc-worker** (killed old
+  pid 1486465, one instance now, runs the fixed code). Tests: worker 51/51, web-api 33/33,
+  web 36/36; full build green; `/health` + `/ready` 200.
+- **Deferred (in ACTION-PLAN, NOT done):** P1-1 image version stamping, P1-4 systemd
+  doc-worker, P1-5 model-call budget accounting for env errors, P1-6 media-server tests,
+  P2-1 S3 zod validation, P2-7 API-contract debt, P2-10 bearer token, P3 structural splits.
+
 ### 2026-06-22 — Doc screenshots now high-res (LIVE — deployed + validated)
 - **Fix:** doc-pipeline frames were extracted at 768px (`stage-a.ts` `scale=768:-2`,
   `-q:v 4`) and the doc UI (`DocCard.tsx` `<img src=frameKey>`) renders that frame
