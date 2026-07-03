@@ -85,7 +85,6 @@ export function TranscriptCard({
   compact = false,
 }: TranscriptCardProps) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-  const [observedPlaybackTime, setObservedPlaybackTime] = useState<number | null>(null);
   const [seekFocusSeconds, setSeekFocusSeconds] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState('');
@@ -133,18 +132,6 @@ export function TranscriptCard({
       setVerifiedSegments(new Set());
     }
   }, [verifiedSegmentsKey]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      const player = document.querySelector('video');
-      if (!(player instanceof HTMLVideoElement)) return;
-      const next = player.currentTime;
-      if (Number.isFinite(next)) {
-        setObservedPlaybackTime(next);
-      }
-    }, 250);
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     let resetTimer: number | null = null;
@@ -331,9 +318,7 @@ export function TranscriptCard({
     if (transcriptLines.length === 0) return -1;
     const sourceTime = Number.isFinite(seekFocusSeconds ?? NaN)
       ? (seekFocusSeconds as number)
-      : Number.isFinite(observedPlaybackTime ?? NaN)
-        ? (observedPlaybackTime as number)
-        : playbackTimeSeconds;
+      : playbackTimeSeconds;
     const current = Number.isFinite(sourceTime) ? Math.max(0, sourceTime) : 0;
     const epsilon = 0.1;
     let nearestIndex = 0;
@@ -346,7 +331,7 @@ export function TranscriptCard({
       break;
     }
     return nearestIndex;
-  }, [playbackTimeSeconds, observedPlaybackTime, seekFocusSeconds, transcriptLines]);
+  }, [playbackTimeSeconds, seekFocusSeconds, transcriptLines]);
 
   useEffect(() => {
     if (activeLineIndex < 0 || isEditing) return;

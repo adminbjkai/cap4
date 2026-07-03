@@ -131,6 +131,9 @@ services:
     ports:
       - "127.0.0.1:${PORT}:80"
     volumes:
+      # Single-file bind mount: after editing default.conf you must RESTART this
+      # service (docker compose restart web-internal) — `nginx -s reload` re-reads
+      # the old inode and silently keeps the previous config.
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - web_dist:/usr/share/nginx/html:ro
     depends_on:

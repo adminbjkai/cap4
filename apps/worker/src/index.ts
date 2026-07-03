@@ -1,4 +1,4 @@
-import { getEnv } from "@cap/config";
+import { checkWebhookUrl, getEnv } from "@cap/config";
 import { withTransaction } from "@cap/db";
 import type { PoolClient } from "pg";
 import { buildWebVtt } from "./lib/transcript.js";
@@ -267,10 +267,12 @@ WHERE j.id = s.id
 RETURNING j.id, j.video_id, j.job_type, j.status;
 `;
 
-const CLEANUP_MAINTENANCE_SQL = `
-DELETE FROM idempotency_keys WHERE expires_at < now();
-DELETE FROM webhook_events WHERE created_at < now() - interval '7 days';
-`;
+// Each cleanup runs as its own statement/transaction so a failure in one can
+// never roll back the others or the transcode watchdog below.
+const CLEANUP_STATEMENTS: Array<{ name: string; sql: string }> = [
+  { name: "idempotency_keys", sql: `DELETE FROM idempotency_keys WHERE expires_at < now()` },
+  { name: "webhook_events", sql: `DELETE FROM webhook_events WHERE received_at < now() - interval '7 days'` }
+];
 
 async function markRunning(client: PoolClient, job: JobRow): Promise<void> {
   const result = await client.query(MARK_RUNNING_SQL, [job.id, env.WORKER_ID, job.lease_token]);
@@ -377,9 +379,18 @@ async function isMediaServerHealthy(): Promise<boolean> {
 }
 
 async function runMaintenance(): Promise<void> {
-  await withTransaction(env.DATABASE_URL, async (client) => {
-    await client.query(CLEANUP_MAINTENANCE_SQL);
+  for (const cleanup of CLEANUP_STATEMENTS) {
+    try {
+      const result = await withTransaction(env.DATABASE_URL, (client) => client.query(cleanup.sql));
+      if ((result.rowCount ?? 0) > 0) {
+        log("maintenance.cleanup", { table: cleanup.name, deleted: result.rowCount });
+      }
+    } catch (error) {
+      log("maintenance.cleanup_error", { table: cleanup.name, error: String(error) });
+    }
+  }
 
+  await withTransaction(env.DATABASE_URL, async (client) => {
     // Watchdog for the async transcode handoff: if media-server accepted a
     // job but never reported completion or failure (crash, lost webhooks),
     // the video would sit at rank 20-60 forever. Past the transcode budget,
@@ -1117,6 +1128,17 @@ async function handleDeliverWebhook(job: JobRow): Promise<void> {
     throw new Error("Missing webhookUrl in deliver_webhook payload");
   }
 
+  // Re-validate at delivery time: DNS can change between save and delivery,
+  // and older rows may predate the private-IP checks. Blocked = drop, not retry.
+  const urlCheck = await checkWebhookUrl(payload.webhookUrl);
+  if (!urlCheck.ok) {
+    log("job.webhook.blocked", { job_id: job.id, video_id: job.video_id, reason: urlCheck.reason });
+    await withTransaction(env.DATABASE_URL, async (client) => {
+      await ack(client, job);
+    });
+    return;
+  }
+
   const body = JSON.stringify({
     event: payload.event,
     videoId: payload.videoId,
@@ -1308,6 +1330,11 @@ async function main(): Promise<void> {
     });
   }, env.WORKER_RECLAIM_MS);
 
+  // Run once at startup (so restarts don't wait an hour for cleanup/watchdog),
+  // then hourly.
+  void runMaintenance().catch((error) => {
+    log("maintenance.error", { error: String(error) });
+  });
   setInterval(() => {
     void runMaintenance().catch((error) => {
       log("maintenance.error", { error: String(error) });

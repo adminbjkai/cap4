@@ -1,3 +1,5 @@
+import { useEffect, useId, useRef } from "react";
+
 type ConfirmationDialogProps = {
   open: boolean;
   title: string;
@@ -21,17 +23,47 @@ export function ConfirmationDialog({
   onCancel,
   onConfirm
 }: ConfirmationDialogProps) {
+  const titleId = useId();
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    cancelButtonRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onCancel]);
+
   if (!open) return null;
 
   return (
-    <div className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+    <div
+      className="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
       <div className="dialog-surface workspace-card w-full max-w-md p-5 shadow-2xl">
         <p className="workspace-label">Confirm action</p>
-        <h2 className="mt-1 text-lg font-semibold">{title}</h2>
+        <h2 id={titleId} className="mt-1 text-lg font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-secondary">{message}</p>
         {errorMessage ? <p className="panel-danger mt-4">{errorMessage}</p> : null}
         <div className="mt-5 flex items-center justify-end gap-2">
-          <button type="button" onClick={onCancel} disabled={busy} className="btn-secondary px-3 py-1.5 text-sm">
+          <button
+            ref={cancelButtonRef}
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="btn-secondary px-3 py-1.5 text-sm"
+          >
             {cancelLabel}
           </button>
           <button
