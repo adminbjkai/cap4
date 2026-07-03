@@ -1,6 +1,6 @@
 [
   {
-    "AllowedOrigins": ["http://localhost:8022", "https://cap4.example.com"],
+    "AllowedOrigins": ["http://localhost:8007", "https://cap4.bjk.ai"],
     "AllowedMethods": ["GET", "HEAD"],
     "AllowedHeaders": ["Authorization", "Content-Type", "X-Requested-With"],
     "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],

@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { CommandPalette, type CommandPaletteAction } from "./components/CommandPalette";
 import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { getLibraryVideos, type LibraryVideoCard } from "./lib/api";
-import { HomePage } from "./pages/HomePage";
-import { RecordPage } from "./pages/RecordPage";
-import { VideoPage } from "./pages/VideoPage";
+
+const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
+const RecordPage = lazy(() => import("./pages/RecordPage").then((m) => ({ default: m.RecordPage })));
+const VideoPage = lazy(() => import("./pages/VideoPage").then((m) => ({ default: m.VideoPage })));
 
 export function App() {
   const navigate = useNavigate();
@@ -109,12 +110,14 @@ export function App() {
         </>
       }
     >
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/record" element={<RecordPage />} />
-        <Route path="/video/:videoId" element={<VideoPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<div className="p-6 text-sm text-hint">Loading…</div>}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/record" element={<RecordPage />} />
+          <Route path="/video/:videoId" element={<VideoPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </AppShell>
   );
 }

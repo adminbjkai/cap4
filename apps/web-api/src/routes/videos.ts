@@ -8,7 +8,7 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { getEnv } from "@cap/config";
+import { checkWebhookUrl, getEnv } from "@cap/config";
 import { query, withTransaction } from "@cap/db";
 import {
   badRequest,
@@ -66,17 +66,9 @@ export async function videoRoutes(app: FastifyInstance) {
     }
 
     if (webhookUrl) {
-      try {
-        const parsed = new URL(webhookUrl);
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
-          return reply.code(400).send(badRequest('webhookUrl must use http or https'));
-        }
-        const blocked = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'minio', 'postgres', 'media-server', 'web-api', 'worker'];
-        if (blocked.some(h => parsed.hostname === h) || parsed.hostname.endsWith('.internal') || parsed.hostname.endsWith('.local')) {
-          return reply.code(400).send(badRequest('webhookUrl cannot target internal services'));
-        }
-      } catch {
-        return reply.code(400).send(badRequest('webhookUrl is not a valid URL'));
+      const check = await checkWebhookUrl(webhookUrl);
+      if (!check.ok) {
+        return reply.code(400).send(badRequest(check.reason));
       }
     }
 
