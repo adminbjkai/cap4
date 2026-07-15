@@ -11,11 +11,11 @@ import type { DocResponse } from "./api";
 import { buildPublicObjectUrl, formatDuration } from "./format";
 
 type LoadedImage = {
-  dataUrl: string;
-  bytes: Uint8Array;
+  dataUrl: string; // canvas-re-encoded JPEG for jsPDF (falls back to the raw data URL)
+  bytes: Uint8Array; // original file bytes, used by docx
   width: number;
   height: number;
-  type: "jpg" | "png";
+  type: "jpg" | "png"; // type of `bytes` (docx); `dataUrl` is always JPEG when re-encode succeeds
 };
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -27,24 +27,47 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-function imageDimensions(src: string): Promise<{ width: number; height: number }> {
+function decodeImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve({ width: img.naturalWidth || 1, height: img.naturalHeight || 1 });
+    img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("decode failed"));
     img.src = src;
   });
+}
+
+// jsPDF's JPEG header parser treats 0xC4 (Huffman table) as a start-of-frame
+// marker, and ffmpeg writes DHT before SOF — so frame JPEGs get embedded with
+// bogus dimensions/colorspace and render as garbage. Re-encoding through a
+// canvas produces a browser-standard JPEG (SOF first) that jsPDF parses fine.
+const PDF_MAX_IMG_PX = 1600;
+
+function reencodeForPdf(img: HTMLImageElement, fallback: string): string {
+  try {
+    const scale = Math.min(1, PDF_MAX_IMG_PX / (img.naturalWidth || 1));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+    canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return fallback;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.9);
+  } catch {
+    return fallback;
+  }
 }
 
 async function loadImage(frameKey: string): Promise<LoadedImage> {
   const res = await fetch(buildPublicObjectUrl(frameKey));
   if (!res.ok) throw new Error(`image ${res.status}`);
   const blob = await res.blob();
-  const dataUrl = await blobToDataUrl(blob);
-  const { width, height } = await imageDimensions(dataUrl);
+  const rawDataUrl = await blobToDataUrl(blob);
+  const img = await decodeImage(rawDataUrl);
+  const width = img.naturalWidth || 1;
+  const height = img.naturalHeight || 1;
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const type: "jpg" | "png" = blob.type.includes("png") ? "png" : "jpg";
-  return { dataUrl, bytes, width, height, type };
+  return { dataUrl: reencodeForPdf(img, rawDataUrl), bytes, width, height, type };
 }
 
 /** Fetch every step image once, concurrently (best-effort: failures map to null). */
@@ -228,7 +251,8 @@ export async function exportPdf(doc: DocResponse, filenameBase: string): Promise
           w = (h / img.height) * img.width;
         }
         ensure(h + 6);
-        pdf.addImage(img.dataUrl, img.type === "png" ? "PNG" : "JPEG", MARGIN, y, w, h);
+        const format = img.dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+        pdf.addImage(img.dataUrl, format, MARGIN, y, w, h);
         y += h + 8;
       }
 
