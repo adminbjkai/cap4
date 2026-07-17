@@ -29,6 +29,24 @@
 
 ## Current State
 
+### 2026-07-15 — Doc export fixes: .md image URLs + PDF images (LIVE — branch `fix/doc-export-images`)
+- **.md export:** stored doc markdown has root-relative image refs (`/cap4/videos/...`),
+  which break in any external markdown viewer. `DocCard.downloadMarkdown` now absolutizes
+  image URLs with `window.location.origin` at download time (server markdown/API unchanged;
+  works for existing docs without regeneration).
+- **PDF export (images were garbled stripes):** root cause is an upstream jsPDF 4.2.1 bug —
+  its JPEG header parser accepts `0xC4` (Huffman/DHT) as a start-of-frame marker, and
+  **ffmpeg writes DHT before SOF**, so every frame was embedded with bogus metadata
+  (261×256 DeviceGray instead of 1920×1080 RGB; JPEG bytes themselves were intact).
+  Fix in `apps/web/src/lib/doc-export.ts`: re-encode each image through a canvas
+  (browser JPEG = SOF-first, capped at 1600px, quality 0.9) before `pdf.addImage`;
+  DOCX path keeps original bytes (docx parses them fine).
+- **Verified live** (Playwright on cap4.bjk.ai, video 0f3e7acb): downloaded .md has full
+  `https://cap4.bjk.ai/cap4/...` image URLs; downloaded PDF renders all screenshots
+  correctly (pdftoppm-rendered pages inspected). Web tests 36/36, typecheck clean.
+  Deployed via host build → `cap4_web_dist` volume (backup
+  `/tmp/cap4_web_dist_backup-20260715.tgz`) + nginx reload.
+
 ### 2026-07-03 — Audit 0702 remediation (LIVE — committed `ab7fc2c`, pushed, deployed + verified)
 - Executed the P0s + cheap high-value items from `0702claudeo/ACTION-PLAN.md` (full audit
   report lives in `0702claudeo/`). All deployed to prod and verified end-to-end.

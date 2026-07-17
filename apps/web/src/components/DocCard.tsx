@@ -86,7 +86,13 @@ export function DocCard({ videoId, transcriptionStatus, videoTitle, onSeekToSeco
 
   const downloadMarkdown = () => {
     if (!doc?.markdown) return;
-    const blob = new Blob([doc.markdown], { type: "text/markdown;charset=utf-8" });
+    // Image refs in the stored markdown are root-relative (/cap4/...), which only
+    // resolve inside the app. Absolutize them so the file works in any viewer.
+    const markdown = doc.markdown.replace(
+      /(!\[[^\]]*\]\()(\/[^)\s]+)/g,
+      (_m, prefix: string, path: string) => `${prefix}${window.location.origin}${path}`
+    );
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
