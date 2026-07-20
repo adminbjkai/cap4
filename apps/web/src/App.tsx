@@ -92,8 +92,20 @@ export function App() {
       }
       window.dispatchEvent(new CustomEvent("cap:escape"));
     },
-    onGoHome: () => navigate("/"),
-    onGoRecord: () => navigate("/record"),
+    onGoHome: () => {
+      if (window.location.pathname === "/") {
+        window.location.reload();
+      } else {
+        navigate("/");
+      }
+    },
+    onGoRecord: () => {
+      if (window.location.pathname === "/record") {
+        window.location.reload();
+      } else {
+        navigate("/record");
+      }
+    },
   });
 
   useEffect(() => {

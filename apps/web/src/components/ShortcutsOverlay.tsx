@@ -15,6 +15,8 @@ const GROUPS: ShortcutGroup[] = [
       { keys: "Cmd/Ctrl + K", action: "Open command palette" },
       { keys: "G H", action: "Go home" },
       { keys: "G R", action: "Go record" },
+      { keys: "Shift + G", action: "Go home (reload if already there)" },
+      { keys: "Shift + H", action: "Go record (reload if already there)" },
       { keys: "?", action: "Show this shortcuts list" },
       { keys: "Esc", action: "Close modal or dialog" },
     ],

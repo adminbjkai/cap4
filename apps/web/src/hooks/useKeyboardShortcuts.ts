@@ -62,6 +62,20 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions): void
 
       if (typing) return;
 
+      // Shift+G / Shift+H navigate home / record (reload if already there).
+      if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (lowerKey === "g") {
+          event.preventDefault();
+          opts.onGoHome?.();
+          return;
+        }
+        if (lowerKey === "h") {
+          event.preventDefault();
+          opts.onGoRecord?.();
+          return;
+        }
+      }
+
       // ? opens shortcuts overlay.
       if (key === "?") {
         event.preventDefault();
