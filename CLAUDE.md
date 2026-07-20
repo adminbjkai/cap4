@@ -29,24 +29,25 @@
 
 ## Current State
 
-### 2026-07-20 — Shift+G / Shift+H global navigation shortcuts (branch `fix/doc-export-images`, not yet deployed)
+### 2026-07-20 — Shift+G / Shift+H global navigation shortcuts (LIVE — branch `feat/shift-g-shift-h-nav-shortcuts`)
 - New global shortcuts (active app-wide, ignored while typing in an input/textarea/
   contenteditable): **Shift+G** → home (`/`), **Shift+H** → record (`/record`). If
   already on that route, does a full `window.location.reload()` instead of a no-op
-  navigate. Distinct from the existing `G H` / `G R` chord shortcuts (same
-  destinations, no reload-if-already-there behavior) — both are now live side by side.
+  navigate. Shares handlers with the pre-existing `G H` / `G R` chord shortcuts, so
+  those now also reload-if-already-there (previously a silent no-op navigate).
 - `apps/web/src/hooks/useKeyboardShortcuts.ts`: new shift-modifier branch (no other
   modifier keys) reuses the existing `onGoHome`/`onGoRecord` callback props, checked
   before the `g`-chord logic so `Shift+G` doesn't also arm a chord.
 - `apps/web/src/App.tsx`: `onGoHome`/`onGoRecord` now check `window.location.pathname`
-  and reload instead of calling `navigate()` when already on that route (this also
-  upgrades the pre-existing `G H`/`G R` chord to the same reload-if-already-there
-  behavior, since both paths share the same handlers).
+  and reload instead of calling `navigate()` when already on that route.
 - `apps/web/src/components/ShortcutsOverlay.tsx`: added `Shift + G` / `Shift + H`
   entries to the Navigation group.
-- Frontend-only, no backend/schema change. Web tests 36/36, typecheck clean. Not yet
-  deployed to prod (see `frontend-deploy-mechanism` memory for the host-build →
-  `cap4_web_dist` volume copy + nginx reload step).
+- Frontend-only, no backend/schema change. Web tests 36/36, typecheck clean. Deployed
+  via host build → `cap4_web_dist` volume (additive copy, backup
+  `/tmp/cap4_web_dist_backup-20260720.tgz`) + `cap4-web-internal-1` nginx reload;
+  verified live (served bundle hash matches the fresh build). Branched fresh off
+  `main` (already had `fix/doc-export-images` merged via PR #8) rather than
+  continuing on that branch, per the branch-per-task preference.
 
 ### 2026-07-15 — Doc export fixes: .md image URLs + PDF images (LIVE — branch `fix/doc-export-images`)
 - **.md export:** stored doc markdown has root-relative image refs (`/cap4/videos/...`),
